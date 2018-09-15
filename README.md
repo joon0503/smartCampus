@@ -1,2 +1,2 @@
-# smartCampus
-Files for reinforced learning of vehicle
+# smartCampus_scenarionGeneration
+Generate basic scenarion to test the reinforcement learning algorithms.
