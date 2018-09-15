@@ -91,7 +91,7 @@ for i in range(0,SENSOR_COUNT):
     print(str(i))
     err_code1, sensor_handle = vrep.simxCopyPasteObjects(clientID,[sensor_handle_array[0]], vrep.simx_opmode_blocking)
     vrep.simxSetObjectParent(clientID,sensor_handle[0],vehicle_handle,False,vrep.simx_opmode_blocking)
-    ret_code = vrep.simxSetObjectPosition(clientID,sensor_handle[0],vehicle_handle,[0,0,0.7],vrep.simx_opmode_blocking)
+    ret_code = vrep.simxSetObjectPosition(clientID,sensor_handle[0],vehicle_handle,[2,0,0.7],vrep.simx_opmode_blocking)
     vrep.simxSetObjectOrientation(clientID,sensor_handle[0],vehicle_handle,[-math.pi/2,RAD_DT*i,0],vrep.simx_opmode_oneshot)
     sensor_handle_array = np.append(sensor_handle_array,sensor_handle)   
 
