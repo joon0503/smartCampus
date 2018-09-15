@@ -69,47 +69,49 @@ vrep.simxFinish(-1) # just in case, close all opened connections
 clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5) # Connect to V-REP
 if clientID!=-1:
     print ('Connected to remote API server')
-    
-    # Position dyros_vehicle
-    err_code,vehicle_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
-    #err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0],vrep.simx_opmode_oneshot)
-    #err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,90],vrep.simx_opmode_oneshot)
-
-    # Create Sensors
-    SENSOR_COUNT = 11
-    RAD_DT = math.pi/(SENSOR_COUNT-1)
-
-    sensor_handle_array = [0]
-    err_code,sensor_handle_array[0] = vrep.simxGetObjectHandle(clientID,"Proximity_sensor", vrep.simx_opmode_blocking)
-    if err_code != 0:
-       errorExit() 
-
-    for i in range(0,SENSOR_COUNT):
-        print(str(i))
-        err_code1, sensor_handle = vrep.simxCopyPasteObjects(clientID,[sensor_handle_array[0]], vrep.simx_opmode_blocking)
-        vrep.simxSetObjectParent(clientID,sensor_handle[0],vehicle_handle,False,vrep.simx_opmode_blocking)
-        ret_code = vrep.simxSetObjectPosition(clientID,sensor_handle[0],vehicle_handle,[0,0,0.7],vrep.simx_opmode_blocking)
-        vrep.simxSetObjectOrientation(clientID,sensor_handle[0],vehicle_handle,[-math.pi/2,RAD_DT*i,0],vrep.simx_opmode_oneshot)
-        sensor_handle_array = np.append(sensor_handle_array,sensor_handle)   
-
-    # Start Simulation in Synchronous mode
-    vrep.simxSynchronous(clientID,True)
-    vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-
-    # Create road and walls
-    createObject([5, 150, 0.1],[-1.25,0,-0.1],'floor')                  # create floor
-    createObject([0.1, 150, 2.5],[-3.75,0,1.25],'wallLeft')             # create wall left
-    createObject([0.1, 150, 2.5],[1.25,0,1.25],'wallRight')             # create wall right
-    createObject([2.2, 2.2 , 2],[0,30, 1.1],'obstacle')                 # create obstacle
-
-    # Create dummy
-    vrep.simxCreateDummy( clientID, 1, None, vrep.simx_opmode_blocking)
-    err_code, dummy_handle = vrep.simxGetObjectHandle( clientID, "Dummy", vrep.simx_opmode_blocking) 
-    ret_code = vrep.simxSetObjectPosition( clientID, dummy_handle, -1, [0,60,0.1], vrep.simx_opmode_blocking)
-
-    # Now close the connection to V-REP:
-    vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
-    vrep.simxFinish(clientID)
 else:
     print ('Failed connecting to remote API server')
+    sys.exit()
+    
+# Position dyros_vehicle
+err_code,vehicle_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
+#err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0],vrep.simx_opmode_oneshot)
+#err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,90],vrep.simx_opmode_oneshot)
+
+# Create Sensors
+SENSOR_COUNT = 11
+RAD_DT = math.pi/(SENSOR_COUNT-1)
+
+sensor_handle_array = [0]
+err_code,sensor_handle_array[0] = vrep.simxGetObjectHandle(clientID,"Proximity_sensor", vrep.simx_opmode_blocking)
+if err_code != 0:
+   errorExit() 
+
+for i in range(0,SENSOR_COUNT):
+    print(str(i))
+    err_code1, sensor_handle = vrep.simxCopyPasteObjects(clientID,[sensor_handle_array[0]], vrep.simx_opmode_blocking)
+    vrep.simxSetObjectParent(clientID,sensor_handle[0],vehicle_handle,False,vrep.simx_opmode_blocking)
+    ret_code = vrep.simxSetObjectPosition(clientID,sensor_handle[0],vehicle_handle,[0,0,0.7],vrep.simx_opmode_blocking)
+    vrep.simxSetObjectOrientation(clientID,sensor_handle[0],vehicle_handle,[-math.pi/2,RAD_DT*i,0],vrep.simx_opmode_oneshot)
+    sensor_handle_array = np.append(sensor_handle_array,sensor_handle)   
+
+# Start Simulation in Synchronous mode
+vrep.simxSynchronous(clientID,True)
+vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+
+# Create road and walls
+createObject([5, 150, 0.1],[-1.25,0,-0.1],'floor')                  # create floor
+createObject([0.1, 150, 2.5],[-3.75,0,1.25],'wallLeft')             # create wall left
+createObject([0.1, 150, 2.5],[1.25,0,1.25],'wallRight')             # create wall right
+createObject([2.2, 2.2 , 2],[0,30, 1.1],'obstacle')                 # create obstacle
+
+# Create dummy
+vrep.simxCreateDummy( clientID, 1, None, vrep.simx_opmode_blocking)
+err_code, dummy_handle = vrep.simxGetObjectHandle( clientID, "Dummy", vrep.simx_opmode_blocking) 
+ret_code = vrep.simxSetObjectPosition( clientID, dummy_handle, -1, [0,60,0.1], vrep.simx_opmode_blocking)
+
+# Now close the connection to V-REP:
+vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
+vrep.simxFinish(clientID)
+
 print ('Program ended')
