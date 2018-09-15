@@ -1,23 +1,19 @@
-'''
-A DQN model to solve CartPole problem.
-Based on http://www.nervanasys.com/demystifying-deep-reinforcement-learning/
-Implemented by Li Bin
-'''
+# DQN model to solve vehicle control problem
 
-import sys
-sys.path.insert(0,'/home/seungjoon/Desktop/gym')
-
-import gym
 import tensorflow as tf
 import random
 import numpy as np
+import math
+import sys
+import vrep
+import matplotlib
+import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
 
 OUT_DIR = 'cartpole-experiment' # default saving directory
 MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
-GAME = 'CartPole-v0'    # name of game
-
+SENSOR_COUNT = 11
 
 def get_options():
     parser = ArgumentParser()
@@ -49,14 +45,13 @@ def get_options():
                         help='size of hidden layer 2')
     parser.add_argument('--H3_SIZE', type=int, default=128,
                         help='size of hidden layer 3')
+    parser.add_argument('--manual','-m', type=bool, default=False,
+                        help='Step simulation manually')
     options = parser.parse_args()
     return options
 
 
-'''
-The DQN model itself.
-Remain unchanged when applied to different problems.
-'''
+# Class for Neural Network
 class QAgent:
     
     # A naive neural network with 3 hidden layers and relu as non-linear function.
@@ -108,8 +103,65 @@ class QAgent:
         return action
 
 
+#########################
+# Vehicle Control
+#########################
+# Set speed of motors
+# Input:
+#   clientID    : client ID of vrep instance
+#   motorHandles: list of integers, denoting motors that you want to change the speed
+#   desiredSpd  : single number, speed
+def setMotorSpeed( clientID, motorHandles, desiredSpd ):
+    for mHandle in motorHandles:
+        _ = vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd, vrep.simx_opmode_blocking)
 
-def train(env):
+    return;
+
+# Set Position of motors
+# Input:
+#   clientID    : client ID of vrep instance
+#   motorHandles: list of integers, denoting motors that you want to change the speed
+#   desiredPos  : single number, position in RADIANS
+def setMotorPosition( clientID, motorHandles, desiredPos ):
+    for mHandle in motorHandles:
+        _ = vrep.simxSetJointTargetPosition(clientID, mHandle, desiredPos, vrep.simx_opmode_blocking)
+
+    return;
+
+# Get position of motors
+# Input:
+#   clientID    : client ID of vrep instance
+#   motorHandles: list of integers, denoting motors that you want to change the speed
+def getMotorPosition( clientID, motorHandles ):
+    motorPos = []
+    for mHandle in motorHandles:
+        _, pos = vrep.simxGetJointPosition(clientID, mHandle, vrep.simx_opmode_blocking)
+        motorPos.append(pos)
+    return motorPos
+
+def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_buffer ):
+    dState      = []
+    dDistance   = []
+    for sHandle in sensorHandles:
+        returnCode, detectionState, detectedPoint, detectedObjectHandle, detectedSurfaceNormalVector=vrep.simxReadProximitySensor(clientID, sHandle, op_mode)
+        dState.append(detectionState)
+        dDistance.append( np.linalg.norm(detectedPoint) )
+    return dState, dDistance
+
+###############################33
+# TRAINING
+#################################33/
+
+# Initialize to original scene
+def initScene(vehicle_handle):
+    # Position vehicle
+    err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.1],vrep.simx_opmode_blocking)
+
+
+
+
+
+def train():
     
     # Define placeholders to catch inputs and add options
     options = get_options()
@@ -215,10 +267,112 @@ def train(env):
         if learning_finished and i_episode % 100 == 0:
             saver.save(sess, 'checkpoints-cartpole/' + GAME + '-dqn', global_step = global_step)
 
-
-
+########################
+# MAIN
+########################
 if __name__ == "__main__":
-    env = gym.make(GAME)
-#    env.monitor.start(OUT_DIR, force=True)
-    train(env)
-#env.monitor.close()
+    options = get_options()
+    print(options)
+
+    # Get client ID
+    vrep.simxFinish(-1) 
+    clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
+
+    if clientID == -1:
+        print("ERROR: Cannot establish connection to vrep.")
+        sys.exit()
+
+    # start simulation
+    vrep.simxSynchronous(clientID,True)
+    vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+
+    #####################
+    # GET HANDLES
+    #####################
+
+    # Get Motor Handles
+    _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft", vrep.simx_opmode_blocking)
+    _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight", vrep.simx_opmode_blocking)
+    _,h3  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisRight", vrep.simx_opmode_blocking)
+    _,h4  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisLeft", vrep.simx_opmode_blocking)
+    _,h5  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringLeft", vrep.simx_opmode_blocking)
+    _,h6  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringRight", vrep.simx_opmode_blocking)
+
+    motor_handle = [h1, h2]
+    steer_handle = [h5, h6]
+
+    # Get Sensor Handles
+    sensor_handle = []
+    for i in range(0,SENSOR_COUNT):
+        _,temp_handle  = vrep.simxGetObjectHandle(clientID, "Proximity_sensor" + str(i), vrep.simx_opmode_blocking)
+        sensor_handle.append(temp_handle)
+
+    # Get vehicle handle
+    err_code, vehicle_handle = vrep.simxGetObjectHandle(clientID, "dyros_vehicle", vrep.simx_opmode_blocking)
+
+    ########################
+    # Initialize Test Scene
+    ########################
+    initScene(vehicle_handle)
+
+    
+    
+
+
+    # Set speed
+    setMotorSpeed( clientID, motor_handle, 2 )
+
+
+    # Read sensor
+    sensorData = np.zeros(SENSOR_COUNT)   
+    dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_streaming)         # try it once for initialization
+ 
+    for i in range(0,220):
+        print("Step:" + str(i))
+       
+        # read sensor 
+        dState, dDistance = readSensor(clientID, sensor_handle)
+        sensorData = np.vstack((sensorData,dDistance))
+        print(dDistance)
+        print(dState)
+        input('blah')
+        vrep.simxSynchronousTrigger(clientID);
+        
+
+
+
+    # stop the simulation & close connection
+    vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
+    vrep.simxFinish(clientID)
+
+
+
+
+
+
+
+
+
+
+    #############################3
+    # Visualize Data
+    ##############################3
+    t = range(0,220)
+    plt.scatter(t,sensorData[1:None,0])       # plot sensor0
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
