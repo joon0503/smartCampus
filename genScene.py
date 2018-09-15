@@ -102,6 +102,11 @@ if clientID!=-1:
     createObject([0.1, 150, 2.5],[1.25,0,1.25],'wallRight')             # create wall right
     createObject([2.2, 2.2 , 2],[0,30, 1.1],'obstacle')                 # create obstacle
 
+    # Create dummy
+    vrep.simxCreateDummy( clientID, 1, None, vrep.simx_opmode_blocking)
+    err_code, dummy_handle = vrep.simxGetObjectHandle( clientID, "Dummy", vrep.simx_opmode_blocking) 
+    ret_code = vrep.simxSetObjectPosition( clientID, dummy_handle, -1, [0,60,0.1], vrep.simx_opmode_blocking)
+
     # Now close the connection to V-REP:
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
     vrep.simxFinish(clientID)
