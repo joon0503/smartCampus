@@ -45,7 +45,7 @@ def get_options():
                         help='size of hidden layer 2')
     parser.add_argument('--H3_SIZE', type=int, default=128,
                         help='size of hidden layer 3')
-    parser.add_argument('--manual','-m', type=bool, default=False,
+    parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
     options = parser.parse_args()
     return options
@@ -272,7 +272,6 @@ def train():
 ########################
 if __name__ == "__main__":
     options = get_options()
-    print(options)
 
     # Get client ID
     vrep.simxFinish(-1) 
@@ -333,9 +332,11 @@ if __name__ == "__main__":
         # read sensor 
         dState, dDistance = readSensor(clientID, sensor_handle)
         sensorData = np.vstack((sensorData,dDistance))
-        print(dDistance)
-        print(dState)
-        input('blah')
+#        print(dDistance)
+#        print(dState)
+
+        if options.manual == True:
+            input('Press any key to step forward.')
         vrep.simxSynchronousTrigger(clientID);
         
 
