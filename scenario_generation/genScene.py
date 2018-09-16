@@ -75,8 +75,8 @@ else:
     
 # Position dyros_vehicle
 err_code,vehicle_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
-#err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0],vrep.simx_opmode_oneshot)
-#err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,90],vrep.simx_opmode_oneshot)
+err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_oneshot)
+err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,math.radians(90)],vrep.simx_opmode_oneshot)
 
 # Create Sensors
 SENSOR_COUNT = 11
