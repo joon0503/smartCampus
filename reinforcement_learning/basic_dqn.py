@@ -168,9 +168,6 @@ def detectCollision(dDistance, dState):
 #             Positive angle mean goal point is on the right of vehicle, negative mean goal point is on the left
 # goal_distance: distance to the goal point
 def getGoalPoint():
-    # get dummy handle 
-    _,dummy_handle  = vrep.simxGetObjectHandle(clientID, "Dummy", vrep.simx_opmode_blocking)
-
     _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
     _, dummyPos = vrep.simxGetObjectPosition( clientID, dummy_handle, -1, vrep.simx_opmode_blocking)            
 
@@ -339,6 +336,7 @@ if __name__ == "__main__":
     # GET HANDLES
     #####################
 
+    print("Getting handles...")
     # Get Motor Handles
     _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft", vrep.simx_opmode_blocking)
     _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight", vrep.simx_opmode_blocking)
@@ -358,6 +356,10 @@ if __name__ == "__main__":
 
     # Get vehicle handle
     err_code, vehicle_handle = vrep.simxGetObjectHandle(clientID, "dyros_vehicle", vrep.simx_opmode_blocking)
+
+    # Get goal point handle
+    err_code, dummy_handle = vrep.simxGetObjectHandle(clientID, "Dummy", vrep.simx_opmode_blocking)
+
 
     ########################
     # Initialize Test Scene
@@ -379,11 +381,12 @@ if __name__ == "__main__":
             # get data
             dState, dDistance = readSensor(clientID, sensor_handle)     # read sensor
             _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
+            gAngle, gDistance = getGoalPoint()
 #            print(vehPos)
 #            print(dDistance)
 #            print(dState)
 
-            print(getGoalPoint())
+#            print(getGoalPoint())
 
             # Save data
             sensorData = np.vstack( (sensorData,dDistance) )
