@@ -123,10 +123,11 @@ def setMotorSpeed( clientID, motorHandles, desiredSpd ):
 # Input:
 #   clientID    : client ID of vrep instance
 #   motorHandles: list of integers, denoting motors that you want to change the speed
-#   desiredPos  : single number, position in RADIANS
+#   desiredPos  : single number, position in DEGREES
+#               : positive angle means turns LEFT
 def setMotorPosition( clientID, motorHandles, desiredPos ):
     for mHandle in motorHandles:
-        _ = vrep.simxSetJointTargetPosition(clientID, mHandle, desiredPos, vrep.simx_opmode_blocking)
+        _ = vrep.simxSetJointTargetPosition(clientID, mHandle, math.radians(desiredPos), vrep.simx_opmode_blocking)
 
     return;
 
@@ -375,6 +376,7 @@ if __name__ == "__main__":
 
         vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
         initScene(vehicle_handle, steer_handle, motor_handle)
+
         for i in range(0,1220):
             print("Step:" + str(i))
 
@@ -385,7 +387,6 @@ if __name__ == "__main__":
 #            print(vehPos)
 #            print(dDistance)
 #            print(dState)
-
 #            print(getGoalPoint())
 
             # Save data
@@ -407,6 +408,16 @@ if __name__ == "__main__":
    #             initScene(vehicle_handle,steer_handle, motor_handle)
                 vehPosData.append( vehPosDataTrial )
                 break
+
+            # Basic Control?
+            if i % 10 == 0:
+                setMotorSpeed(clientID, motor_handle, i*0.05*(j+1))  
+                setMotorPosition(clientID, steer_handle, 0.01*i)  
+
+
+
+
+
 
 
             if options.manual == True:
