@@ -194,7 +194,7 @@ def getGoalPoint():
 # Initialize to original scene
 def initScene(vehicle_handle, steer_handle, motor_handle):
     # Reset position of vehicle
-    err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.3],vrep.simx_opmode_blocking)
+    err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
 
     # Reset position of motors & steering
     setMotorPosition(clientID, steer_handle, 0)
@@ -368,6 +368,7 @@ if __name__ == "__main__":
 
     # Data
     sensorData = np.zeros(SENSOR_COUNT)   
+    sensorDetection = np.zeros(SENSOR_COUNT)   
     vehPosData = []
 
     for j in range(0,4): 
@@ -391,6 +392,8 @@ if __name__ == "__main__":
 
             # Save data
             sensorData = np.vstack( (sensorData,dDistance) )
+            sensorDetection = np.vstack( (sensorDetection,dState) )
+
             vehPosDataTrial = np.vstack( (vehPosDataTrial, vehPos) )
 
             if detectCollision(dDistance,dState) == True:
@@ -404,8 +407,6 @@ if __name__ == "__main__":
                 while simulation_status != 0:
                     _, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
                     time.sleep(0.1)
-   #             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-   #             initScene(vehicle_handle,steer_handle, motor_handle)
                 vehPosData.append( vehPosDataTrial )
                 break
 
@@ -440,15 +441,33 @@ if __name__ == "__main__":
     # Plot sensor data
 #    t = range(0,220)
     plt.figure(0)
-    plt.plot(sensorData[1:None,0])       # plot sensor0
+    for i in range(0,SENSOR_COUNT):
+        plt.plot(sensorData[1:None,i]*sensorDetection[1:None,i], label="Sensor " + str(i) )       # plot sensor0
+    plt.legend()
+    plt.title("Sensor Data")
+    plt.xlabel("Time Step")
+    plt.ylabel("Distance")
 #    plt.show()
 
 
     # Plot position of vehicle
     plt.figure(1)
+
     for i in range(0,4):
-        plt.scatter(vehPosData[i][:,0],vehPosData[i][:,1])
+        plt.scatter(vehPosData[i][:,0],vehPosData[i][:,1], label="Trial #" + str(i))
+
+    # Plot Map
+    plt.plot([1.25, 1.25],[0, 60],'k')
+    plt.plot([-3.75, -3.75],[0, 60],'k')
+    plt.plot([-1.25, -1.25],[0, 60],'k')
+    plt.plot([0, 0],[0, 60],'k--')
+    plt.plot([-2.5, -2.5],[0, 60],'k--')
+    plt.plot([0],[60],'xr') 
     plt.axis( (-3.75, 1.25, 0, 80)   )
+    plt.legend()
+    plt.title("Vehicle Trajectory")
+    plt.xlabel("X Position")
+    plt.ylabel("Y Position")
     plt.show()
 
 
