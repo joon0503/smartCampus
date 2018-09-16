@@ -463,6 +463,8 @@ if __name__ == "__main__":
     plt.plot([0, 0],[0, 60],'k--')
     plt.plot([-2.5, -2.5],[0, 60],'k--')
     plt.plot([0],[60],'xr') 
+
+    # Plot properties
     plt.axis( (-3.75, 1.25, 0, 80)   )
     plt.legend()
     plt.title("Vehicle Trajectory")
