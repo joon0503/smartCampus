@@ -162,7 +162,27 @@ def detectCollision(dDistance, dState):
     
     return False    
 
+# Get goal point vector. Returns angle and distance
+# Output
+# goal_angle: angle to the goal point in radians
+#             Positive angle mean goal point is on the right of vehicle, negative mean goal point is on the left
+# goal_distance: distance to the goal point
+def getGoalPoint():
+    # get dummy handle 
+    _,dummy_handle  = vrep.simxGetObjectHandle(clientID, "Dummy", vrep.simx_opmode_blocking)
 
+    _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
+    _, dummyPos = vrep.simxGetObjectPosition( clientID, dummy_handle, -1, vrep.simx_opmode_blocking)            
+
+    # Calculate the distance
+    delta_distance = np.array(dummyPos) - np.array(vehPos)
+    goal_distance = np.linalg.norm(delta_distance)
+
+    # calculate angle
+    goal_angle = math.atan( delta_distance[0]/delta_distance[1] )       # delta x / delta y
+    
+
+    return goal_angle, goal_distance
 
 
 
@@ -345,10 +365,12 @@ if __name__ == "__main__":
 
     # Data
     sensorData = np.zeros(SENSOR_COUNT)   
-    vehPosData = np.array([0,0,0.2])
+    vehPosData = []
 
     for j in range(0,4): 
         print("Trial: " + str(j))
+        vehPosDataTrial = np.array([0,0,0.2])        # Initialize data
+
         vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
         initScene(vehicle_handle, steer_handle, motor_handle)
         for i in range(0,1220):
@@ -358,10 +380,14 @@ if __name__ == "__main__":
             dState, dDistance = readSensor(clientID, sensor_handle)     # read sensor
             _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
 #            print(vehPos)
+#            print(dDistance)
+#            print(dState)
+
+            print(getGoalPoint())
 
             # Save data
             sensorData = np.vstack( (sensorData,dDistance) )
-            vehPosData = np.vstack( (vehPosData, vehPos) )
+            vehPosDataTrial = np.vstack( (vehPosDataTrial, vehPos) )
 
             if detectCollision(dDistance,dState) == True:
                 print('Vehicle collided!')
@@ -376,6 +402,7 @@ if __name__ == "__main__":
                     time.sleep(0.1)
    #             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
    #             initScene(vehicle_handle,steer_handle, motor_handle)
+                vehPosData.append( vehPosDataTrial )
                 break
 
 
@@ -387,11 +414,6 @@ if __name__ == "__main__":
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
     vrep.simxFinish(clientID)
-
-
-
-
-
 
 
 
@@ -410,7 +432,8 @@ if __name__ == "__main__":
 
     # Plot position of vehicle
     plt.figure(1)
-    plt.scatter(vehPosData[:,0],vehPosData[:,1])
+    for i in range(0,4):
+        plt.scatter(vehPosData[i][:,0],vehPosData[i][:,1])
     plt.axis( (-3.75, 1.25, 0, 80)   )
     plt.show()
 
