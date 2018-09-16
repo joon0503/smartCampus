@@ -8,6 +8,7 @@ import sys
 import vrep
 import matplotlib
 import matplotlib.pyplot as plt
+import time
 from argparse import ArgumentParser
 
 
@@ -112,11 +113,12 @@ class QAgent:
 #   motorHandles: list of integers, denoting motors that you want to change the speed
 #   desiredSpd  : single number, speed
 def setMotorSpeed( clientID, motorHandles, desiredSpd ):
+    err_code = []
     for mHandle in motorHandles:
-        _ = vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd, vrep.simx_opmode_blocking)
-
-    return;
-
+        err_code.append( vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd, vrep.simx_opmode_blocking) )
+        
+    return err_code;
+ 
 # Set Position of motors
 # Input:
 #   clientID    : client ID of vrep instance
@@ -139,7 +141,7 @@ def getMotorPosition( clientID, motorHandles ):
         motorPos.append(pos)
     return motorPos
 
-def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_buffer ):
+def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_streaming ):
     dState      = []
     dDistance   = []
     for sHandle in sensorHandles:
@@ -148,14 +150,43 @@ def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_buffer ):
         dDistance.append( np.linalg.norm(detectedPoint) )
     return dState, dDistance
 
+# Detect whether vehicle is collided
+# For now simply say vehicle is collided if distance if smaller than 1.1m. Initial sensor distance to the right starts at 1.2m.
+# Input
+#   dDistance: array of sensor measurement
+#   dState   : array of sensor detections state
+def detectCollision(dDistance, dState):
+    for i in range(SENSOR_COUNT):
+        if dDistance[i] < 0.9 and dState[i] == True:
+            return True
+    
+    return False    
+
+
+
+
+
+
+
+
 ###############################33
 # TRAINING
 #################################33/
 
 # Initialize to original scene
-def initScene(vehicle_handle):
-    # Position vehicle
-    err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.1],vrep.simx_opmode_blocking)
+def initScene(vehicle_handle, steer_handle, motor_handle):
+    # Reset position of vehicle
+    err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.3],vrep.simx_opmode_blocking)
+
+    # Reset position of motors & steering
+    setMotorPosition(clientID, steer_handle, 0)
+
+    # Reset motor speed
+    print("Setting motor speed")
+    setMotorSpeed(clientID, motor_handle, 5)
+   
+    # Read sensor
+    dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
 
 
 
@@ -283,7 +314,6 @@ if __name__ == "__main__":
 
     # start simulation
     vrep.simxSynchronous(clientID,True)
-    vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
 
     #####################
     # GET HANDLES
@@ -312,35 +342,47 @@ if __name__ == "__main__":
     ########################
     # Initialize Test Scene
     ########################
-    initScene(vehicle_handle)
 
-    
-    
-
-
-    # Set speed
-    setMotorSpeed( clientID, motor_handle, 2 )
-
-
-    # Read sensor
+    # Data
     sensorData = np.zeros(SENSOR_COUNT)   
-    dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_streaming)         # try it once for initialization
- 
-    for i in range(0,220):
-        print("Step:" + str(i))
-       
-        # read sensor 
-        dState, dDistance = readSensor(clientID, sensor_handle)
-        sensorData = np.vstack((sensorData,dDistance))
-#        print(dDistance)
-#        print(dState)
+    vehPosData = np.array([0,0,0.2])
 
-        if options.manual == True:
-            input('Press any key to step forward.')
-        vrep.simxSynchronousTrigger(clientID);
+    for j in range(0,4): 
+        print("Trial: " + str(j))
+        vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+        initScene(vehicle_handle, steer_handle, motor_handle)
+        for i in range(0,1220):
+            print("Step:" + str(i))
+
+            # get data
+            dState, dDistance = readSensor(clientID, sensor_handle)     # read sensor
+            _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
+#            print(vehPos)
+
+            # Save data
+            sensorData = np.vstack( (sensorData,dDistance) )
+            vehPosData = np.vstack( (vehPosData, vehPos) )
+
+            if detectCollision(dDistance,dState) == True:
+                print('Vehicle collided!')
+                print(dDistance)
+                print(dState)
+                vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
+
+                # Wait until simulation is stopped and restart it again.
+                simulation_status = 1
+                while simulation_status != 0:
+                    _, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
+                    time.sleep(0.1)
+   #             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+   #             initScene(vehicle_handle,steer_handle, motor_handle)
+                break
+
+
+            if options.manual == True:
+                input('Press any key to step forward.')
+            vrep.simxSynchronousTrigger(clientID);
         
-
-
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
@@ -358,12 +400,19 @@ if __name__ == "__main__":
     #############################3
     # Visualize Data
     ##############################3
-    t = range(0,220)
-    plt.scatter(t,sensorData[1:None,0])       # plot sensor0
+
+    # Plot sensor data
+#    t = range(0,220)
+    plt.figure(0)
+    plt.plot(sensorData[1:None,0])       # plot sensor0
+#    plt.show()
+
+
+    # Plot position of vehicle
+    plt.figure(1)
+    plt.scatter(vehPosData[:,0],vehPosData[:,1])
+    plt.axis( (-3.75, 1.25, 0, 80)   )
     plt.show()
-
-
-
 
 
 
