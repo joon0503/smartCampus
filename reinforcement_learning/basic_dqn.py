@@ -160,12 +160,15 @@ def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_streaming ):
 # Input
 #   dDistance: array of sensor measurement
 #   dState   : array of sensor detections state
+# Output
+#   T/F      : whether collision occured
+#   sensor # : Which sensor triggered collision. -1 if no collision
 def detectCollision(dDistance, dState):
     for i in range(SENSOR_COUNT):
-        if dDistance[i] < 0.9 and dState[i] == True:
-            return True
+        if dDistance[i] < 1.1 and dState[i] == True:
+            return True, i
     
-    return False    
+    return False, -1    
 
 # Get goal point vector. Returns angle and distance
 # Output
@@ -455,7 +458,8 @@ if __name__ == "__main__":
         initScene(vehicle_handle, steer_handle, motor_handle)
 
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
-            print("\tStep:" + str(i))
+            if i % 10 == 0:
+                print("\tStep:" + str(i))
 
             # Decay epsilon
             global_step += 1
@@ -468,9 +472,9 @@ if __name__ == "__main__":
             #print(np.round(observation,2))
 
             # Save data
-            sensorData = np.vstack( (sensorData,dDistance) )
-            sensorDetection = np.vstack( (sensorDetection,dState) )
-            vehPosDataTrial = np.vstack( (vehPosDataTrial, vehPos) )
+#            sensorData = np.vstack( (sensorData,dDistance) )
+#            sensorDetection = np.vstack( (sensorDetection,dState) )
+#            vehPosDataTrial = np.vstack( (vehPosDataTrial, vehPos) )
 
             # Update memory
             obs_queue[exp_pointer] = observation
@@ -489,10 +493,10 @@ if __name__ == "__main__":
             # Get new Data
             dDistance, dState, gInfo, vehPos = getVehicleState()
             observation = dState + dDistance + gInfo
-            reward = -1*gInfo[1]**2         # cost is the distance squared
+            reward = -0.01*gInfo[1]**2         # cost is the distance squared
 
             # If vehicle collided, give large negative reward
-            if detectCollision(dDistance,dState) == True:
+            if detectCollision(dDistance,dState)[0] == True:
                 print('Vehicle collided!')
                 print(dDistance)
                 print(dState)
@@ -505,7 +509,7 @@ if __name__ == "__main__":
                     time.sleep(0.1)
     
                 # Save trial data
-                vehPosData.append( vehPosDataTrial )
+#                vehPosData.append( vehPosDataTrial )
 
                 # Set flag and reward
                 done = 1
@@ -555,8 +559,8 @@ if __name__ == "__main__":
     # Plot sensor data
 #    t = range(0,220)
     plt.figure(0)
-    for i in range(0,SENSOR_COUNT):
-        plt.plot(sensorData[1:None,i]*sensorDetection[1:None,i], label="Sensor " + str(i) )       # plot sensor0
+#    for i in range(0,SENSOR_COUNT):
+#        plt.plot(sensorData[1:None,i]*sensorDetection[1:None,i], label="Sensor " + str(i) )       # plot sensor0
     plt.legend()
     plt.title("Sensor Data")
     plt.xlabel("Time Step")
@@ -567,8 +571,8 @@ if __name__ == "__main__":
     # Plot position of vehicle
     plt.figure(1)
 
-    for i in range(0,4):
-        plt.scatter(vehPosData[i][:,0],vehPosData[i][:,1], label="Trial #" + str(i))
+#    for i in range(0,4):
+#        plt.scatter(vehPosData[i][:,0],vehPosData[i][:,1], label="Trial #" + str(i))
 
     # Plot Map
     plt.plot([1.25, 1.25],[0, 60],'k')
