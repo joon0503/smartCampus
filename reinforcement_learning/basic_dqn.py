@@ -18,11 +18,13 @@ SENSOR_COUNT = 11
 
 def get_options():
     parser = ArgumentParser()
-    parser.add_argument('--MAX_EPISODE', type=int, default=3000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=10,
                         help='max number of episodes iteration')
-    parser.add_argument('--ACTION_DIM', type=int, default=2,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
+                        help='max number of time step of simulation per episode')
+    parser.add_argument('--ACTION_DIM', type=int, default=1,
                         help='number of actions one can take')
-    parser.add_argument('--OBSERVATION_DIM', type=int, default=4,
+    parser.add_argument('--OBSERVATION_DIM', type=int, default=22,
                         help='number of observations one can see')
     parser.add_argument('--GAMMA', type=float, default=0.9,
                         help='discount factor of Q learning')
@@ -40,11 +42,11 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--BATCH_SIZE', type=int, default=256,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=128,
+    parser.add_argument('--H1_SIZE', type=int, default=256,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=128,
+    parser.add_argument('--H2_SIZE', type=int, default=256,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=128,
+    parser.add_argument('--H3_SIZE', type=int, default=256,
                         help='size of hidden layer 3')
     parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
@@ -89,19 +91,18 @@ class QAgent:
         h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2)
         h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3)
         Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+        #q = tf.nn.sigmoid(Q)
         return observation, Q
 
     # Sample action with random rate eps
     def sample_action(self, Q, feed, eps, options):
-        act_values = Q.eval(feed_dict=feed)
+        action = Q.eval(feed_dict=feed)
         if random.random() <= eps:
-            # action_index = env.action_space.sample()
-            action_index = random.randrange(options.ACTION_DIM)
+            # pick random action
+            action = random.uniform(0,1)
+            return action
         else:
-            action_index = np.argmax(act_values)
-        action = np.zeros(options.ACTION_DIM)
-        action[action_index] = 1
-        return action
+            return action
 
 
 #########################
@@ -206,10 +207,6 @@ def initScene(vehicle_handle, steer_handle, motor_handle):
     # Read sensor
     dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
 
-
-
-
-
 def train():
     
     # Define placeholders to catch inputs and add options
@@ -230,13 +227,13 @@ def train():
     sess.run(tf.initialize_all_variables())
     
     # saving and loading networks
-    saver = tf.train.Saver()
-    checkpoint = tf.train.get_checkpoint_state("checkpoints-cartpole")
-    if checkpoint and checkpoint.model_checkpoint_path:
-        saver.restore(sess, checkpoint.model_checkpoint_path)
-        print("Successfully loaded:", checkpoint.model_checkpoint_path)
-    else:
-        print("Could not find old network weights")
+#    saver = tf.train.Saver()
+#    checkpoint = tf.train.get_checkpoint_state("checkpoints-cartpole")
+#    if checkpoint and checkpoint.model_checkpoint_path:
+#        saver.restore(sess, checkpoint.model_checkpoint_path)
+#        print("Successfully loaded:", checkpoint.model_checkpoint_path)
+#    else:
+#        print("Could not find old network weights")
     
     # Some initial local variables
     feed = {}
@@ -371,24 +368,48 @@ if __name__ == "__main__":
     sensorDetection = np.zeros(SENSOR_COUNT)   
     vehPosData = []
 
-    for j in range(0,4): 
-        print("Trial: " + str(j))
+    ##############
+    # TF Setup
+    ##############
+    # Define placeholders to catch inputs and add options
+    options = get_options()
+    agent = QAgent(options)
+    sess = tf.InteractiveSession()
+    
+    obs, Q1 = agent.add_value_net(options)
+    act = tf.placeholder(tf.float32, [None, options.ACTION_DIM])
+    rwd = tf.placeholder(tf.float32, [None, ])
+    next_obs, Q2 = agent.add_value_net(options)
+    
+    values1 = tf.reduce_sum(tf.multiply(Q1, act), reduction_indices=1)
+    values2 = rwd + options.GAMMA * tf.reduce_max(Q2, reduction_indices=1)
+    loss = tf.reduce_mean(tf.square(values1 - values2))
+    train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
+    
+    sess.run(tf.initialize_all_variables())
+    # END TF SETUP
+        
+
+    # EPISODE LOOP
+    for j in range(0,options.MAX_EPISODE): 
+        print("Episode: " + str(j))
         vehPosDataTrial = np.array([0,0,0.2])        # Initialize data
 
         vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
         initScene(vehicle_handle, steer_handle, motor_handle)
 
-        for i in range(0,1220):
-            print("Step:" + str(i))
+        for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
+            print("\tStep:" + str(i))
+
+            # Decay epsilon
+            global_step += 1
+            if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
+                eps = eps * options.EPS_DECAY
 
             # get data
             dState, dDistance = readSensor(clientID, sensor_handle)     # read sensor
             _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
             gAngle, gDistance = getGoalPoint()
-#            print(vehPos)
-#            print(dDistance)
-#            print(dState)
-#            print(getGoalPoint())
 
             # Save data
             sensorData = np.vstack( (sensorData,dDistance) )
