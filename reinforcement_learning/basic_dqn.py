@@ -96,13 +96,16 @@ class QAgent:
 
     # Sample action with random rate eps
     def sample_action(self, Q, feed, eps, options):
-        action = Q.eval(feed_dict=feed)
+        act_values = Q.eval(feed_dict=feed)
         if random.random() <= eps:
             # pick random action
-            action = random.uniform(0,1)
-            return action
+            action_index = random.randrange(options.ACTION_DIM)
+#            action = random.uniform(0,1)
         else:
-            return action
+            action_index = np.argmax(act_values)
+        action = np.zeros(options.ACTION_DIM)
+        action[action_index] = 1
+        return action
 
 
 #########################
@@ -182,6 +185,27 @@ def getGoalPoint():
     
 
     return goal_angle, goal_distance
+
+# Get current state of the vehicle. It is combination of different information
+# Output: 4 list of float
+#  first list    : Sensor distance
+#  second list   : Sensor detection state (0-False, 1-True) 
+#  third list    : [goal angle, goal distance]
+#  fourth list   : vehicle position (x,y)
+def getVehicleState():
+    # Read sensor
+    dState, dDistance   = readSensor(clientID, sensor_handle)
+
+    # Read Vehciel Position
+    _, vehPos           = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
+
+    # Read Goal Point Angle & Distance
+    gAngle, gDistance   = getGoalPoint()
+
+    return dDistance, dState, [gAngle, gDistance], vehPos
+
+
+
 
 
 
@@ -387,14 +411,31 @@ if __name__ == "__main__":
     train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
     
     sess.run(tf.initialize_all_variables())
+
+    # Some initial local variables
+    feed = {}
+    eps = options.INIT_EPS
+    global_step = 0
+    exp_pointer = 0
+    learning_finished = False
+
+    # The replay memory. But no replay memory for now
+    obs_queue = np.empty([options.MAX_EXPERIENCE, options.OBSERVATION_DIM])
+    act_queue = np.empty([options.MAX_EXPERIENCE, options.ACTION_DIM])
+    rwd_queue = np.empty([options.MAX_EXPERIENCE])
+    next_obs_queue = np.empty([options.MAX_EXPERIENCE, options.OBSERVATION_DIM])
+
     # END TF SETUP
         
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
         print("Episode: " + str(j))
+
+        sum_loss_value = 0
         vehPosDataTrial = np.array([0,0,0.2])        # Initialize data
 
+        # Start simulation and initilize scene
         vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
         initScene(vehicle_handle, steer_handle, motor_handle)
 
@@ -407,16 +448,58 @@ if __name__ == "__main__":
                 eps = eps * options.EPS_DECAY
 
             # get data
-            dState, dDistance = readSensor(clientID, sensor_handle)     # read sensor
-            _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
-            gAngle, gDistance = getGoalPoint()
+            dDistance, dState, gInfo, vehPos = getVehicleState()
+            observation         = [dState, dDistance] + gInfo
 
             # Save data
             sensorData = np.vstack( (sensorData,dDistance) )
             sensorDetection = np.vstack( (sensorDetection,dState) )
-
             vehPosDataTrial = np.vstack( (vehPosDataTrial, vehPos) )
 
+            # Update memory
+            obs_queue[exp_pointer] = observation
+            action = agent.sample_action(Q1, {obs : np.reshape(observation, (1, -1))}, eps, options)
+            act_queue[exp_pointer] = action
+
+            # Apply action
+            observation, reward, done, _ = env.step(np.argmax(action))
+            if options.manual == True:
+                input('Press any key to step forward.')
+
+            # Step simulation by one step
+            vrep.simxSynchronousTrigger(clientID);
+
+
+
+            score += reward
+            reward = score  # Reward will be the accumulative score
+            
+            if done and score<200 :
+                reward = -500   # If it fails, punish hard
+                observation = np.zeros_like(observation)
+            
+            rwd_queue[exp_pointer] = reward
+            next_obs_queue[exp_pointer] = observation
+    
+            exp_pointer += 1
+            if exp_pointer == options.MAX_EXPERIENCE:
+                exp_pointer = 0 # Refill the replay memory if it is full
+    
+            if global_step >= options.MAX_EXPERIENCE:
+                rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
+                feed.update({obs : obs_queue[rand_indexs]})
+                feed.update({act : act_queue[rand_indexs]})
+                feed.update({rwd : rwd_queue[rand_indexs]})
+                feed.update({next_obs : next_obs_queue[rand_indexs]})
+                if not learning_finished:   # If not solved, we train and get the step loss
+                    step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
+                else:   # If solved, we just get the step loss
+                    step_loss_value = sess.run(loss, feed_dict = feed)
+                # Use sum to calculate average loss of this episode
+                sum_loss_value += step_loss_value
+
+
+            # If vehicle collided, goto next episode
             if detectCollision(dDistance,dState) == True:
                 print('Vehicle collided!')
                 print(dDistance)
@@ -431,7 +514,7 @@ if __name__ == "__main__":
                 vehPosData.append( vehPosDataTrial )
                 break
 
-            # Basic Control?
+            # If vehicle NOT collided:
             if i % 10 == 0:
                 setMotorSpeed(clientID, motor_handle, i*0.05*(j+1))  
                 setMotorPosition(clientID, steer_handle, 0.01*i)  
@@ -442,9 +525,6 @@ if __name__ == "__main__":
 
 
 
-            if options.manual == True:
-                input('Press any key to step forward.')
-            vrep.simxSynchronousTrigger(clientID);
         
 
     # stop the simulation & close connection
