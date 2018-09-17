@@ -429,6 +429,16 @@ if __name__ == "__main__":
     
     sess.run(tf.initialize_all_variables())
 
+    # saving and loading networks
+    saver = tf.train.Saver()
+    checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
+    if checkpoint and checkpoint.model_checkpoint_path:
+        saver.restore(sess, checkpoint.model_checkpoint_path)
+        print("Successfully loaded:", checkpoint.model_checkpoint_path)
+    else:
+        print("Could not find old network weights")
+
+
     # Some initial local variables
     feed = {}
     eps = options.INIT_EPS
@@ -504,8 +514,11 @@ if __name__ == "__main__":
 
                 # Wait until simulation is stopped.
                 simulation_status = 1
-                while simulation_status != 0:
+                bit_mask = 1
+                while bit_mask & simulation_status != 0:       # Get right-most bit and check if it is 1
                     _, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
+#                    print(bit_mask & simulation_status)
+#                    print("{0:b}".format(simulation_status))
                     time.sleep(0.1)
     
                 # Save trial data
@@ -543,6 +556,9 @@ if __name__ == "__main__":
         # EPISODE ENDED
         print("====== Episode {} ended.".format(j))
         
+        # save progress every 10 episodes
+        if j % 10 == 0:
+            saver.save(sess, 'checkpoints-vehicle/vehicle-dqn', global_step = global_step)
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
