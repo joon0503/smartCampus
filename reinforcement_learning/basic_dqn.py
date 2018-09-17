@@ -22,9 +22,9 @@ def get_options():
                         help='max number of episodes iteration')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
                         help='max number of time step of simulation per episode')
-    parser.add_argument('--ACTION_DIM', type=int, default=1,
+    parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
-    parser.add_argument('--OBSERVATION_DIM', type=int, default=22,
+    parser.add_argument('--OBSERVATION_DIM', type=int, default=24,
                         help='number of observations one can see')
     parser.add_argument('--GAMMA', type=float, default=0.9,
                         help='discount factor of Q learning')
@@ -38,9 +38,9 @@ def get_options():
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=2000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10,
                         help='size of experience replay memory')
-    parser.add_argument('--BATCH_SIZE', type=int, default=256,
+    parser.add_argument('--BATCH_SIZE', type=int, default=2,
                         help='mini batch size'),
     parser.add_argument('--H1_SIZE', type=int, default=256,
                         help='size of hidden layer 1')
@@ -205,9 +205,24 @@ def getVehicleState():
     return dDistance, dState, [gAngle, gDistance], vehPos
 
 
+# Given one-hot-encoded action array of steering angle, apply it to the vehicle
+# Input:
+#   action: list of 1/0s. 1 means this action is applied
+def applySteeringAction(action):
+    # Define maximum/minimum steering in degrees
+    MAX_STEER = 45
+    MIN_STEER = -45
 
+    # Delta of angle between each action
+    action_delta = (MAX_STEER - MIN_STEER) / (options.ACTION_DIM-1)
 
+    # Calculate desired angle
+    desired_angle = MAX_STEER - np.argmax(action) * action_delta
 
+    # Set steering position
+    setMotorPosition(clientID, steer_handle, desired_angle)
+    
+    return
 
 
 
@@ -226,13 +241,12 @@ def initScene(vehicle_handle, steer_handle, motor_handle):
 
     # Reset motor speed
     print("Setting motor speed")
-    setMotorSpeed(clientID, motor_handle, 5)
+    setMotorSpeed(clientID, motor_handle, 2)
    
     # Read sensor
     dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
 
 def train():
-    
     # Define placeholders to catch inputs and add options
     options = get_options()
     agent = QAgent(options)
@@ -434,6 +448,7 @@ if __name__ == "__main__":
 
         sum_loss_value = 0
         vehPosDataTrial = np.array([0,0,0.2])        # Initialize data
+        done = 0
 
         # Start simulation and initilize scene
         vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
@@ -449,7 +464,8 @@ if __name__ == "__main__":
 
             # get data
             dDistance, dState, gInfo, vehPos = getVehicleState()
-            observation         = [dState, dDistance] + gInfo
+            observation = dState + dDistance + gInfo
+            #print(np.round(observation,2))
 
             # Save data
             sensorData = np.vstack( (sensorData,dDistance) )
@@ -462,22 +478,39 @@ if __name__ == "__main__":
             act_queue[exp_pointer] = action
 
             # Apply action
-            observation, reward, done, _ = env.step(np.argmax(action))
+            applySteeringAction( action )
+#            observation, reward, done, _ = env.step(np.argmax(action))
             if options.manual == True:
                 input('Press any key to step forward.')
 
             # Step simulation by one step
             vrep.simxSynchronousTrigger(clientID);
 
+            # Get new Data
+            dDistance, dState, gInfo, vehPos = getVehicleState()
+            observation = dState + dDistance + gInfo
+            reward = -1*gInfo[1]**2         # cost is the distance squared
 
+            # If vehicle collided, give large negative reward
+            if detectCollision(dDistance,dState) == True:
+                print('Vehicle collided!')
+                print(dDistance)
+                print(dState)
+                vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
 
-            score += reward
-            reward = score  # Reward will be the accumulative score
-            
-            if done and score<200 :
-                reward = -500   # If it fails, punish hard
-                observation = np.zeros_like(observation)
-            
+                # Wait until simulation is stopped.
+                simulation_status = 1
+                while simulation_status != 0:
+                    _, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
+                    time.sleep(0.1)
+    
+                # Save trial data
+                vehPosData.append( vehPosDataTrial )
+
+                # Set flag and reward
+                done = 1
+                reward = -1e6
+
             rwd_queue[exp_pointer] = reward
             next_obs_queue[exp_pointer] = observation
     
@@ -499,32 +532,12 @@ if __name__ == "__main__":
                 sum_loss_value += step_loss_value
 
 
-            # If vehicle collided, goto next episode
-            if detectCollision(dDistance,dState) == True:
-                print('Vehicle collided!')
-                print(dDistance)
-                print(dState)
-                vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
-
-                # Wait until simulation is stopped and restart it again.
-                simulation_status = 1
-                while simulation_status != 0:
-                    _, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
-                    time.sleep(0.1)
-                vehPosData.append( vehPosDataTrial )
+            # If collided, end this episode
+            if done == 1:
                 break
 
-            # If vehicle NOT collided:
-            if i % 10 == 0:
-                setMotorSpeed(clientID, motor_handle, i*0.05*(j+1))  
-                setMotorPosition(clientID, steer_handle, 0.01*i)  
-
-
-
-
-
-
-
+        # EPISODE ENDED
+        print("====== Episode {} ended.".format(j))
         
 
     # stop the simulation & close connection
