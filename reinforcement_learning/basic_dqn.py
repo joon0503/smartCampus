@@ -34,13 +34,13 @@ def get_options():
                         help='finial probability for randomly sampling action')
     parser.add_argument('--EPS_DECAY', type=float, default=0.95,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=10,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=100,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=100,
                         help='size of experience replay memory')
-    parser.add_argument('--BATCH_SIZE', type=int, default=2,
+    parser.add_argument('--BATCH_SIZE', type=int, default=24,
                         help='mini batch size'),
     parser.add_argument('--H1_SIZE', type=int, default=256,
                         help='size of hidden layer 1')
@@ -328,16 +328,14 @@ def train():
                 exp_pointer = 0 # Refill the replay memory if it is full
     
             if global_step >= options.MAX_EXPERIENCE:
+                print("Started Training!")
                 rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
                 feed.update({obs : obs_queue[rand_indexs]})
                 feed.update({act : act_queue[rand_indexs]})
                 feed.update({rwd : rwd_queue[rand_indexs]})
                 feed.update({next_obs : next_obs_queue[rand_indexs]})
-                if not learning_finished:   # If not solved, we train and get the step loss
-                    step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
-                else:   # If solved, we just get the step loss
-                    step_loss_value = sess.run(loss, feed_dict = feed)
-                # Use sum to calculate average loss of this episode
+
+                step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
                 sum_loss_value += step_loss_value
     
         print("====== Episode {} ended with score = {}, avg_loss = {}======".format(i_episode+1, score, sum_loss_value / score))
@@ -534,17 +532,15 @@ if __name__ == "__main__":
             exp_pointer += 1
             if exp_pointer == options.MAX_EXPERIENCE:
                 exp_pointer = 0 # Refill the replay memory if it is full
-    
+  
             if global_step >= options.MAX_EXPERIENCE:
                 rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
                 feed.update({obs : obs_queue[rand_indexs]})
                 feed.update({act : act_queue[rand_indexs]})
                 feed.update({rwd : rwd_queue[rand_indexs]})
                 feed.update({next_obs : next_obs_queue[rand_indexs]})
-                if not learning_finished:   # If not solved, we train and get the step loss
-                    step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
-                else:   # If solved, we just get the step loss
-                    step_loss_value = sess.run(loss, feed_dict = feed)
+                
+                step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
                 # Use sum to calculate average loss of this episode
                 sum_loss_value += step_loss_value
 
