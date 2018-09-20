@@ -50,6 +50,8 @@ def get_options():
                         help='size of hidden layer 3')
     parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
+    parser.add_argument('--USE_SAVE','-us', action='store_true',
+                        help='Use saved tensorflow network')
     options = parser.parse_args()
     return options
 
@@ -428,13 +430,15 @@ if __name__ == "__main__":
     sess.run(tf.initialize_all_variables())
 
     # saving and loading networks
-    saver = tf.train.Saver()
-    checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
-    if checkpoint and checkpoint.model_checkpoint_path:
-        saver.restore(sess, checkpoint.model_checkpoint_path)
-        print("Successfully loaded:", checkpoint.model_checkpoint_path)
-    else:
-        print("Could not find old network weights")
+    if options.USE_SAVE = true:
+
+        saver = tf.train.Saver()
+        checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
+        if checkpoint and checkpoint.model_checkpoint_path:
+            saver.restore(sess, checkpoint.model_checkpoint_path)
+            print("Successfully loaded:", checkpoint.model_checkpoint_path)
+        else:
+            print("Could not find old network weights")
 
 
     # Some initial local variables

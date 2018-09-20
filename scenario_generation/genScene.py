@@ -31,7 +31,7 @@ def createObject(objSize, objPos, objName):
 
     res,retInts,retFloats,retStrings,retBuffer=vrep.simxCallScriptFunction(clientID,'remoteApiCommandServer',vrep.sim_scripttype_childscript,'createCuboid_function',[],inputFloats,[objName],emptyBuff,vrep.simx_opmode_blocking)
     if res==vrep.simx_return_ok:
-        print ('Object created!')
+        print ( objName + ' created!')
     else:
         print ('Creating object failed.')
 
@@ -79,7 +79,7 @@ err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.
 err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,math.radians(90)],vrep.simx_opmode_oneshot)
 
 # Create Sensors
-SENSOR_COUNT = 11
+SENSOR_COUNT = 5
 RAD_DT = math.pi/(SENSOR_COUNT-1)
 
 sensor_handle_array = [0]
