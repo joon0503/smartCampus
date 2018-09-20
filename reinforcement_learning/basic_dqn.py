@@ -230,7 +230,30 @@ def applySteeringAction(action):
     return
 
 
+# Get Motor/Sensor Handles
+# Input: clientID?
+def getMotorHandles():
+    # Get Motor Handles
+    _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft", vrep.simx_opmode_blocking)
+    _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight", vrep.simx_opmode_blocking)
+    _,h3  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisRight", vrep.simx_opmode_blocking)
+    _,h4  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisLeft", vrep.simx_opmode_blocking)
+    _,h5  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringLeft", vrep.simx_opmode_blocking)
+    _,h6  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringRight", vrep.simx_opmode_blocking)
 
+    motor_handle = [h1, h2]
+    steer_handle = [h5, h6]
+
+    return motor_handle, steer_handle
+
+def getSensorHandles():
+    # Get Sensor Handles
+    sensor_handle = []
+    for i in range(0,SENSOR_COUNT):
+        _,temp_handle  = vrep.simxGetObjectHandle(clientID, "Proximity_sensor" + str(i), vrep.simx_opmode_blocking)
+        sensor_handle.append(temp_handle)
+
+    return sensor_handle
 
 ###############################33
 # TRAINING
@@ -241,12 +264,15 @@ def initScene(vehicle_handle, steer_handle, motor_handle):
     # Reset position of vehicle
     err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
 
+    # Reset Orientation of vehicle
+    err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,math.radians(90)],vrep.simx_opmode_blocking)
+
     # Reset position of motors & steering
     setMotorPosition(clientID, steer_handle, 0)
 
     # Reset motor speed
     print("Setting motor speed")
-    setMotorSpeed(clientID, motor_handle, 2)
+    setMotorSpeed(clientID, motor_handle, 5)
    
     # Read sensor
     dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
@@ -376,22 +402,8 @@ if __name__ == "__main__":
     #####################
 
     print("Getting handles...")
-    # Get Motor Handles
-    _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft", vrep.simx_opmode_blocking)
-    _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight", vrep.simx_opmode_blocking)
-    _,h3  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisRight", vrep.simx_opmode_blocking)
-    _,h4  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisLeft", vrep.simx_opmode_blocking)
-    _,h5  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringLeft", vrep.simx_opmode_blocking)
-    _,h6  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringRight", vrep.simx_opmode_blocking)
-
-    motor_handle = [h1, h2]
-    steer_handle = [h5, h6]
-
-    # Get Sensor Handles
-    sensor_handle = []
-    for i in range(0,SENSOR_COUNT):
-        _,temp_handle  = vrep.simxGetObjectHandle(clientID, "Proximity_sensor" + str(i), vrep.simx_opmode_blocking)
-        sensor_handle.append(temp_handle)
+    motor_handle, steer_handle = getMotorHandles()
+    sensor_handle = getSensorHandles()
 
     # Get vehicle handle
     err_code, vehicle_handle = vrep.simxGetObjectHandle(clientID, "dyros_vehicle", vrep.simx_opmode_blocking)
@@ -430,8 +442,7 @@ if __name__ == "__main__":
     sess.run(tf.initialize_all_variables())
 
     # saving and loading networks
-    if options.USE_SAVE = true:
-
+    if options.USE_SAVE == True:
         saver = tf.train.Saver()
         checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
         if checkpoint and checkpoint.model_checkpoint_path:
@@ -468,6 +479,7 @@ if __name__ == "__main__":
         # Start simulation and initilize scene
         vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
         initScene(vehicle_handle, steer_handle, motor_handle)
+
 
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
             if i % 10 == 0:
@@ -512,19 +524,12 @@ if __name__ == "__main__":
                 print('Vehicle collided!')
                 print(dDistance)
                 print(dState)
-                vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
 
-                # Wait until simulation is stopped.
-                simulation_status = 1
-                bit_mask = 1
-                while bit_mask & simulation_status != 0:       # Get right-most bit and check if it is 1
-                    _, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
-#                    print(bit_mask & simulation_status)
-#                    print("{0:b}".format(simulation_status))
-                    time.sleep(0.1)
-    
-                # Save trial data
-#                vehPosData.append( vehPosDataTrial )
+                # Reset Simulation
+                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
+                initScene(vehicle_handle, steer_handle, motor_handle)               # initialize
+                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
+                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
                 # Set flag and reward
                 done = 1
@@ -557,7 +562,7 @@ if __name__ == "__main__":
         print("====== Episode {} ended.".format(j))
         
         # save progress every 10 episodes
-        if j % 10 == 0:
+        if j % 10 == 0 and options.USE_SAVE == True:
             saver.save(sess, 'checkpoints-vehicle/vehicle-dqn', global_step = global_step)
 
     # stop the simulation & close connection
