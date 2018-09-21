@@ -43,11 +43,11 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--BATCH_SIZE', type=int, default=24,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=256,
+    parser.add_argument('--H1_SIZE', type=int, default=128,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=256,
+    parser.add_argument('--H2_SIZE', type=int, default=128,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=256,
+    parser.add_argument('--H3_SIZE', type=int, default=128,
                         help='size of hidden layer 3')
     parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
@@ -193,7 +193,7 @@ def getGoalPoint():
 
     # calculate angle
     goal_angle = math.atan( delta_distance[0]/delta_distance[1] )       # delta x / delta y
-    
+    goal_angle = 0.5*goal_angle / math.pi                               # result in -1 to 1
 
     return goal_angle, goal_distance / MAX_DISTANCE
 
