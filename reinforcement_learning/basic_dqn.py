@@ -15,6 +15,7 @@ from argparse import ArgumentParser
 OUT_DIR = 'cartpole-experiment' # default saving directory
 MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
 SENSOR_COUNT = 11
+MAX_DISTANCE = 5
 
 def get_options():
     parser = ArgumentParser()
@@ -38,7 +39,7 @@ def get_options():
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=100,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10,
                         help='size of experience replay memory')
     parser.add_argument('--BATCH_SIZE', type=int, default=24,
                         help='mini batch size'),
@@ -99,6 +100,7 @@ class QAgent:
     # Sample action with random rate eps
     def sample_action(self, Q, feed, eps, options):
         act_values = Q.eval(feed_dict=feed)
+        #print(act_values)
         if random.random() <= eps:
             # pick random action
             action_index = random.randrange(options.ACTION_DIM)
@@ -155,7 +157,11 @@ def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_streaming ):
         returnCode, detectionState, detectedPoint, detectedObjectHandle, detectedSurfaceNormalVector=vrep.simxReadProximitySensor(clientID, sHandle, op_mode)
         dState.append(detectionState)
         dDistance.append( np.linalg.norm(detectedPoint) )
-    return dState, dDistance
+
+    # change it into numpy int array
+    dState =  np.array(dState)*1
+    dDistance = np.array(dDistance)/5 
+    return dState.tolist(), dDistance.tolist()
 
 # Detect whether vehicle is collided
 # For now simply say vehicle is collided if distance if smaller than 1.1m. Initial sensor distance to the right starts at 1.2m.
@@ -167,7 +173,7 @@ def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_streaming ):
 #   sensor # : Which sensor triggered collision. -1 if no collision
 def detectCollision(dDistance, dState):
     for i in range(SENSOR_COUNT):
-        if dDistance[i] < 1.1 and dState[i] == True:
+        if dDistance[i] < 1.1/MAX_DISTANCE and dState[i] == True:
             return True, i
     
     return False, -1    
@@ -176,7 +182,7 @@ def detectCollision(dDistance, dState):
 # Output
 # goal_angle: angle to the goal point in radians
 #             Positive angle mean goal point is on the right of vehicle, negative mean goal point is on the left
-# goal_distance: distance to the goal point
+# goal_distance: distance to the goal point / MAX_DISTANCE
 def getGoalPoint():
     _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
     _, dummyPos = vrep.simxGetObjectPosition( clientID, dummy_handle, -1, vrep.simx_opmode_blocking)            
@@ -189,7 +195,7 @@ def getGoalPoint():
     goal_angle = math.atan( delta_distance[0]/delta_distance[1] )       # delta x / delta y
     
 
-    return goal_angle, goal_distance
+    return goal_angle, goal_distance / MAX_DISTANCE
 
 # Get current state of the vehicle. It is combination of different information
 # Output: 4 list of float
@@ -386,6 +392,12 @@ def train():
 if __name__ == "__main__":
     options = get_options()
 
+    ######################################33
+    # SET 'GLOBAL' Variables
+    ######################################33
+    SENSOR_COUNT = int( (options.OBSERVATION_DIM - 2)/2 )
+
+
     # Get client ID
     vrep.simxFinish(-1) 
     clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
@@ -503,6 +515,7 @@ if __name__ == "__main__":
             # Update memory
             obs_queue[exp_pointer] = observation
             action = agent.sample_action(Q1, {obs : np.reshape(observation, (1, -1))}, eps, options)
+            #print(action)
             act_queue[exp_pointer] = action
 
             # Apply action
