@@ -14,8 +14,7 @@ from argparse import ArgumentParser
 
 OUT_DIR = 'cartpole-experiment' # default saving directory
 MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
-SENSOR_COUNT = 11
-MAX_DISTANCE = 5
+MAX_DISTANCE = 15
 
 def get_options():
     parser = ArgumentParser()
@@ -39,7 +38,7 @@ def get_options():
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=100,
                         help='size of experience replay memory')
     parser.add_argument('--BATCH_SIZE', type=int, default=24,
                         help='mini batch size'),
@@ -100,7 +99,7 @@ class QAgent:
     # Sample action with random rate eps
     def sample_action(self, Q, feed, eps, options):
         act_values = Q.eval(feed_dict=feed)
-        #print(act_values)
+#        print(act_values)
         if random.random() <= eps:
             # pick random action
             action_index = random.randrange(options.ACTION_DIM)
@@ -158,9 +157,14 @@ def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_streaming ):
         dState.append(detectionState)
         dDistance.append( np.linalg.norm(detectedPoint) )
 
+    # Set false sensors to max distance
+    for i in range(len(dDistance)):
+        if dState[i] == 0:
+            dDistance[i] = MAX_DISTANCE
+
     # change it into numpy int array
     dState =  np.array(dState)*1
-    dDistance = np.array(dDistance)/5 
+    dDistance = np.array(dDistance)/MAX_DISTANCE 
     return dState.tolist(), dDistance.tolist()
 
 # Detect whether vehicle is collided
@@ -221,8 +225,8 @@ def getVehicleState():
 #   action: list of 1/0s. 1 means this action is applied
 def applySteeringAction(action):
     # Define maximum/minimum steering in degrees
-    MAX_STEER = 45
-    MIN_STEER = -45
+    MAX_STEER = 15
+    MIN_STEER = -15
 
     # Delta of angle between each action
     action_delta = (MAX_STEER - MIN_STEER) / (options.ACTION_DIM-1)
@@ -277,7 +281,7 @@ def initScene(vehicle_handle, steer_handle, motor_handle):
     setMotorPosition(clientID, steer_handle, 0)
 
     # Reset motor speed
-    print("Setting motor speed")
+#    print("Setting motor speed")
     setMotorSpeed(clientID, motor_handle, 5)
    
     # Read sensor
@@ -395,7 +399,8 @@ if __name__ == "__main__":
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
-    SENSOR_COUNT = int( (options.OBSERVATION_DIM - 2)/2 )
+    SENSOR_COUNT = 5
+
 
 
     # Get client ID
@@ -405,6 +410,9 @@ if __name__ == "__main__":
     if clientID == -1:
         print("ERROR: Cannot establish connection to vrep.")
         sys.exit()
+
+    # Set Sampling time
+    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.05, vrep.simx_opmode_oneshot)
 
     # start simulation
     vrep.simxSynchronous(clientID,True)
@@ -440,7 +448,9 @@ if __name__ == "__main__":
     options = get_options()
     agent = QAgent(options)
     sess = tf.InteractiveSession()
-    
+#    sess = tf.InteractiveSession(config=tf.ConfigProto(log_device_placement=True))
+#    sess = tf.Session()
+   
     obs, Q1 = agent.add_value_net(options)
     act = tf.placeholder(tf.float32, [None, options.ACTION_DIM])
     rwd = tf.placeholder(tf.float32, [None, ])
@@ -451,7 +461,7 @@ if __name__ == "__main__":
     loss = tf.reduce_mean(tf.square(values1 - values2))
     train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
     
-    sess.run(tf.initialize_all_variables())
+    sess.run(tf.global_variables_initializer())
 
     # saving and loading networks
     if options.USE_SAVE == True:
@@ -482,7 +492,7 @@ if __name__ == "__main__":
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
-        print("Episode: " + str(j))
+        print("Episode: " + str(j) + ". Global Step: " + str(global_step))
 
         sum_loss_value = 0
         vehPosDataTrial = np.array([0,0,0.2])        # Initialize data
@@ -504,8 +514,9 @@ if __name__ == "__main__":
 
             # get data
             dDistance, dState, gInfo, vehPos = getVehicleState()
-            observation = dState + dDistance + gInfo
-            #print(np.round(observation,2))
+#            observation = dState + dDistance + gInfo
+            observation = dDistance + gInfo
+#            print(np.round(observation,2))
 
             # Save data
 #            sensorData = np.vstack( (sensorData,dDistance) )
@@ -529,14 +540,15 @@ if __name__ == "__main__":
 
             # Get new Data
             dDistance, dState, gInfo, vehPos = getVehicleState()
-            observation = dState + dDistance + gInfo
+#            observation = dState + dDistance + gInfo
+            observation = dDistance + gInfo
             reward = -0.01*gInfo[1]**2         # cost is the distance squared
 
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
                 print('Vehicle collided!')
-                print(dDistance)
-                print(dState)
+#                print(dDistance)
+#                print(dState)
 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
@@ -546,7 +558,7 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 done = 1
-                reward = -1e6
+                reward = -1e3
 
             rwd_queue[exp_pointer] = reward
             next_obs_queue[exp_pointer] = observation
