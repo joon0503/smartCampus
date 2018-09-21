@@ -52,6 +52,8 @@ def get_options():
                         help='Step simulation manually')
     parser.add_argument('--USE_SAVE','-us', action='store_true',
                         help='Use saved tensorflow network')
+    parser.add_argument('--TESTING','-t', action='store_true',
+                        help='No training. Just testing. Use it with eps=1.0')
     options = parser.parse_args()
     return options
 
@@ -488,13 +490,20 @@ if __name__ == "__main__":
     next_obs_queue = np.empty([options.MAX_EXPERIENCE, options.OBSERVATION_DIM])
 
     # END TF SETUP
-        
+
+    ###########################        
+    # DATA VARIABLES
+    ###########################        
+    reward_data = np.empty(options.MAX_EPISODE)
+    sum_loss_value_data = np.empty(options.MAX_EPISODE)
+
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
         print("Episode: " + str(j) + ". Global Step: " + str(global_step))
 
         sum_loss_value = 0
+        episode_reward = 0
         vehPosDataTrial = np.array([0,0,0.2])        # Initialize data
         done = 0
 
@@ -503,9 +512,13 @@ if __name__ == "__main__":
         initScene(vehicle_handle, steer_handle, motor_handle)
 
 
+        # Time reward
+        time_reward = 0
+
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
             if i % 10 == 0:
                 print("\tStep:" + str(i))
+
 
             # Decay epsilon
             global_step += 1
@@ -542,7 +555,8 @@ if __name__ == "__main__":
             dDistance, dState, gInfo, vehPos = getVehicleState()
 #            observation = dState + dDistance + gInfo
             observation = dDistance + gInfo
-            reward = -0.01*gInfo[1]**2         # cost is the distance squared
+            reward = -0.01*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
+
 
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
@@ -560,6 +574,9 @@ if __name__ == "__main__":
                 done = 1
                 reward = -1e3
 
+            # Record reward
+            episode_reward = episode_reward + reward*(options.GAMMA**i)
+
             rwd_queue[exp_pointer] = reward
             next_obs_queue[exp_pointer] = observation
     
@@ -567,7 +584,7 @@ if __name__ == "__main__":
             if exp_pointer == options.MAX_EXPERIENCE:
                 exp_pointer = 0 # Refill the replay memory if it is full
   
-            if global_step >= options.MAX_EXPERIENCE:
+            if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
                 rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
                 feed.update({obs : obs_queue[rand_indexs]})
                 feed.update({act : act_queue[rand_indexs]})
@@ -581,7 +598,12 @@ if __name__ == "__main__":
 
             # If collided, end this episode
             if done == 1:
+                reward_data[j] = episode_reward
+                sum_loss_value_data[j] = sum_loss_value
                 break
+
+            # Increment time reward
+            time_reward = time_reward + 1
 
         # EPISODE ENDED
         print("====== Episode {} ended.".format(j))
@@ -601,6 +623,16 @@ if __name__ == "__main__":
     #############################3
     # Visualize Data
     ##############################3
+
+    # Plot Episode reward
+    plt.figure(0)
+    plt.plot(reward_data)
+    plt.title("Cumulative Reward")
+    plt.xlabel("Episode")
+    plt.ylabel("Reward")
+    plt.show()
+
+    sys.exit()
 
     # Plot sensor data
 #    t = range(0,220)
