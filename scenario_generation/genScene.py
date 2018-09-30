@@ -104,6 +104,7 @@ createObject([5, 150, 0.1],[-1.25,0,-0.1],'floor')                  # create flo
 createObject([0.1, 150, 2.5],[-3.75,0,1.25],'wallLeft')             # create wall left
 createObject([0.1, 150, 2.5],[1.25,0,1.25],'wallRight')             # create wall right
 createObject([2.2, 2.2 , 2],[0,30, 1.1],'obstacle')                 # create obstacle
+createObject([5, 0.2 , 2.5],[-1.25,70, 1.25],'wallEnd')                 # create end wall
 
 # Create dummy
 vrep.simxCreateDummy( clientID, 1, None, vrep.simx_opmode_blocking)
