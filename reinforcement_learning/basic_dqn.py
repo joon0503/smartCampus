@@ -15,16 +15,17 @@ from argparse import ArgumentParser
 OUT_DIR = 'cartpole-experiment' # default saving directory
 MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
 MAX_DISTANCE = 15
+GOAL_DISTANCE = 60
 
 def get_options():
     parser = ArgumentParser()
-    parser.add_argument('--MAX_EPISODE', type=int, default=10,
+    parser.add_argument('--MAX_EPISODE', type=int, default=20000,
                         help='max number of episodes iteration')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=2000,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
-    parser.add_argument('--OBSERVATION_DIM', type=int, default=24,
+    parser.add_argument('--OBSERVATION_DIM', type=int, default=7,
                         help='number of observations one can see')
     parser.add_argument('--GAMMA', type=float, default=0.9,
                         help='discount factor of Q learning')
@@ -32,21 +33,21 @@ def get_options():
                         help='initial probability for randomly sampling action')
     parser.add_argument('--FINAL_EPS', type=float, default=1e-5,
                         help='finial probability for randomly sampling action')
-    parser.add_argument('--EPS_DECAY', type=float, default=0.95,
+    parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=100,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=100,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
                         help='size of experience replay memory')
-    parser.add_argument('--BATCH_SIZE', type=int, default=24,
+    parser.add_argument('--BATCH_SIZE', type=int, default=256,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=128,
+    parser.add_argument('--H1_SIZE', type=int, default=80,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=128,
+    parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=128,
+    parser.add_argument('--H3_SIZE', type=int, default=80,
                         help='size of hidden layer 3')
     parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
@@ -102,7 +103,7 @@ class QAgent:
     def sample_action(self, Q, feed, eps, options):
         act_values = Q.eval(feed_dict=feed)
 #        print(act_values)
-        if random.random() <= eps:
+        if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = random.randrange(options.ACTION_DIM)
 #            action = random.uniform(0,1)
@@ -201,7 +202,7 @@ def getGoalPoint():
     goal_angle = math.atan( delta_distance[0]/delta_distance[1] )       # delta x / delta y
     goal_angle = 0.5*goal_angle / math.pi                               # result in -1 to 1
 
-    return goal_angle, goal_distance / MAX_DISTANCE
+    return goal_angle, goal_distance / GOAL_DISTANCE
 
 # Get current state of the vehicle. It is combination of different information
 # Output: 4 list of float
@@ -500,7 +501,7 @@ if __name__ == "__main__":
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
-        print("Episode: " + str(j) + ". Global Step: " + str(global_step))
+        print("Episode: " + str(j) + ". Global Step: " + str(global_step) + " eps: " + str(eps))
 
         sum_loss_value = 0
         episode_reward = 0
@@ -574,6 +575,20 @@ if __name__ == "__main__":
                 done = 1
                 reward = -1e3
 
+            # If vehicle is at the goal point, give large positive reward
+            if abs( gInfo[1] ) < 0.5:
+                print('Reached goal point')
+                
+                # Reset Simulation
+                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
+                initScene(vehicle_handle, steer_handle, motor_handle)               # initialize
+                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
+                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
+
+                # Set flag and reward
+                done = 1
+                reward = 1e6
+
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
 
@@ -603,7 +618,7 @@ if __name__ == "__main__":
                 break
 
             # Increment time reward
-            time_reward = time_reward + 1
+            time_reward = time_reward + 0.1
 
         # EPISODE ENDED
         print("====== Episode {} ended.".format(j))
