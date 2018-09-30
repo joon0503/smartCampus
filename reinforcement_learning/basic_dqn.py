@@ -49,6 +49,8 @@ def get_options():
                         help='size of hidden layer 2')
     parser.add_argument('--H3_SIZE', type=int, default=80,
                         help='size of hidden layer 3')
+    parser.add_argument('--RESET_EPISODE', type=int, default=100,
+                        help='number of episode after resetting the simulation')
     parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
     parser.add_argument('--USE_SAVE','-us', action='store_true',
@@ -521,6 +523,10 @@ if __name__ == "__main__":
                 print("\tStep:" + str(i))
 
 
+
+
+
+
             # Decay epsilon
             global_step += 1
             if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
@@ -622,6 +628,23 @@ if __name__ == "__main__":
 
         # EPISODE ENDED
         print("====== Episode {} ended.".format(j))
+       
+        # Stop and Restart Simulation Every X episodes
+        if j % options.RESET_EPISODE == 0:
+            vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
+            
+            # Wait until simulation is stopped.
+            simulation_status = 1
+            bit_mask = 1
+            while bit_mask & simulation_status != 0:       # Get right-most bit and check if it is 1
+                _, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
+#                    print(bit_mask & simulation_status)
+#                    print("{0:b}".format(simulation_status))
+                time.sleep(0.1)
+
+            # Start simulation and initilize scene
+            vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+            initScene(vehicle_handle, steer_handle, motor_handle)
         
         # save progress every 10 episodes
         if j % 10 == 0 and options.USE_SAVE == True:
