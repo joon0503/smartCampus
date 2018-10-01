@@ -49,7 +49,7 @@ def get_options():
                         help='size of hidden layer 2')
     parser.add_argument('--H3_SIZE', type=int, default=80,
                         help='size of hidden layer 3')
-    parser.add_argument('--RESET_EPISODE', type=int, default=100,
+    parser.add_argument('--RESET_EPISODE', type=int, default=250,
                         help='number of episode after resetting the simulation')
     parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
@@ -512,7 +512,9 @@ if __name__ == "__main__":
 
         # Start simulation and initilize scene
         vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-        initScene(vehicle_handle, steer_handle, motor_handle)
+        setMotorPosition(clientID, steer_handle, 0)
+        setMotorSpeed(clientID, motor_handle, 5)
+    #    initScene(vehicle_handle, steer_handle, motor_handle)
 
 
         # Time reward
@@ -521,11 +523,6 @@ if __name__ == "__main__":
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
             if i % 10 == 0:
                 print("\tStep:" + str(i))
-
-
-
-
-
 
             # Decay epsilon
             global_step += 1
@@ -551,7 +548,6 @@ if __name__ == "__main__":
 
             # Apply action
             applySteeringAction( action )
-#            observation, reward, done, _ = env.step(np.argmax(action))
             if options.manual == True:
                 input('Press any key to step forward.')
 
@@ -631,6 +627,7 @@ if __name__ == "__main__":
        
         # Stop and Restart Simulation Every X episodes
         if j % options.RESET_EPISODE == 0:
+            print("Resetting...")
             vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
             
             # Wait until simulation is stopped.
@@ -644,7 +641,9 @@ if __name__ == "__main__":
 
             # Start simulation and initilize scene
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-            initScene(vehicle_handle, steer_handle, motor_handle)
+            time.sleep(1.0)
+            setMotorPosition(clientID, steer_handle, 0)
+            setMotorSpeed(clientID, motor_handle, 5)
         
         # save progress every 10 episodes
         if j % 10 == 0 and options.USE_SAVE == True:
