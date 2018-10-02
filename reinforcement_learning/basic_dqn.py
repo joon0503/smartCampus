@@ -386,7 +386,9 @@ if __name__ == "__main__":
             print("Could not find old network weights")
             print("=================================================")
 
-
+    # Print Varaibles - Temp
+#    print (agent.W1.eval() )
+ 
     # Some initial local variables
     feed = {}
     eps = options.INIT_EPS
