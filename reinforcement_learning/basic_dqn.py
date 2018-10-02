@@ -9,10 +9,11 @@ import vrep
 import matplotlib
 import matplotlib.pyplot as plt
 import time
+import datetime
+import pickle
 from argparse import ArgumentParser
 
 
-OUT_DIR = 'cartpole-experiment' # default saving directory
 MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
 MAX_DISTANCE = 15
 GOAL_DISTANCE = 60
@@ -41,6 +42,8 @@ def get_options():
                         help='learning rate')
     parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
                         help='size of experience replay memory')
+    parser.add_argument('--SAVER_RATE', type=int, default=1000,
+                        help='Save network after this number of episodes')
     parser.add_argument('--BATCH_SIZE', type=int, default=256,
                         help='mini batch size'),
     parser.add_argument('--H1_SIZE', type=int, default=80,
@@ -400,12 +403,12 @@ def train():
 ########################
 if __name__ == "__main__":
     options = get_options()
-
+    
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
     SENSOR_COUNT = 5
-
+    START_TIME   = str(datetime.datetime.now()).replace(" ","_")
 
 
     # Get client ID
@@ -474,9 +477,13 @@ if __name__ == "__main__":
         checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
         if checkpoint and checkpoint.model_checkpoint_path:
             saver.restore(sess, checkpoint.model_checkpoint_path)
+            print("=================================================")
             print("Successfully loaded:", checkpoint.model_checkpoint_path)
+            print("=================================================")
         else:
+            print("=================================================")
             print("Could not find old network weights")
+            print("=================================================")
 
 
     # Some initial local variables
@@ -578,7 +585,7 @@ if __name__ == "__main__":
                 reward = -1e3
 
             # If vehicle is at the goal point, give large positive reward
-            if abs( gInfo[1] ) < 0.5:
+            if abs( gInfo[1] ) < 0.5/MAX_DISTANCE:
                 print('Reached goal point')
                 
                 # Reset Simulation
@@ -620,7 +627,7 @@ if __name__ == "__main__":
                 break
 
             # Increment time reward
-            time_reward = time_reward + 0.1
+            time_reward = time_reward + 0
 
         # EPISODE ENDED
         print("====== Episode {} ended.".format(j))
@@ -645,21 +652,34 @@ if __name__ == "__main__":
             setMotorPosition(clientID, steer_handle, 0)
             setMotorSpeed(clientID, motor_handle, 5)
         
-        # save progress every 10 episodes
-        if j % 10 == 0 and options.USE_SAVE == True:
-            saver.save(sess, 'checkpoints-vehicle/vehicle-dqn', global_step = global_step)
+        # save progress every 1000 episodes
+        if j % options.SAVER_RATE == 0 and options.USE_SAVE == True:
+            saver.save(sess, 'checkpoints-vehicle/vehicle-dqn-' + START_TIME, global_step = global_step)
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
     vrep.simxFinish(clientID)
 
+    ######################################################
+    # Post Processing
+    ######################################################
 
+    # Print Current Time
+    END_TIME = str(datetime.datetime.now()).replace(" ","_")
+    print("===============================")
+    print(END_TIME)
+    print("===============================")
 
+    # Save Reward Data
+    outfile = open( 'reward_data_' + START_TIME + " " + END_TIME, 'wb')  
+    pickle.dump( reward_data, outfile )
+    outfile.close()
 
 
     #############################3
     # Visualize Data
     ##############################3
+
 
     # Plot Episode reward
     plt.figure(0)
