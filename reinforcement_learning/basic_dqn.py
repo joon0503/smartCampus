@@ -550,7 +550,7 @@ if __name__ == "__main__":
             # Update memory
             obs_queue[exp_pointer] = observation
             action = agent.sample_action(Q1, {obs : np.reshape(observation, (1, -1))}, eps, options)
-            #print(action)
+#            print(action)
             act_queue[exp_pointer] = action
 
             # Apply action
@@ -652,9 +652,10 @@ if __name__ == "__main__":
             setMotorPosition(clientID, steer_handle, 0)
             setMotorSpeed(clientID, motor_handle, 5)
         
-        # save progress every 1000 episodes
-        if j % options.SAVER_RATE == 0 and options.USE_SAVE == True:
-            saver.save(sess, 'checkpoints-vehicle/vehicle-dqn-' + START_TIME, global_step = global_step)
+        # save progress every 1000 episodes AND testing is disabled
+        if options.TESTING == False:
+            if j % options.SAVER_RATE == 0 and options.USE_SAVE == True:
+                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn-' + START_TIME, global_step = global_step)
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
