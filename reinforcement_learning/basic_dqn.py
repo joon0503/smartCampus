@@ -278,9 +278,13 @@ def getSensorHandles():
 #################################33/
 
 # Initialize to original scene
-def initScene(vehicle_handle, steer_handle, motor_handle):
-    # Reset position of vehicle
-    err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
+def initScene(vehicle_handle, steer_handle, motor_handle, randomize = False):
+    # Reset position of vehicle. Randomize x-position if enabled
+    if randomize == False:
+        err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
+    else:
+        x_pos = (random.random()-2)*1    
+        err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[x_pos,0,0.2],vrep.simx_opmode_blocking)
 
     # Reset Orientation of vehicle
     err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,math.radians(90)],vrep.simx_opmode_blocking)
@@ -294,109 +298,6 @@ def initScene(vehicle_handle, steer_handle, motor_handle):
    
     # Read sensor
     dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
-
-def train():
-    # Define placeholders to catch inputs and add options
-    options = get_options()
-    agent = QAgent(options)
-    sess = tf.InteractiveSession()
-    
-    obs, Q1 = agent.add_value_net(options)
-    act = tf.placeholder(tf.float32, [None, options.ACTION_DIM])
-    rwd = tf.placeholder(tf.float32, [None, ])
-    next_obs, Q2 = agent.add_value_net(options)
-    
-    values1 = tf.reduce_sum(tf.multiply(Q1, act), reduction_indices=1)
-    values2 = rwd + options.GAMMA * tf.reduce_max(Q2, reduction_indices=1)
-    loss = tf.reduce_mean(tf.square(values1 - values2))
-    train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
-    
-    sess.run(tf.initialize_all_variables())
-    
-    # saving and loading networks
-#    saver = tf.train.Saver()
-#    checkpoint = tf.train.get_checkpoint_state("checkpoints-cartpole")
-#    if checkpoint and checkpoint.model_checkpoint_path:
-#        saver.restore(sess, checkpoint.model_checkpoint_path)
-#        print("Successfully loaded:", checkpoint.model_checkpoint_path)
-#    else:
-#        print("Could not find old network weights")
-    
-    # Some initial local variables
-    feed = {}
-    eps = options.INIT_EPS
-    global_step = 0
-    exp_pointer = 0
-    learning_finished = False
-    
-    # The replay memory
-    obs_queue = np.empty([options.MAX_EXPERIENCE, options.OBSERVATION_DIM])
-    act_queue = np.empty([options.MAX_EXPERIENCE, options.ACTION_DIM])
-    rwd_queue = np.empty([options.MAX_EXPERIENCE])
-    next_obs_queue = np.empty([options.MAX_EXPERIENCE, options.OBSERVATION_DIM])
-    
-    # Score cache
-    score_queue = []
-
-    # The episode loop
-    for i_episode in range(options.MAX_EPISODE):
-        
-        observation = env.reset()
-        done = False
-        score = 0
-        sum_loss_value = 0
-        
-        # The step loop
-        while not done:
-            global_step += 1
-            if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
-                eps = eps * options.EPS_DECAY
-
-#            env.render()
-            
-            obs_queue[exp_pointer] = observation
-            action = agent.sample_action(Q1, {obs : np.reshape(observation, (1, -1))}, eps, options)
-            act_queue[exp_pointer] = action
-            observation, reward, done, _ = env.step(np.argmax(action))
-            
-            score += reward
-            reward = score  # Reward will be the accumulative score
-            
-            if done and score<200 :
-                reward = -500   # If it fails, punish hard
-                observation = np.zeros_like(observation)
-            
-            rwd_queue[exp_pointer] = reward
-            next_obs_queue[exp_pointer] = observation
-    
-            exp_pointer += 1
-            if exp_pointer == options.MAX_EXPERIENCE:
-                exp_pointer = 0 # Refill the replay memory if it is full
-    
-            if global_step >= options.MAX_EXPERIENCE:
-                print("Started Training!")
-                rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
-                feed.update({obs : obs_queue[rand_indexs]})
-                feed.update({act : act_queue[rand_indexs]})
-                feed.update({rwd : rwd_queue[rand_indexs]})
-                feed.update({next_obs : next_obs_queue[rand_indexs]})
-
-                step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
-                sum_loss_value += step_loss_value
-    
-        print("====== Episode {} ended with score = {}, avg_loss = {}======".format(i_episode+1, score, sum_loss_value / score))
-        score_queue.append(score)
-        if len(score_queue) > MAX_SCORE_QUEUE_SIZE:
-            score_queue.pop(0)
-            if np.mean(score_queue) > 195: # The threshold of being solved
-                learning_finished = True
-            else:
-                learning_finished = False
-        if learning_finished:
-            print("Testing !!!")
-        # save progress every 100 episodes
-        if learning_finished and i_episode % 100 == 0:
-            saver.save(sess, 'checkpoints-cartpole/' + GAME + '-dqn', global_step = global_step)
 
 ########################
 # MAIN
@@ -576,7 +477,7 @@ if __name__ == "__main__":
 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle)               # initialize
+                initScene(vehicle_handle, steer_handle, motor_handle, randomize = True)               # initialize
                 vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
                 vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
@@ -590,13 +491,13 @@ if __name__ == "__main__":
                 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle)               # initialize
+                initScene(vehicle_handle, steer_handle, motor_handle, randomize = True)               # initialize
                 vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
                 vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
                 # Set flag and reward
                 done = 1
-                reward = 1e6
+                reward = 1e5
 
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
@@ -622,6 +523,7 @@ if __name__ == "__main__":
 
             # If collided, end this episode
             if done == 1:
+                print(episode_reward)
                 reward_data[j] = episode_reward
                 sum_loss_value_data[j] = sum_loss_value
                 break
@@ -655,7 +557,7 @@ if __name__ == "__main__":
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
             if j % options.SAVER_RATE == 0 and options.USE_SAVE == True:
-                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn-' + START_TIME, global_step = global_step)
+                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(j) + "_gs" + str(global_step))
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
