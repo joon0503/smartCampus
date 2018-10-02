@@ -557,7 +557,11 @@ if __name__ == "__main__":
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
             if j % options.SAVER_RATE == 0 and options.USE_SAVE == True:
+                print("Saving network...")
                 saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(j) + "_gs" + str(global_step))
+        
+        # Line Separator
+        print('')
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
