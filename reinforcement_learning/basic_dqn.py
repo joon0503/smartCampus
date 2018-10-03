@@ -44,6 +44,8 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=1000,
                         help='Save network after this number of episodes')
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
+                        help='Fix chosen input for this number of steps')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
     parser.add_argument('--H1_SIZE', type=int, default=80,
@@ -200,7 +202,7 @@ def getGoalPoint():
     _, dummyPos = vrep.simxGetObjectPosition( clientID, dummy_handle, -1, vrep.simx_opmode_blocking)            
 
     # Calculate the distance
-    delta_distance = np.array(dummyPos) - np.array(vehPos)
+    delta_distance = np.array(dummyPos) - np.array(vehPos)              # delta x, delta y
     goal_distance = np.linalg.norm(delta_distance)
 
     # calculate angle
@@ -443,7 +445,9 @@ if __name__ == "__main__":
             dDistance, dState, gInfo, vehPos = getVehicleState()
 #            observation = dState + dDistance + gInfo
             observation = dDistance + gInfo
-#            print(np.round(observation,2))
+#            temp_obs = observation
+#            temp_obs[5] = math.degrees(temp_obs[5] * math.pi)
+#            print( np.round( temp_obs, 4) )
 
             # Save data
 #            sensorData = np.vstack( (sensorData,dDistance) )
@@ -453,7 +457,7 @@ if __name__ == "__main__":
             # Update memory
             obs_queue[exp_pointer] = observation
 #            print('--Q1--')
-#            print( Q1.eval(feed_dict = {obs : np.reshape(observation, (1, -1))} ) )
+            print( Q1.eval(feed_dict = {obs : np.reshape(observation, (1, -1))} ) )
 #            print('--Q2--')
 #            print( Q2.eval(feed_dict = {next_obs : np.reshape(observation, (1, -1))} ) )
 #            print()
@@ -467,7 +471,8 @@ if __name__ == "__main__":
                 input('Press any key to step forward.')
 
             # Step simulation by one step
-            vrep.simxSynchronousTrigger(clientID);
+            for i in range(0,options.FIX_INPUT_STEP):
+                vrep.simxSynchronousTrigger(clientID);
 
             # Get new Data
             dDistance, dState, gInfo, vehPos = getVehicleState()
@@ -563,7 +568,7 @@ if __name__ == "__main__":
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
-            if j % options.SAVER_RATE == 0 and options.USE_SAVE == True:
+            if j // options.SAVER_RATE >= 1 and options.USE_SAVE == True:
                 print("Saving network...")
                 saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(j) + "_gs" + str(global_step))
         
