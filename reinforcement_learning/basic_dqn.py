@@ -374,7 +374,7 @@ if __name__ == "__main__":
 
     # saving and loading networks
     if options.USE_SAVE == True:
-        saver = tf.train.Saver()
+        saver = tf.train.Saver( max_to_keep = 20 )
         checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
         if checkpoint and checkpoint.model_checkpoint_path:
             saver.restore(sess, checkpoint.model_checkpoint_path)
