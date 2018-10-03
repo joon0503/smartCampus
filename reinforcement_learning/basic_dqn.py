@@ -412,9 +412,11 @@ if __name__ == "__main__":
     reward_data = np.empty(options.MAX_EPISODE)
     sum_loss_value_data = np.empty(options.MAX_EPISODE)
 
+    EPI_STEP = 0
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
+#        EPI_START_TIME = time.time()
         print("Episode: " + str(j) + ". Global Step: " + str(global_step) + " eps: " + str(eps))
 
         sum_loss_value = 0
@@ -433,6 +435,7 @@ if __name__ == "__main__":
         time_reward = 0
 
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
+            EPI_STEP = i+1;
             if i % 10 == 0:
                 print("\tStep:" + str(i))
 
@@ -457,7 +460,7 @@ if __name__ == "__main__":
             # Update memory
             obs_queue[exp_pointer] = observation
 #            print('--Q1--')
-            print( Q1.eval(feed_dict = {obs : np.reshape(observation, (1, -1))} ) )
+#            print( Q1.eval(feed_dict = {obs : np.reshape(observation, (1, -1))} ) )
 #            print('--Q2--')
 #            print( Q2.eval(feed_dict = {next_obs : np.reshape(observation, (1, -1))} ) )
 #            print()
@@ -541,10 +544,12 @@ if __name__ == "__main__":
                 break
 
             # Increment time reward
-            time_reward = time_reward + 0
+#            time_reward = time_reward + 0
 
         # EPISODE ENDED
-        print("====== Episode {} ended.".format(j))
+#        EPI_END_TIME = time.time()
+#        print("====== Episode" + str(j) + " ended. Time: " + str(round(EPI_END_TIME - EPI_START_TIME,3)) + "s Average Time: " + str( round( (EPI_END_TIME - EPI_START_TIME)/EPI_STEP,3) ) )
+        print("====== Episode" + str(j) + " ended.")
        
         # Stop and Restart Simulation Every X episodes
         if j % options.RESET_EPISODE == 0:
