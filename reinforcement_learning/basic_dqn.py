@@ -436,8 +436,8 @@ if __name__ == "__main__":
 
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
             EPI_STEP = i+1;
-            if i % 10 == 0:
-                print("\tStep:" + str(i))
+           # if i % 10 == 0:
+            print("\tStep:" + str(i))
 
             # Decay epsilon
             global_step += 1
@@ -474,7 +474,7 @@ if __name__ == "__main__":
                 input('Press any key to step forward.')
 
             # Step simulation by one step
-            for i in range(0,options.FIX_INPUT_STEP):
+            for q in range(0,options.FIX_INPUT_STEP):
                 vrep.simxSynchronousTrigger(clientID);
 
             # Get new Data
