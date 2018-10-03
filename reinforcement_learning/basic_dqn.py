@@ -28,7 +28,7 @@ def get_options():
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=7,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.9,
+    parser.add_argument('--GAMMA', type=float, default=0.99,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -44,7 +44,7 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=1000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--BATCH_SIZE', type=int, default=256,
+    parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
     parser.add_argument('--H1_SIZE', type=int, default=80,
                         help='size of hidden layer 1')
@@ -106,13 +106,13 @@ class QAgent:
 
     # Sample action with random rate eps
     def sample_action(self, Q, feed, eps, options):
-        act_values = Q.eval(feed_dict=feed)
-#        print(act_values)
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = random.randrange(options.ACTION_DIM)
 #            action = random.uniform(0,1)
         else:
+            act_values = Q.eval(feed_dict=feed)
+#            print(act_values)
             action_index = np.argmax(act_values)
         action = np.zeros(options.ACTION_DIM)
         action[action_index] = 1
@@ -452,6 +452,11 @@ if __name__ == "__main__":
 
             # Update memory
             obs_queue[exp_pointer] = observation
+#            print('--Q1--')
+#            print( Q1.eval(feed_dict = {obs : np.reshape(observation, (1, -1))} ) )
+#            print('--Q2--')
+#            print( Q2.eval(feed_dict = {next_obs : np.reshape(observation, (1, -1))} ) )
+#            print()
             action = agent.sample_action(Q1, {obs : np.reshape(observation, (1, -1))}, eps, options)
 #            print(action)
             act_queue[exp_pointer] = action
@@ -499,7 +504,7 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 done = 1
-                reward = 1e5
+                reward = 1e3
 
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
