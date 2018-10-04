@@ -114,7 +114,8 @@ class QAgent:
 #            action = random.uniform(0,1)
         else:
             act_values = Q.eval(feed_dict=feed)
-#            print(act_values)
+            if options.TESTING == True:
+                print(act_values)
             action_index = np.argmax(act_values)
         action = np.zeros(options.ACTION_DIM)
         action[action_index] = 1
@@ -410,7 +411,7 @@ if __name__ == "__main__":
     # DATA VARIABLES
     ###########################        
     reward_data = np.empty(options.MAX_EPISODE)
-    sum_loss_value_data = np.empty(options.MAX_EPISODE)
+    avg_loss_value_data = np.empty(options.MAX_EPISODE)
 
     EPI_STEP = 0
 
@@ -481,8 +482,7 @@ if __name__ == "__main__":
             dDistance, dState, gInfo, vehPos = getVehicleState()
 #            observation = dState + dDistance + gInfo
             observation = dDistance + gInfo
-            reward = -0.01*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
-
+            reward = -10*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
 
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
@@ -531,16 +531,18 @@ if __name__ == "__main__":
                 feed.update({rwd : rwd_queue[rand_indexs]})
                 feed.update({next_obs : next_obs_queue[rand_indexs]})
                 
-                step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
+                step_loss_value, _, v1, v2 = sess.run([loss, train_step, values1, values2], feed_dict = feed)
+#                print(v1)
+#                print(v2)
+#                print(v1 - v2) 
                 # Use sum to calculate average loss of this episode
                 sum_loss_value += step_loss_value
 
-
-            # If collided, end this episode
+            # If collided or reached goal point, end this episode
             if done == 1:
                 print(episode_reward)
                 reward_data[j] = episode_reward
-                sum_loss_value_data[j] = sum_loss_value
+                avg_loss_value_data[j] = sum_loss_value/(i+1)
                 break
 
             # Increment time reward
@@ -549,7 +551,7 @@ if __name__ == "__main__":
         # EPISODE ENDED
 #        EPI_END_TIME = time.time()
 #        print("====== Episode" + str(j) + " ended. Time: " + str(round(EPI_END_TIME - EPI_START_TIME,3)) + "s Average Time: " + str( round( (EPI_END_TIME - EPI_START_TIME)/EPI_STEP,3) ) )
-        print("====== Episode" + str(j) + " ended.")
+        print("====== Episode" + str(j) + " ended. sum_loss_value: " + str(sum_loss_value) + " avg_loss_value: " + avg_loss_value_data[j] )
        
         # Stop and Restart Simulation Every X episodes
         if j % options.RESET_EPISODE == 0:
@@ -613,6 +615,13 @@ if __name__ == "__main__":
     plt.ylabel("Reward")
     plt.show()
 
+    # Plot Average Step Loss
+    plt.figure(0)
+    plt.plot(avg_loss_value_data)
+    plt.title("Average Loss of an episode")
+    plt.xlabel("Episode")
+    plt.ylabel("Avg Loss")
+    plt.show()
     sys.exit()
 
     # Plot sensor data
