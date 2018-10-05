@@ -28,15 +28,15 @@ def get_options():
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=7,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.99,
+    parser.add_argument('--GAMMA', type=float, default=0.95,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
-    parser.add_argument('--FINAL_EPS', type=float, default=1e-5,
+    parser.add_argument('--FINAL_EPS', type=float, default=1e-1,
                         help='finial probability for randomly sampling action')
     parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
@@ -438,7 +438,7 @@ if __name__ == "__main__":
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
             EPI_STEP = i+1;
            # if i % 10 == 0:
-            print("\tStep:" + str(i))
+#            print("\tStep:" + str(i))
 
             # Decay epsilon
             global_step += 1
@@ -551,7 +551,7 @@ if __name__ == "__main__":
         # EPISODE ENDED
 #        EPI_END_TIME = time.time()
 #        print("====== Episode" + str(j) + " ended. Time: " + str(round(EPI_END_TIME - EPI_START_TIME,3)) + "s Average Time: " + str( round( (EPI_END_TIME - EPI_START_TIME)/EPI_STEP,3) ) )
-        print("====== Episode" + str(j) + " ended. sum_loss_value: " + str(sum_loss_value) + " avg_loss_value: " + avg_loss_value_data[j] )
+        print("====== Episode" + str(j) + " ended at Step " + str(i)+ ". sum_loss_value: " + str(sum_loss_value) + " avg_loss_value: " + str(avg_loss_value_data[j]) )
        
         # Stop and Restart Simulation Every X episodes
         if j % options.RESET_EPISODE == 0:
