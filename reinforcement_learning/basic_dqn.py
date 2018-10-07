@@ -46,6 +46,8 @@ def get_options():
                         help='Save network after this number of episodes')
     parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
                         help='Fix chosen input for this number of steps')
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=10000,
+                        help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
     parser.add_argument('--H1_SIZE', type=int, default=80,
@@ -70,7 +72,8 @@ def get_options():
 class QAgent:
     # A naive neural network with 3 hidden layers and relu as non-linear function.
     def __init__(self, options, name):
-        with tf.variable_scope(name) as scope:      # Set scope as name
+        self.scope = name
+        with tf.variable_scope(name):      # Set scope as name
             self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE])
             self.b1 = self.bias_variable([options.H1_SIZE])
             self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE])
@@ -120,6 +123,11 @@ class QAgent:
         action = np.zeros(options.ACTION_DIM)
         action[action_index] = 1
         return action
+
+    def getTrainableVarByName(self):
+        trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)
+        trainable_vars_by_name = {var.name[len(self.scope):]: var for var in trainable_vars }   # This makes a dictionary with key being the name of varialbe without scope
+        return trainable_vars_by_name
 
 
 #########################
@@ -357,22 +365,33 @@ if __name__ == "__main__":
     # TF Setup
     ##############
     # Define placeholders to catch inputs and add options
-    options = get_options()
-    agent = QAgent(options,'Training')
-    sess = tf.InteractiveSession()
+    options         = get_options()
+    agent_train     = QAgent(options,'Training')
+    agent_target    = QAgent(options,'Target')
+    sess            = tf.InteractiveSession()
+
 #    sess = tf.InteractiveSession(config=tf.ConfigProto(log_device_placement=True))
 #    sess = tf.Session()
    
-    obs, Q1 = agent.add_value_net(options)
-    act = tf.placeholder(tf.float32, [None, options.ACTION_DIM])
-    rwd = tf.placeholder(tf.float32, [None, ])
-    next_obs, Q2 = agent.add_value_net(options)
-    
-    values1 = tf.reduce_sum(tf.multiply(Q1, act), reduction_indices=1)
-    values2 = rwd + options.GAMMA * tf.reduce_max(Q2, reduction_indices=1)
-    loss = tf.reduce_mean(tf.square(values1 - values2))
+    obs, Q_train         = agent_train.add_value_net(options)
+    act                  = tf.placeholder(tf.float32, [None, options.ACTION_DIM])
+    rwd                  = tf.placeholder(tf.float32, [None, ])
+    next_obs, Q_target   = agent_target.add_value_net(options)
+    target_y             = tf.placeholder(tf.float32, [None, ] )  
+ 
+    values1 = tf.reduce_sum(tf.multiply(Q_train, act), reduction_indices=1)          # Q-value of current network
+#    values2 = rwd + options.GAMMA * tf.reduce_max(Q2, reduction_indices=1)      # Q-value of target network
+
+    loss = tf.reduce_mean(tf.square(values1 - target_y))                         # loss
     train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
-    
+
+    # Copying Variables
+    target_vars = agent_target.getTrainableVarByName()
+    online_vars = agent_train.getTrainableVarByName()
+
+    copy_ops = [target_var.assign(online_vars[var_name]) for var_name, target_var in target_vars.items()]
+    copy_online_to_target = tf.group(*copy_ops)
+        
     sess.run(tf.global_variables_initializer())
 
     # saving and loading networks
@@ -465,7 +484,7 @@ if __name__ == "__main__":
 #            print('--Q2--')
 #            print( Q2.eval(feed_dict = {next_obs : np.reshape(observation, (1, -1))} ) )
 #            print()
-            action = agent.sample_action(Q1, {obs : np.reshape(observation, (1, -1))}, eps, options)
+            action = agent_train.sample_action(Q_train, {obs : np.reshape(observation, (1, -1))}, eps, options)
 #            print(action)
             act_queue[exp_pointer] = action
 
@@ -526,18 +545,40 @@ if __name__ == "__main__":
   
             if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
                 rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
+
+                # Get Target Q-Value
+                feed.update({next_obs : next_obs_queue[rand_indexs]})
+                # Calculate Target Q-value
+                q_target_val = rwd_queue[rand_indexs] + options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
+
+                # Gradient Descent
+                feed.clear()
                 feed.update({obs : obs_queue[rand_indexs]})
                 feed.update({act : act_queue[rand_indexs]})
                 feed.update({rwd : rwd_queue[rand_indexs]})
                 feed.update({next_obs : next_obs_queue[rand_indexs]})
-    
+                feed.update( {target_y :q_target_val } )        # Add target_y to feed
+
                 with tf.variable_scope("Training"):            
-                    step_loss_value, _, v1, v2 = sess.run([loss, train_step, values1, values2], feed_dict = feed)
+                    step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
     #                print(v1)
     #                print(v2)
     #                print(v1 - v2) 
                     # Use sum to calculate average loss of this episode
                     sum_loss_value += step_loss_value
+
+
+
+                print("train")
+                print(agent_train.b1.eval())
+                print("Target")
+                print(agent_target.b1.eval())
+
+            # Update Target
+            if global_step % options.TARGET_UPDATE_STEP == 0:
+                print("Updating Target network.")
+                copy_online_to_target.run()
+
 
             # If collided or reached goal point, end this episode
             if done == 1:
@@ -584,6 +625,7 @@ if __name__ == "__main__":
                 outfile = open( 'reward_data_' + START_TIME + " ", 'wb')  
                 pickle.dump( reward_data, outfile )
                 outfile.close()
+
         # Line Separator
         print('')
 
