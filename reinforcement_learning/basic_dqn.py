@@ -374,18 +374,17 @@ if __name__ == "__main__":
 #    sess = tf.Session()
    
     obs, Q_train         = agent_train.add_value_net(options)
+    next_obs, Q_target   = agent_target.add_value_net(options)
     act                  = tf.placeholder(tf.float32, [None, options.ACTION_DIM])
     rwd                  = tf.placeholder(tf.float32, [None, ])
-    next_obs, Q_target   = agent_target.add_value_net(options)
     target_y             = tf.placeholder(tf.float32, [None, ] )  
  
     values1 = tf.reduce_sum(tf.multiply(Q_train, act), reduction_indices=1)          # Q-value of current network
-#    values2 = rwd + options.GAMMA * tf.reduce_max(Q2, reduction_indices=1)      # Q-value of target network
 
     loss = tf.reduce_mean(tf.square(values1 - target_y))                         # loss
     train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
 
-    # Copying Variables
+    # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
     target_vars = agent_target.getTrainableVarByName()
     online_vars = agent_train.getTrainableVarByName()
 
@@ -408,9 +407,6 @@ if __name__ == "__main__":
             print("Could not find old network weights")
             print("=================================================")
 
-    # Print Varaibles - Temp
-#    print (agent.W1.eval() )
- 
     # Some initial local variables
     feed = {}
     eps = options.INIT_EPS
@@ -448,8 +444,6 @@ if __name__ == "__main__":
         vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
         setMotorPosition(clientID, steer_handle, 0)
         setMotorSpeed(clientID, motor_handle, 5)
-    #    initScene(vehicle_handle, steer_handle, motor_handle)
-
 
         # Time reward
         time_reward = 0
@@ -466,11 +460,7 @@ if __name__ == "__main__":
 
             # get data
             dDistance, dState, gInfo, vehPos = getVehicleState()
-#            observation = dState + dDistance + gInfo
             observation = dDistance + gInfo
-#            temp_obs = observation
-#            temp_obs[5] = math.degrees(temp_obs[5] * math.pi)
-#            print( np.round( temp_obs, 4) )
 
             # Save data
 #            sensorData = np.vstack( (sensorData,dDistance) )
@@ -479,13 +469,7 @@ if __name__ == "__main__":
 
             # Update memory
             obs_queue[exp_pointer] = observation
-#            print('--Q1--')
-#            print( Q1.eval(feed_dict = {obs : np.reshape(observation, (1, -1))} ) )
-#            print('--Q2--')
-#            print( Q2.eval(feed_dict = {next_obs : np.reshape(observation, (1, -1))} ) )
-#            print()
             action = agent_train.sample_action(Q_train, {obs : np.reshape(observation, (1, -1))}, eps, options)
-#            print(action)
             act_queue[exp_pointer] = action
 
             # Apply action
@@ -499,15 +483,12 @@ if __name__ == "__main__":
 
             # Get new Data
             dDistance, dState, gInfo, vehPos = getVehicleState()
-#            observation = dState + dDistance + gInfo
             observation = dDistance + gInfo
             reward = -10*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
 
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
                 print('Vehicle collided!')
-#                print(dDistance)
-#                print(dState)
 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
@@ -561,24 +542,14 @@ if __name__ == "__main__":
 
                 with tf.variable_scope("Training"):            
                     step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
-    #                print(v1)
-    #                print(v2)
-    #                print(v1 - v2) 
+
                     # Use sum to calculate average loss of this episode
                     sum_loss_value += step_loss_value
-
-
-
-                print("train")
-                print(agent_train.b1.eval())
-                print("Target")
-                print(agent_target.b1.eval())
 
             # Update Target
             if global_step % options.TARGET_UPDATE_STEP == 0:
                 print("Updating Target network.")
                 copy_online_to_target.run()
-
 
             # If collided or reached goal point, end this episode
             if done == 1:
@@ -587,12 +558,8 @@ if __name__ == "__main__":
                 avg_loss_value_data[j] = sum_loss_value/(i+1)
                 break
 
-            # Increment time reward
-#            time_reward = time_reward + 0
 
         # EPISODE ENDED
-#        EPI_END_TIME = time.time()
-#        print("====== Episode" + str(j) + " ended. Time: " + str(round(EPI_END_TIME - EPI_START_TIME,3)) + "s Average Time: " + str( round( (EPI_END_TIME - EPI_START_TIME)/EPI_STEP,3) ) )
         print("====== Episode" + str(j) + " ended at Step " + str(i)+ ". sum_loss_value: " + str(sum_loss_value) + " avg_loss_value: " + str(avg_loss_value_data[j]) )
        
         # Stop and Restart Simulation Every X episodes
