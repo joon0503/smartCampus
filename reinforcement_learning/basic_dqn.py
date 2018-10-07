@@ -68,18 +68,18 @@ def get_options():
 
 # Class for Neural Network
 class QAgent:
-    
     # A naive neural network with 3 hidden layers and relu as non-linear function.
-    def __init__(self, options):
-        self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE])
-        self.b1 = self.bias_variable([options.H1_SIZE])
-        self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE])
-        self.b2 = self.bias_variable([options.H2_SIZE])
-        self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE])
-        self.b3 = self.bias_variable([options.H3_SIZE])
-        self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM])
-        self.b4 = self.bias_variable([options.ACTION_DIM])
-    
+    def __init__(self, options, name):
+        with tf.variable_scope(name) as scope:      # Set scope as name
+            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE])
+            self.b1 = self.bias_variable([options.H1_SIZE])
+            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE])
+            self.b2 = self.bias_variable([options.H2_SIZE])
+            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE])
+            self.b3 = self.bias_variable([options.H3_SIZE])
+            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM])
+            self.b4 = self.bias_variable([options.ACTION_DIM])
+   
     # Weights initializer
     def xavier_initializer(self, shape):
         dim_sum = np.sum(shape)
@@ -358,7 +358,7 @@ if __name__ == "__main__":
     ##############
     # Define placeholders to catch inputs and add options
     options = get_options()
-    agent = QAgent(options)
+    agent = QAgent(options,'Training')
     sess = tf.InteractiveSession()
 #    sess = tf.InteractiveSession(config=tf.ConfigProto(log_device_placement=True))
 #    sess = tf.Session()
@@ -530,13 +530,14 @@ if __name__ == "__main__":
                 feed.update({act : act_queue[rand_indexs]})
                 feed.update({rwd : rwd_queue[rand_indexs]})
                 feed.update({next_obs : next_obs_queue[rand_indexs]})
-                
-                step_loss_value, _, v1, v2 = sess.run([loss, train_step, values1, values2], feed_dict = feed)
-#                print(v1)
-#                print(v2)
-#                print(v1 - v2) 
-                # Use sum to calculate average loss of this episode
-                sum_loss_value += step_loss_value
+    
+                with tf.variable_scope("Training"):            
+                    step_loss_value, _, v1, v2 = sess.run([loss, train_step, values1, values2], feed_dict = feed)
+    #                print(v1)
+    #                print(v2)
+    #                print(v1 - v2) 
+                    # Use sum to calculate average loss of this episode
+                    sum_loss_value += step_loss_value
 
             # If collided or reached goal point, end this episode
             if done == 1:
@@ -579,6 +580,10 @@ if __name__ == "__main__":
                 print("Saving network...")
                 saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(j) + "_gs" + str(global_step))
         
+                # Save Reward Data
+                outfile = open( 'reward_data_' + START_TIME + " ", 'wb')  
+                pickle.dump( reward_data, outfile )
+                outfile.close()
         # Line Separator
         print('')
 
@@ -596,10 +601,6 @@ if __name__ == "__main__":
     print(END_TIME)
     print("===============================")
 
-    # Save Reward Data
-    outfile = open( 'reward_data_' + START_TIME + " " + END_TIME, 'wb')  
-    pickle.dump( reward_data, outfile )
-    outfile.close()
 
 
     #############################3
