@@ -19,10 +19,12 @@ MAX_DISTANCE = 15
 GOAL_DISTANCE = 60
 
 def get_options():
-    parser = ArgumentParser()
+    parser = ArgumentParser(
+        description='File for learning'
+        )
     parser.add_argument('--MAX_EPISODE', type=int, default=50000,
-                        help='max number of episodes iteration')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=2000,
+                        help='max number of episodes iteration\n')
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
@@ -425,10 +427,9 @@ if __name__ == "__main__":
     ###########################        
     # DATA VARIABLES
     ###########################        
-    reward_data = np.empty(options.MAX_EPISODE)
+    reward_data         = np.empty(options.MAX_EPISODE)
     avg_loss_value_data = np.empty(options.MAX_EPISODE)
-
-    EPI_STEP = 0
+    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
@@ -437,7 +438,7 @@ if __name__ == "__main__":
 
         sum_loss_value = 0
         episode_reward = 0
-        vehPosDataTrial = np.array([0,0,0.2])        # Initialize data
+        vehPosDataTrial = np.empty([options.MAX_TIMESTEP,2])        # Initialize data
         done = 0
 
         # Start simulation and initilize scene
@@ -449,7 +450,6 @@ if __name__ == "__main__":
         time_reward = 0
 
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
-            EPI_STEP = i+1;
            # if i % 10 == 0:
 #            print("\tStep:" + str(i))
 
@@ -465,7 +465,7 @@ if __name__ == "__main__":
             # Save data
 #            sensorData = np.vstack( (sensorData,dDistance) )
 #            sensorDetection = np.vstack( (sensorDetection,dState) )
-#            vehPosDataTrial = np.vstack( (vehPosDataTrial, vehPos) )
+            vehPosDataTrial[i] = vehPos[0:2]
 
             # Update memory
             obs_queue[exp_pointer] = observation
@@ -554,8 +554,10 @@ if __name__ == "__main__":
             # If collided or reached goal point, end this episode
             if done == 1:
                 print(episode_reward)
-                reward_data[j] = episode_reward
-                avg_loss_value_data[j] = sum_loss_value/(i+1)
+        
+                reward_data[j]          = episode_reward
+                avg_loss_value_data[j]  = sum_loss_value/(i+1)
+                veh_pos_data[j]         = vehPosDataTrial
                 break
 
 
@@ -587,12 +589,19 @@ if __name__ == "__main__":
             if j // options.SAVER_RATE >= 1 and j % options.SAVER_RATE == 0 and options.USE_SAVE == True:
                 print("Saving network...")
                 saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(j) + "_gs" + str(global_step))
-        
+                print("Done") 
+
+                print("Saving data...") 
                 # Save Reward Data
-                outfile = open( 'reward_data/reward_data_' + START_TIME + " ", 'wb')  
+                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME + " ", 'wb')  
                 pickle.dump( reward_data, outfile )
                 outfile.close()
 
+                # Save vehicle position
+                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME + " ", 'wb')  
+                pickle.dump( veh_pos_data, outfile )
+                outfile.close()
+                print("Done") 
         # Line Separator
         print('')
 
@@ -644,39 +653,4 @@ if __name__ == "__main__":
     plt.xlabel("Time Step")
     plt.ylabel("Distance")
 #    plt.show()
-
-
-    # Plot position of vehicle
-    plt.figure(1)
-
-#    for i in range(0,4):
-#        plt.scatter(vehPosData[i][:,0],vehPosData[i][:,1], label="Trial #" + str(i))
-
-    # Plot Map
-    plt.plot([1.25, 1.25],[0, 60],'k')
-    plt.plot([-3.75, -3.75],[0, 60],'k')
-    plt.plot([-1.25, -1.25],[0, 60],'k')
-    plt.plot([0, 0],[0, 60],'k--')
-    plt.plot([-2.5, -2.5],[0, 60],'k--')
-    plt.plot([0],[60],'xr') 
-
-    # Plot properties
-    plt.axis( (-3.75, 1.25, 0, 80)   )
-    plt.legend()
-    plt.title("Vehicle Trajectory")
-    plt.xlabel("X Position")
-    plt.ylabel("Y Position")
-    plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
 
