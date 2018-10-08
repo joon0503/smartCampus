@@ -20,7 +20,7 @@ GOAL_DISTANCE = 60
 
 def get_options():
     parser = ArgumentParser()
-    parser.add_argument('--MAX_EPISODE', type=int, default=20000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=50000,
                         help='max number of episodes iteration')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=2000,
                         help='max number of time step of simulation per episode')
@@ -46,7 +46,7 @@ def get_options():
                         help='Save network after this number of episodes')
     parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=10000,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
@@ -326,7 +326,6 @@ if __name__ == "__main__":
     # Get client ID
     vrep.simxFinish(-1) 
     clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
-
     if clientID == -1:
         print("ERROR: Cannot establish connection to vrep.")
         sys.exit()
@@ -392,6 +391,7 @@ if __name__ == "__main__":
     copy_online_to_target = tf.group(*copy_ops)
         
     sess.run(tf.global_variables_initializer())
+    copy_online_to_target.run()         # Copy init weights
 
     # saving and loading networks
     if options.USE_SAVE == True:
@@ -589,7 +589,7 @@ if __name__ == "__main__":
                 saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(j) + "_gs" + str(global_step))
         
                 # Save Reward Data
-                outfile = open( 'reward_data_' + START_TIME + " ", 'wb')  
+                outfile = open( 'reward_data/reward_data_' + START_TIME + " ", 'wb')  
                 pickle.dump( reward_data, outfile )
                 outfile.close()
 
