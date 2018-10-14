@@ -60,6 +60,8 @@ def get_options():
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_EPISODE', type=int, default=250,
                         help='number of episode after resetting the simulation')
+    parser.add_argument('--RUNNING_AVG_STEP', type=int, default=100,
+                        help='number of episode to calculate the average score')
     parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
     parser.add_argument('--USE_SAVE','-us', action='store_true',
@@ -437,6 +439,7 @@ if __name__ == "__main__":
     reward_data         = np.empty(options.MAX_EPISODE)
     avg_loss_value_data = np.empty(options.MAX_EPISODE)
     veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
+    avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
@@ -571,6 +574,11 @@ if __name__ == "__main__":
         # EPISODE ENDED
         print("====== Episode" + str(j) + " ended at Step " + str(i)+ ". sum_loss_value: " + str(sum_loss_value) + " avg_loss_value: " + str(avg_loss_value_data[j]) )
        
+        # Update running average of the reward 
+        if j >= options.RUNNING_AVG_STEP:
+            avg_epi_reward_data[j] = np.mean(reward_data[j-options.RUNNING_AVG_STEP+1:j])  
+          
+         
         # Stop and Restart Simulation Every X episodes
         if j % options.RESET_EPISODE == 0:
             print("Resetting...")
@@ -635,8 +643,8 @@ if __name__ == "__main__":
 
     # Plot Episode reward
     plt.figure(0)
-    plt.plot(reward_data)
-    plt.title("Cumulative Reward")
+    plt.plot(avg_epi_reward_data)
+    plt.title("Average episode Reward")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
     plt.show()
