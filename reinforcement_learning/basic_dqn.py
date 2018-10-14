@@ -120,6 +120,7 @@ class QAgent:
         else:
             act_values = Q.eval(feed_dict=feed)
             if options.TESTING == True:
+                print(np.argmax(act_values))
                 print(act_values)
             action_index = np.argmax(act_values)
         action = np.zeros(options.ACTION_DIM)
