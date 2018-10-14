@@ -82,8 +82,10 @@ class QAgent:
             self.b2 = self.bias_variable([options.H2_SIZE])
             self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE])
             self.b3 = self.bias_variable([options.H3_SIZE])
-            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM])
-            self.b4 = self.bias_variable([options.ACTION_DIM])
+            self.W_value = self.weight_variable([options.H3_SIZE, 1])
+            self.b_value = self.bias_variable([options.ACTION_DIM])
+            self.W_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM])
+            self.b_adv = self.bias_variable([options.ACTION_DIM])
    
     # Weights initializer
     def xavier_initializer(self, shape):
@@ -107,7 +109,11 @@ class QAgent:
         h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1)
         h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2)
         h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3)
-        Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+        value_est = tf.nn.relu(tf.matmul(h3, self.W_value) + self.b_value)
+        adv_est = tf.nn.relu(tf.matmul(h3, self.W_adv) + self.b_adv)
+
+        Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
+#        Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
         #q = tf.nn.sigmoid(Q)
         return observation, Q
 
