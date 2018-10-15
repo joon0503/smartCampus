@@ -56,7 +56,7 @@ def get_options():
                         help='size of hidden layer 1')
     parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=80,
+    parser.add_argument('--H3_SIZE', type=int, default=40,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_EPISODE', type=int, default=250,
                         help='number of episode after resetting the simulation')
@@ -78,16 +78,18 @@ class QAgent:
     def __init__(self, options, name):
         self.scope = name
         with tf.variable_scope(name):      # Set scope as name
-            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE])
-            self.b1 = self.bias_variable([options.H1_SIZE])
-            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE])
-            self.b2 = self.bias_variable([options.H2_SIZE])
-            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE])
-            self.b3 = self.bias_variable([options.H3_SIZE])
-            self.W_value = self.weight_variable([options.H3_SIZE, 1])
-            self.b_value = self.bias_variable([options.ACTION_DIM])
-            self.W_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM])
-            self.b_adv = self.bias_variable([options.ACTION_DIM])
+            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
+            self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
+            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
+            self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
+            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
+            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
+            self.W3_adv = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_adv')
+            self.b3_adv = self.bias_variable([options.H3_SIZE], 'b3_adv')
+            self.W4_val = self.weight_variable([options.H3_SIZE, 1], 'W4_val')
+            self.b4_val = self.bias_variable([1], 'b4_val')
+            self.W4_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4_adv')
+            self.b4_adv = self.bias_variable([options.ACTION_DIM], 'b4_adv')
    
     # Weights initializer
     def xavier_initializer(self, shape):
@@ -98,24 +100,28 @@ class QAgent:
         return tf.random_uniform(shape, minval=-bound, maxval=bound)
 
     # Tool function to create weight variables
-    def weight_variable(self, shape):
-        return tf.Variable(self.xavier_initializer(shape))
+    def weight_variable(self, shape, var_name=None):
+        return tf.Variable(self.xavier_initializer(shape), name=var_name)
 
     # Tool function to create bias variables
-    def bias_variable(self, shape):
-        return tf.Variable(self.xavier_initializer(shape))
+    def bias_variable(self, shape, var_name=None):
+        return tf.Variable(self.xavier_initializer(shape), name=var_name)
 
     # Add options to graph
     def add_value_net(self, options):
-        observation = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM])
-        h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1)
-        h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2)
-        h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3)
-        value_est = tf.nn.relu(tf.matmul(h3, self.W_value) + self.b_value)
-        adv_est = tf.nn.relu(tf.matmul(h3, self.W_adv) + self.b_adv)
+        with tf.variable_scope(self.scope):
+            observation = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
+            h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
+            h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
+            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
+            h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
 
-        Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
+            value_est = tf.nn.relu(tf.matmul(h3_val, self.W4_val) + self.b4_val, name='value_est')
+            adv_est = tf.nn.relu(tf.matmul(h3_adv, self.W4_adv) + self.b4_adv, name='adv_est')
+
+            Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
 #        Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+#        Q = tf.matmul(h3, self.W4) + self.b4
         #q = tf.nn.sigmoid(Q)
         return observation, Q
 
@@ -385,14 +391,15 @@ if __name__ == "__main__":
    
     obs, Q_train         = agent_train.add_value_net(options)
     next_obs, Q_target   = agent_target.add_value_net(options)
-    act                  = tf.placeholder(tf.float32, [None, options.ACTION_DIM])
-    rwd                  = tf.placeholder(tf.float32, [None, ])
-    target_y             = tf.placeholder(tf.float32, [None, ] )  
+    act                  = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
+    rwd                  = tf.placeholder(tf.float32, [None, ], name='reward')
+    target_y             = tf.placeholder(tf.float32, [None, ], name='target_y' )  
  
-    values1 = tf.reduce_sum(tf.multiply(Q_train, act), reduction_indices=1)          # Q-value of current network
+    values1 = tf.reduce_sum(tf.multiply(Q_train, act), reduction_indices=1, name='Q_val_Current')          # Q-value of current network
 
-    loss = tf.reduce_mean(tf.square(values1 - target_y))                         # loss
+    loss = tf.reduce_mean(tf.square(values1 - target_y), name='loss')                         # loss
     train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
+
 
     # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
     target_vars = agent_target.getTrainableVarByName()
@@ -522,7 +529,7 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 done = 1
-                reward = 1e3
+                reward = 1e4
 
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
@@ -555,6 +562,11 @@ if __name__ == "__main__":
 
                     # Use sum to calculate average loss of this episode
                     sum_loss_value += step_loss_value
+    
+                # Visualizing graph     # use tensorboard --logdir=output
+#                writer = tf.summary.FileWriter("output", sess.graph)
+#                print(sess.run(loss, feed_dict = feed))
+#                writer.close()
 
             # Update Target
             if global_step % options.TARGET_UPDATE_STEP == 0:
@@ -615,6 +627,11 @@ if __name__ == "__main__":
                 # Save vehicle position
                 outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME + " ", 'wb')  
                 pickle.dump( veh_pos_data, outfile )
+                outfile.close()
+
+                # Save loss data
+                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME + " ", 'wb')  
+                pickle.dump( avg_loss_value_data, outfile )
                 outfile.close()
                 print("Done") 
         # Line Separator
