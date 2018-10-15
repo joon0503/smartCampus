@@ -64,7 +64,7 @@ def get_options():
                         help='number of episode to calculate the average score')
     parser.add_argument('--manual','-m', action='store_true',
                         help='Step simulation manually')
-    parser.add_argument('--USE_SAVE','-us', action='store_true',
+    parser.add_argument('--NO_SAVE','-us', action='store_true',
                         help='Use saved tensorflow network')
     parser.add_argument('--TESTING','-t', action='store_true',
                         help='No training. Just testing. Use it with eps=1.0')
@@ -332,7 +332,7 @@ def initScene(vehicle_handle, steer_handle, motor_handle, randomize = False):
 ########################
 if __name__ == "__main__":
     options = get_options()
-    
+    print(options) 
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
@@ -412,7 +412,7 @@ if __name__ == "__main__":
     copy_online_to_target.run()         # Copy init weights
 
     # saving and loading networks
-    if options.USE_SAVE == True:
+    if options.NO_SAVE == False:
         saver = tf.train.Saver( max_to_keep = 20 )
         checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
         if checkpoint and checkpoint.model_checkpoint_path:
@@ -613,7 +613,7 @@ if __name__ == "__main__":
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
-            if j // options.SAVER_RATE >= 1 and j % options.SAVER_RATE == 0 and options.USE_SAVE == True:
+            if j // options.SAVER_RATE >= 1 and j % options.SAVER_RATE == 0 and options.NO_SAVE == False:
                 print("Saving network...")
                 saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(j) + "_gs" + str(global_step))
                 print("Done") 
