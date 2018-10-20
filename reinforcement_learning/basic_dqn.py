@@ -22,7 +22,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=50000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=100000,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
                         help='max number of time step of simulation per episode')
@@ -42,7 +42,7 @@ def get_options():
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=1000,
                         help='Save network after this number of episodes')
@@ -82,14 +82,19 @@ class QAgent:
             self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
             self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
             self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
-            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
-            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
-            self.W3_adv = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_adv')
-            self.b3_adv = self.bias_variable([options.H3_SIZE], 'b3_adv')
-            self.W4_val = self.weight_variable([options.H3_SIZE, 1], 'W4_val')
-            self.b4_val = self.bias_variable([1], 'b4_val')
-            self.W4_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4_adv')
-            self.b4_adv = self.bias_variable([options.ACTION_DIM], 'b4_adv')
+            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
+            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
+            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
+            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
+
+#            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
+#            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
+#            self.W3_adv = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_adv')
+#            self.b3_adv = self.bias_variable([options.H3_SIZE], 'b3_adv')
+#            self.W4_val = self.weight_variable([options.H3_SIZE, 1], 'W4_val')
+#            self.b4_val = self.bias_variable([1], 'b4_val')
+#            self.W4_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4_adv')
+#            self.b4_adv = self.bias_variable([options.ACTION_DIM], 'b4_adv')
    
     # Weights initializer
     def xavier_initializer(self, shape):
@@ -113,13 +118,16 @@ class QAgent:
             observation = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
             h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
             h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
-            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
-            h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
+            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
+            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+#            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
+#            h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
 
-            value_est = tf.nn.relu(tf.matmul(h3_val, self.W4_val) + self.b4_val, name='value_est')
-            adv_est = tf.nn.relu(tf.matmul(h3_adv, self.W4_adv) + self.b4_adv, name='adv_est')
+#            value_est = tf.nn.relu(tf.matmul(h3_val, self.W4_val) + self.b4_val, name='value_est')
+#            adv_est = tf.nn.relu(tf.matmul(h3_adv, self.W4_adv) + self.b4_adv, name='adv_est')
 
-            Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
+#            Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
+
 #        Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
 #        Q = tf.matmul(h3, self.W4) + self.b4
         #q = tf.nn.sigmoid(Q)
@@ -489,6 +497,10 @@ if __name__ == "__main__":
             action = agent_train.sample_action(Q_train, {obs : np.reshape(observation, (1, -1))}, eps, options)
             act_queue[exp_pointer] = action
 
+            # Print variables
+#            print(agent_train.b1.eval())
+
+
             # Apply action
             applySteeringAction( action )
             if options.manual == True:
@@ -557,12 +569,18 @@ if __name__ == "__main__":
                 feed.update({next_obs : next_obs_queue[rand_indexs]})
                 feed.update( {target_y :q_target_val } )        # Add target_y to feed
 
+                b_before = agent_train.b1.eval()
                 with tf.variable_scope("Training"):            
                     step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
 
                     # Use sum to calculate average loss of this episode
                     sum_loss_value += step_loss_value
     
+                b_after = agent_train.b1.eval()
+                delta = abs(np.mean(b_before-b_after))
+                if delta < 1e-10:
+                    print("WARNING: Update too small!" + str( delta ))
+
                 # Visualizing graph     # use tensorboard --logdir=output
 #                writer = tf.summary.FileWriter("output", sess.graph)
 #                print(sess.run(loss, feed_dict = feed))
