@@ -69,13 +69,22 @@ if os.path.isfile(options.VEH_POS):
 #################################
 if os.path.isfile(options.REW):
     # Load
-    reward_data = pickle.load( open( options.VEH_REW, "rb" ) )
+    reward_data = pickle.load( open( options.REW, "rb" ) )
+
+    # Calculate running average
+    avg_steps = 100     # num of episodes for taking average 
+    avg_epi_reward_data = np.zeros(reward_data.size)
+   
+    for i in range(0,avg_epi_reward_data.size):
+        if i >= avg_steps:
+            avg_epi_reward_data[i] = np.mean(reward_data[i-avg_steps+1:i])  
+    
 
     # Plot
     plt.figure(1)
 
-    plt.plot(reward_data)
-    plt.title("Cumulative Reward")
+    plt.plot(avg_epi_reward_data)
+    plt.title("Average Reward. Steps:" + str(avg_steps))
     plt.xlabel("Episode")
     plt.ylabel("Reward")
     plt.show()
