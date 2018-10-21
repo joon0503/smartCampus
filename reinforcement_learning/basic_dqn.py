@@ -24,7 +24,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=10000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=30000,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
                         help='max number of time step of simulation per episode')
@@ -50,7 +50,7 @@ def get_options():
                         help='Save network after this number of episodes')
     parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=200,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
@@ -499,13 +499,13 @@ if __name__ == "__main__":
                 eps = eps * options.EPS_DECAY
 
             # get data
-            dDistance, dState, gInfo, vehPos = getVehicleState()
+            dDistance, dState, gInfo, prev_vehPos = getVehicleState()
             observation = dDistance + gInfo
 
             # Save data
 #            sensorData = np.vstack( (sensorData,dDistance) )
 #            sensorDetection = np.vstack( (sensorDetection,dState) )
-            vehPosDataTrial[i] = vehPos[0:2]
+            vehPosDataTrial[i] = prev_vehPos[0:2]
 
             # Update memory
             obs_queue[exp_pointer] = observation
@@ -526,9 +526,22 @@ if __name__ == "__main__":
                 vrep.simxSynchronousTrigger(clientID);
 
             # Get new Data
-            dDistance, dState, gInfo, vehPos = getVehicleState()
+            dDistance, dState, gInfo, curr_vehPos = getVehicleState()
             observation = dDistance + gInfo
             reward = -10*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
+
+            # If vehicle is stuck somehow
+#            print(prev_vehPos)
+#            print(abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])))
+            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15:
+                print('Vehicle Stuck!')
+                # Reset Simulation
+                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
+                initScene(vehicle_handle, steer_handle, motor_handle, randomize = True)               # initialize
+                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
+                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
+                
+                done = 1
 
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
