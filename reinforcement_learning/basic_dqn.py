@@ -13,6 +13,8 @@ import datetime
 import pickle
 import os
 import re
+from experience_replay import SumTree
+from experience_replay import Memory
 from argparse import ArgumentParser
 
 
@@ -71,6 +73,8 @@ def get_options():
                         help='Use saved tensorflow network')
     parser.add_argument('--TESTING','-t', action='store_true',
                         help='No training. Just testing. Use it with eps=1.0')
+    parser.add_argument('--disable_DN', action='store_true',
+                        help='Disable the usage of double network.')
     options = parser.parse_args()
     return options
 
@@ -635,7 +639,13 @@ if __name__ == "__main__":
 
                 # Calculate Target Q-value. Uses double network
                 action_train = np.argmax( Q_train.eval(feed_dict=feed), axis=1 )
-                q_target_val = rwd_queue[rand_indexs] + options.GAMMA * Q_target.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
+                if options.disable_DN == False:
+                    # Using Target + Double network
+                    q_target_val = rwd_queue[rand_indexs] + options.GAMMA * Q_target.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
+                else:
+                    # Just using Target Network
+                    q_target_val = rwd_queue[rand_indexs] + options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
+    
 
                 # Gradient Descent
                 feed.clear()
