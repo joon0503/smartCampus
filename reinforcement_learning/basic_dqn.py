@@ -19,6 +19,7 @@ from argparse import ArgumentParser
 MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
 MAX_DISTANCE = 15
 GOAL_DISTANCE = 60
+SENSOR_COUNT = 5
 
 def get_options():
     parser = ArgumentParser(
@@ -80,14 +81,27 @@ class QAgent:
     def __init__(self, options, name):
         self.scope = name
         with tf.variable_scope(name):      # Set scope as name
-            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
-            self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
-            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
-            self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
-            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
-            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
-            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
-            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
+            self.W1 = self.weight_variable([SENSOR_COUNT, options.H1_SIZE], 'W_s1')
+            self.b1 = self.bias_variable([options.H1_SIZE], 'b_s1')
+            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W_s2')
+            self.b2 = self.bias_variable([options.H2_SIZE], 'b_s2')
+
+            self.W3 = self.weight_variable([options.H2_SIZE+2, options.H3_SIZE], 'W_fc_1')
+            self.b3 = self.bias_variable([options.H3_SIZE], 'b_fc_1')
+            self.W4 = self.weight_variable([options.H3_SIZE, options.H3_SIZE], 'W_fc_2')
+            self.b4 = self.bias_variable([options.H3_SIZE], 'b_fc_2')
+
+            self.W5 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W_fc_3')
+            self.b5 = self.bias_variable([options.ACTION_DIM], 'b_fc_3')
+
+#            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
+#            self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
+#            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
+#            self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
+#            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
+#            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
+#            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
+#            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
 
 #            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
 #            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
@@ -118,10 +132,30 @@ class QAgent:
     def add_value_net(self, options):
         with tf.variable_scope(self.scope):
             observation = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
-            h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
-            h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
-            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
-            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+
+            # Slicing
+            sensor_data = tf.slice(observation, [0, 0], [-1, 5])
+            goal_data = tf.slice(observation, [0, 5], [-1, 2])
+
+            # Giving some structure            
+            h_s1 = tf.nn.relu(tf.matmul(sensor_data, self.W1) + self.b1, name='h_s1')
+            h_s2 = tf.nn.relu(tf.matmul(h_s1, self.W2) + self.b2, name='h_s2')
+
+            # Combine sensor data and goal data
+            combined_layer = tf.concat([goal_data, h_s2], -1)
+
+            h_fc_1 = tf.nn.relu(tf.matmul(combined_layer, self.W3) + self.b3, name='h_fc1')
+            h_fc_2 = tf.nn.relu(tf.matmul(h_fc_1, self.W4) + self.b4, name='h_fc2')
+
+            Q = tf.squeeze(tf.matmul(h_fc_2, self.W5) + self.b5)
+
+#           Regular DQN
+#            h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
+#            h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
+#            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
+#            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+
+#           Dueling Network
 #            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
 #            h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
 
@@ -332,7 +366,7 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize 
 
     # Reset motor speed
 #    print("Setting motor speed")
-    setMotorSpeed(clientID, motor_handle, 5)
+    setMotorSpeed(clientID, motor_handle, 7)
    
     # Read sensor
     dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
@@ -357,7 +391,6 @@ if __name__ == "__main__":
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
-    SENSOR_COUNT = 5
     START_TIME   = str(datetime.datetime.now()).replace(" ","_")
 
     # Save options
@@ -434,7 +467,6 @@ if __name__ == "__main__":
 
     loss = tf.reduce_mean(tf.square(values1 - target_y), name='loss')                         # loss
     train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
-
 
     # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
     target_vars = agent_target.getTrainableVarByName()
@@ -597,9 +629,13 @@ if __name__ == "__main__":
                 rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
 
                 # Get Target Q-Value
+                feed.clear()
                 feed.update({next_obs : next_obs_queue[rand_indexs]})
-                # Calculate Target Q-value
-                q_target_val = rwd_queue[rand_indexs] + options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
+                feed.update({obs : next_obs_queue[rand_indexs]})
+
+                # Calculate Target Q-value. Uses double network
+                action_train = np.argmax( Q_train.eval(feed_dict=feed), axis=1 )
+                q_target_val = rwd_queue[rand_indexs] + options.GAMMA * Q_target.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
 
                 # Gradient Descent
                 feed.clear()
