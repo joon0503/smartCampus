@@ -26,7 +26,7 @@ def get_options():
         )
     parser.add_argument('--MAX_EPISODE', type=int, default=30000,
                         help='max number of episodes iteration\n')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=100,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
@@ -42,7 +42,7 @@ def get_options():
                         help='epsilon decay rate')
     parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
                         help='steps interval to decay epsilon')
-    parser.add_argument('--LR', type=float, default=1e-4,
+    parser.add_argument('--LR', type=float, default=2.5e-4,
                         help='learning rate')
     parser.add_argument('--MAX_EXPERIENCE', type=int, default=10000,
                         help='size of experience replay memory')
@@ -58,7 +58,7 @@ def get_options():
                         help='size of hidden layer 1')
     parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=40,
+    parser.add_argument('--H3_SIZE', type=int, default=80,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_EPISODE', type=int, default=250,
                         help='number of episode after resetting the simulation')
@@ -84,19 +84,19 @@ class QAgent:
             self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
             self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
             self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
-#            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
-#            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
-#            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
-#            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
+            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
+            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
+            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
+            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
 
-            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
-            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
-            self.W3_adv = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_adv')
-            self.b3_adv = self.bias_variable([options.H3_SIZE], 'b3_adv')
-            self.W4_val = self.weight_variable([options.H3_SIZE, 1], 'W4_val')
-            self.b4_val = self.bias_variable([1], 'b4_val')
-            self.W4_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4_adv')
-            self.b4_adv = self.bias_variable([options.ACTION_DIM], 'b4_adv')
+#            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
+#            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
+#            self.W3_adv = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_adv')
+#            self.b3_adv = self.bias_variable([options.H3_SIZE], 'b3_adv')
+#            self.W4_val = self.weight_variable([options.H3_SIZE, 1], 'W4_val')
+#            self.b4_val = self.bias_variable([1], 'b4_val')
+#            self.W4_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4_adv')
+#            self.b4_adv = self.bias_variable([options.ACTION_DIM], 'b4_adv')
    
     # Weights initializer
     def xavier_initializer(self, shape):
@@ -120,15 +120,15 @@ class QAgent:
             observation = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
             h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
             h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
-#            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
-#            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
-            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
-            h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
+            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
+            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+#            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
+#            h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
 
-            value_est = tf.nn.relu(tf.matmul(h3_val, self.W4_val) + self.b4_val, name='value_est')
-            adv_est = tf.nn.relu(tf.matmul(h3_adv, self.W4_adv) + self.b4_adv, name='adv_est')
+#            value_est = tf.nn.relu(tf.matmul(h3_val, self.W4_val) + self.b4_val, name='value_est')
+#            adv_est = tf.nn.relu(tf.matmul(h3_adv, self.W4_adv) + self.b4_adv, name='adv_est')
 
-            Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
+#            Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
 
 #        Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
 #        Q = tf.matmul(h3, self.W4) + self.b4
@@ -316,7 +316,7 @@ def getSensorHandles():
 #################################33/
 
 # Initialize to original scene
-def initScene(vehicle_handle, steer_handle, motor_handle, randomize = False):
+def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = False):
     # Reset position of vehicle. Randomize x-position if enabled
     if randomize == False:
         err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
@@ -337,6 +337,16 @@ def initScene(vehicle_handle, steer_handle, motor_handle, randomize = False):
     # Read sensor
     dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
 
+    # Reset position of obstacle
+    if randomize == True:
+        if random.random() > 0.5:
+            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-1,30,1.1],vrep.simx_opmode_blocking)
+        else:
+            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-6.5,30,1.1],vrep.simx_opmode_blocking)
+        
+
+
+
 ########################
 # MAIN
 ########################
@@ -353,7 +363,7 @@ if __name__ == "__main__":
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
         os.makedirs("./checkpoints-vehicle")
-    option_file = open("./checkpoints-vehicle/options_"+START_TIME+'txt', "w")
+    option_file = open("./checkpoints-vehicle/options_"+START_TIME+'.txt', "w")
     option_file.write(
         re.sub(
             r', ',
@@ -390,6 +400,8 @@ if __name__ == "__main__":
     # Get goal point handle
     err_code, dummy_handle = vrep.simxGetObjectHandle(clientID, "Dummy", vrep.simx_opmode_blocking)
 
+    # Get obstacle handle
+    err_code, obs_handle = vrep.simxGetObjectHandle(clientID, "obstacle", vrep.simx_opmode_blocking)
 
     ########################
     # Initialize Test Scene
@@ -533,11 +545,11 @@ if __name__ == "__main__":
             # If vehicle is stuck somehow
 #            print(prev_vehPos)
 #            print(abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])))
-            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15:
+            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.001 and i >= 15:
                 print('Vehicle Stuck!')
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle, randomize = True)               # initialize
+                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
                 vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
                 vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
                 
@@ -549,7 +561,7 @@ if __name__ == "__main__":
 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle, randomize = True)               # initialize
+                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
                 vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
                 vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
@@ -563,13 +575,13 @@ if __name__ == "__main__":
                 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle, randomize = True)               # initialize
+                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
                 vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
                 vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
                 # Set flag and reward
                 done = 1
-                reward = 1e3
+                reward = 1e4
 
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
