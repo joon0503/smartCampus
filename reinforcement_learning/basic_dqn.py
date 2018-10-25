@@ -75,6 +75,8 @@ def get_options():
                         help='No training. Just testing. Use it with eps=1.0')
     parser.add_argument('--disable_DN', action='store_true',
                         help='Disable the usage of double network.')
+    parser.add_argument('--disable_PER', action='store_true',
+                        help='Disable the usage of double network.')
     options = parser.parse_args()
     return options
 
@@ -391,7 +393,7 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize 
 if __name__ == "__main__":
     options = get_options()
     print(options)
-    
+  
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
@@ -466,10 +468,15 @@ if __name__ == "__main__":
     act                  = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
     rwd                  = tf.placeholder(tf.float32, [None, ], name='reward')
     target_y             = tf.placeholder(tf.float32, [None, ], name='target_y' )  
+    ISWeights            = tf.placeholder(tf.float32, [None,1], name='IS_weights')
  
     values1 = tf.reduce_sum(tf.multiply(Q_train, act), reduction_indices=1, name='Q_val_Current')          # Q-value of current network
+    
+    # Absolute loss. It is a vector of size BATCH_SIZE
+    loss_per_data = tf.abs(values1 - target_y, name='loss_per_data')                                               
 
-    loss = tf.reduce_mean(tf.square(values1 - target_y), name='loss')                         # loss
+    # Actual loss for optimization. Note importance sampling factor is multiplied due to prioritization
+    loss = tf.reduce_mean( ISWeights * tf.squared_difference(values1,target_y), name='loss')                            
     train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
 
     # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
@@ -503,13 +510,15 @@ if __name__ == "__main__":
     exp_pointer = 0
     learning_finished = False
 
-    # The replay memory. But no replay memory for now
-    obs_queue = np.empty([options.MAX_EXPERIENCE, options.OBSERVATION_DIM])
-    act_queue = np.empty([options.MAX_EXPERIENCE, options.ACTION_DIM])
-    rwd_queue = np.empty([options.MAX_EXPERIENCE])
-    next_obs_queue = np.empty([options.MAX_EXPERIENCE, options.OBSERVATION_DIM])
-
+    # The replay memory.
+    if options.disable_PER == False:
+        replay_memory = Memory(options.MAX_EXPERIENCE, absolute_error_upperbound=2000)
+    else:
+        replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = True)
+        
+    ########################
     # END TF SETUP
+    ########################
 
     ###########################        
     # DATA VARIABLES
@@ -556,13 +565,10 @@ if __name__ == "__main__":
             vehPosDataTrial[i] = prev_vehPos[0:2]
 
             # Update memory
-            obs_queue[exp_pointer] = observation
             action = agent_train.sample_action(Q_train, {obs : np.reshape(observation, (1, -1))}, eps, options)
-            act_queue[exp_pointer] = action
 
             # Print variables
 #            print(agent_train.b1.eval())
-
 
             # Apply action
             applySteeringAction( action )
@@ -575,8 +581,11 @@ if __name__ == "__main__":
 
             # Get new Data
             dDistance, dState, gInfo, curr_vehPos = getVehicleState()
-            observation = dDistance + gInfo
+            next_observation = dDistance + gInfo
             reward = -10*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
+
+            experience = observation, action, reward, next_observation
+            replay_memory.store(experience)
 
             # If vehicle is stuck somehow
 #            print(prev_vehPos)
@@ -622,42 +631,49 @@ if __name__ == "__main__":
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
 
-            rwd_queue[exp_pointer] = reward
-            next_obs_queue[exp_pointer] = observation
-    
             exp_pointer += 1
             if exp_pointer == options.MAX_EXPERIENCE:
                 exp_pointer = 0 # Refill the replay memory if it is full
   
             if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
+                # Obtain the mini batch
                 rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
+
+                tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
+
+                # Get state/action/next state from obtained memory. Size same as queues
+                states_mb       = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x STATE_DIM 
+                actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
+                rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
+                next_states_mb  = np.array([each[0][3] for each in batch_memory])   
 
                 # Get Target Q-Value
                 feed.clear()
-                feed.update({next_obs : next_obs_queue[rand_indexs]})
-                feed.update({obs : next_obs_queue[rand_indexs]})
+                feed.update({next_obs : next_states_mb})
+                feed.update({obs : next_states_mb})
 
                 # Calculate Target Q-value. Uses double network
                 action_train = np.argmax( Q_train.eval(feed_dict=feed), axis=1 )
                 if options.disable_DN == False:
                     # Using Target + Double network
-                    q_target_val = rwd_queue[rand_indexs] + options.GAMMA * Q_target.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
+                    q_target_val = rewards_mb + options.GAMMA * Q_target.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
                 else:
                     # Just using Target Network
-                    q_target_val = rwd_queue[rand_indexs] + options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
+                    q_target_val = rewards_mb + options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
     
 
                 # Gradient Descent
                 feed.clear()
-                feed.update({obs : obs_queue[rand_indexs]})
-                feed.update({act : act_queue[rand_indexs]})
-                feed.update({rwd : rwd_queue[rand_indexs]})
-                feed.update({next_obs : next_obs_queue[rand_indexs]})
-                feed.update( {target_y :q_target_val } )        # Add target_y to feed
+                feed.update({obs : states_mb})
+                feed.update({act : actions_mb})
+                feed.update({rwd : rewards_mb})
+                feed.update({next_obs : next_states_mb})
+                feed.update({target_y : q_target_val } )        # Add target_y to feed
+                feed.update({ISWeights : ISWeights_mb   })
 
                 b_before = agent_train.b1.eval()
                 with tf.variable_scope("Training"):            
-                    step_loss_value, _ = sess.run([loss, train_step], feed_dict = feed)
+                    step_loss_per_data, step_loss_value, _ = sess.run([loss_per_data, loss, train_step], feed_dict = feed)
 
                     # Use sum to calculate average loss of this episode
                     sum_loss_value += step_loss_value
@@ -666,6 +682,11 @@ if __name__ == "__main__":
                 delta = abs(np.mean(b_before-b_after))
                 if delta < 1e-10:
                     print("WARNING: Update too small!" + str( delta ))
+
+        
+                # Update priority
+#                print(step_loss_per_data)
+                replay_memory.batch_update(tree_idx, step_loss_per_data)
 
                 # Visualizing graph     # use tensorboard --logdir=output
 #                writer = tf.summary.FileWriter("output", sess.graph)
