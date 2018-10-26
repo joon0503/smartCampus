@@ -21,7 +21,7 @@ from argparse import ArgumentParser
 MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
 MAX_DISTANCE = 15
 GOAL_DISTANCE = 60
-SENSOR_COUNT = 5
+SENSOR_COUNT = 9
 
 def get_options():
     parser = ArgumentParser(
@@ -140,8 +140,8 @@ class QAgent:
             observation = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
 
             # Slicing
-            sensor_data = tf.slice(observation, [0, 0], [-1, 5])
-            goal_data = tf.slice(observation, [0, 5], [-1, 2])
+            sensor_data = tf.slice(observation, [0, 0], [-1, SENSOR_COUNT])
+            goal_data = tf.slice(observation, [0, SENSOR_COUNT], [-1, 2])
 
             # Giving some structure            
             h_s1 = tf.nn.relu(tf.matmul(sensor_data, self.W1) + self.b1, name='h_s1')
@@ -584,8 +584,6 @@ if __name__ == "__main__":
             next_observation = dDistance + gInfo
             reward = -10*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
 
-            experience = observation, action, reward, next_observation
-            replay_memory.store(experience)
 
             # If vehicle is stuck somehow
 #            print(prev_vehPos)
@@ -603,6 +601,10 @@ if __name__ == "__main__":
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
                 print('Vehicle collided!')
+                
+                # Print last Q-value 
+                curr_q_value = sess.run([Q_train], feed_dict = {obs : np.reshape(observation, (1, -1))})
+                print(curr_q_value)
 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
@@ -627,6 +629,10 @@ if __name__ == "__main__":
                 # Set flag and reward
                 done = 1
                 reward = 1e4
+
+            # Save new memory
+            experience = observation, action, reward, next_observation
+            replay_memory.store(experience)
 
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
@@ -676,7 +682,7 @@ if __name__ == "__main__":
                     step_loss_per_data, step_loss_value, _ = sess.run([loss_per_data, loss, train_step], feed_dict = feed)
 
                     # Use sum to calculate average loss of this episode
-                    sum_loss_value += step_loss_value
+                    sum_loss_value += np.mean(step_loss_per_data)
     
                 b_after = agent_train.b1.eval()
                 delta = abs(np.mean(b_before-b_after))
