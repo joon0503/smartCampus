@@ -596,25 +596,29 @@ if __name__ == "__main__":
             for q in range(0,options.FIX_INPUT_STEP):
                 vrep.simxSynchronousTrigger(clientID);
 
-            # Get new Data
-            dDistance, dState, gInfo, curr_vehPos = getVehicleState()
-            next_observation = dDistance + gInfo
-            reward = -10*gInfo[1]**2        # cost is the distance squared + time it survived
-
+                # Get new Data
+                dDistance, dState, gInfo, curr_vehPos = getVehicleState()
+                next_observation = dDistance + gInfo
+                reward = -10*gInfo[1]**2        # cost is the distance squared + time it survived
+                
+                # If vehicle collided during stepping
+                if detectCollision(dDistance,dState)[0] == True:
+                    reward = -1e3
+                    break
 
             # If vehicle is stuck somehow
 #            print(prev_vehPos)
 #            print(abs(np.asarray(prev_vehPos[1]) - np.asarray(curr_vehPos[1])))
 
-            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15:
-                print('Vehicle Stuck!')
+#            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15:
+#                print('Vehicle Stuck!')
                 # Reset Simulation
-                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
-                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
-                
-                done = 1
+#                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
+#                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
+#                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
+#                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
+#                
+#                done = 1
 
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
