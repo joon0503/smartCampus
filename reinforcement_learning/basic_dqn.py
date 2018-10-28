@@ -27,13 +27,13 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=30000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=50000,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=100,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
-    parser.add_argument('--OBSERVATION_DIM', type=int, default=7,
+    parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
     parser.add_argument('--GAMMA', type=float, default=0.95,
                         help='discount factor of Q learning')
@@ -77,6 +77,8 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_PER', action='store_true',
                         help='Disable the usage of double network.')
+    parser.add_argument('--disable_duel', action='store_true',
+                        help='Disable the usage of double network.')
     options = parser.parse_args()
     return options
 
@@ -86,103 +88,119 @@ class QAgent:
     # A naive neural network with 3 hidden layers and relu as non-linear function.
     def __init__(self, options, name):
         self.scope = name
-        with tf.variable_scope(name):      # Set scope as name
-            self.W1 = self.weight_variable([SENSOR_COUNT, options.H1_SIZE], 'W_s1')
-            self.b1 = self.bias_variable([options.H1_SIZE], 'b_s1')
-            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W_s2')
-            self.b2 = self.bias_variable([options.H2_SIZE], 'b_s2')
+        with tf.variable_scope(self.scope):      # Set variable scope
 
-            self.W3 = self.weight_variable([options.H2_SIZE+2, options.H3_SIZE], 'W_fc_1')
-            self.b3 = self.bias_variable([options.H3_SIZE], 'b_fc_1')
-            self.W4 = self.weight_variable([options.H3_SIZE, options.H3_SIZE], 'W_fc_2')
-            self.b4 = self.bias_variable([options.H3_SIZE], 'b_fc_2')
+            ######################################:
+            ## CONSTRUCTING NEURAL NETWORK
+            ######################################:
 
-            self.W5 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W_fc_3')
-            self.b5 = self.bias_variable([options.ACTION_DIM], 'b_fc_3')
+            # Inputs
+            self.observation    = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
+            self.ISWeights      = tf.placeholder(tf.float32, [None,1], name='IS_weights')
+            self.act            = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
+            self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
 
-#            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
-#            self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
-#            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
-#            self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
-#            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
-#            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
-#            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
-#            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
-
-#            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
-#            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
-#            self.W3_adv = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_adv')
-#            self.b3_adv = self.bias_variable([options.H3_SIZE], 'b3_adv')
-#            self.W4_val = self.weight_variable([options.H3_SIZE, 1], 'W4_val')
-#            self.b4_val = self.bias_variable([1], 'b4_val')
-#            self.W4_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4_adv')
-#            self.b4_adv = self.bias_variable([options.ACTION_DIM], 'b4_adv')
-   
-    # Weights initializer
-    def xavier_initializer(self, shape):
-        dim_sum = np.sum(shape)
-        if len(shape) == 1:
-            dim_sum += 1
-        bound = np.sqrt(6.0 / dim_sum)
-        return tf.random_uniform(shape, minval=-bound, maxval=bound)
-
-    # Tool function to create weight variables
-    def weight_variable(self, shape, var_name=None):
-        return tf.Variable(self.xavier_initializer(shape), name=var_name)
-
-    # Tool function to create bias variables
-    def bias_variable(self, shape, var_name=None):
-        return tf.Variable(self.xavier_initializer(shape), name=var_name)
-
-    # Add options to graph
-    def add_value_net(self, options):
-        with tf.variable_scope(self.scope):
-            observation = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
 
             # Slicing
-            sensor_data = tf.slice(observation, [0, 0], [-1, SENSOR_COUNT])
-            goal_data = tf.slice(observation, [0, SENSOR_COUNT], [-1, 2])
+            self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT])
+            self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT], [-1, 2])
 
-            # Giving some structure            
-            h_s1 = tf.nn.relu(tf.matmul(sensor_data, self.W1) + self.b1, name='h_s1')
-            h_s2 = tf.nn.relu(tf.matmul(h_s1, self.W2) + self.b2, name='h_s2')
+            # "CNN-like" structure for sensor data. 2 Layers
+            self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
+                                         units=options.H1_SIZE,
+                                         activation = tf.nn.relu,
+                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                         name="h_s1"
+                                       )
+ 
+            self.h_s2 = tf.layers.dense( inputs=self.h_s1,
+                                         units=options.H1_SIZE,
+                                         activation = tf.nn.relu,
+                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                         name="h_s2"
+                                       )
 
             # Combine sensor data and goal data
-            combined_layer = tf.concat([goal_data, h_s2], -1)
+            self.combined_layer = tf.concat([self.goal_data, self.h_s2], -1)
 
-            h_fc_1 = tf.nn.relu(tf.matmul(combined_layer, self.W3) + self.b3, name='h_fc1')
-            h_fc_2 = tf.nn.relu(tf.matmul(h_fc_1, self.W4) + self.b4, name='h_fc2')
+            # FC Layer
+            self.h_fc_1 = tf.layers.dense( inputs=self.h_s2,
+                                         units=options.H1_SIZE,
+                                         activation = tf.nn.relu,
+                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                         name="h_fc1"
+                                       )
 
-            Q = tf.squeeze(tf.matmul(h_fc_2, self.W5) + self.b5)
+            if options.disable_duel == True:
+                # Regular DQN
+                self.h_fc_2 = tf.layers.dense( inputs=self.h_fc_1,
+                                             units=options.H1_SIZE,
+                                             activation = tf.nn.relu,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="h_fc2"
+                                           )
+                
+                self.output = tf.layers.dense( inputs=self.h_fc_2,
+                                             units=options.ACTION_DIM,
+                                             activation = tf.nn.relu,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="q_value"
+                                           )
+            else:
+                # Dueling Network
+                self.h_layer_val = tf.layers.dense( inputs=self.h_fc_1,
+                                             units=options.H3_SIZE,
+                                             activation = tf.nn.relu,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="h_layer_val"
+                                           )
+                self.h_layer_adv = tf.layers.dense( inputs=self.h_fc_1,
+                                             units=options.H3_SIZE,
+                                             activation = tf.nn.relu,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="h_layer_adv"
+                                           )
 
-#           Regular DQN
-#            h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
-#            h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
-#            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
-#            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+                # Value and advantage estimate
+                self.val_est    = tf.layers.dense( inputs=self.h_layer_val,
+                                             units=1,
+                                             activation = None,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="val_est"
+                                           )
 
-#           Dueling Network
-#            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
-#            h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
+                self.adv_est    = tf.layers.dense( inputs=self.h_layer_val,
+                                             units=options.ACTION_DIM,
+                                             activation = None,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="adv_est"
+                                           )
+             
+                self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
+            ######################################:
+            ## END Constructing Neural Network
+            ######################################:
 
-#            value_est = tf.nn.relu(tf.matmul(h3_val, self.W4_val) + self.b4_val, name='value_est')
-#            adv_est = tf.nn.relu(tf.matmul(h3_adv, self.W4_adv) + self.b4_adv, name='adv_est')
+            # Prediction of given specific action
+            self.Q = tf.reduce_sum( tf.multiply(self.output, self.act), axis=1)
 
-#            Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
+            # Absolute Loss
+            self.loss_per_data = tf.abs(self.target_Q - self.Q, name='loss_per_data')    
+            
+            # Loss for Optimization
+            self.loss = tf.reduce_mean(self.ISWeights * tf.squared_difference(self.target_Q, self.Q))
+            # Optimizer
+            self.optimizer = tf.train.AdamOptimizer(options.LR).minimize(self.loss)
 
-#        Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
-#        Q = tf.matmul(h3, self.W4) + self.b4
-        #q = tf.nn.sigmoid(Q)
-        return observation, Q
 
     # Sample action with random rate eps
-    def sample_action(self, Q, feed, eps, options):
+    def sample_action(self, feed, eps, options):
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = random.randrange(options.ACTION_DIM)
 #            action = random.uniform(0,1)
         else:
-            act_values = Q.eval(feed_dict=feed)
+            act_values = self.output.eval(feed_dict=feed)
             if options.TESTING == True:
                 print(np.argmax(act_values))
                 print(act_values)
@@ -351,6 +369,28 @@ def getSensorHandles():
 
     return sensor_handle
 
+##################################
+# TENSORFLOW HELPER
+##################################
+
+def printTFvars():
+    tvars = tf.trainable_variables()
+
+    for var in tvars:
+        print(var)
+    return
+
+
+
+
+
+
+
+
+
+
+
+
 ###############################33
 # TRAINING
 #################################33/
@@ -460,24 +500,12 @@ if __name__ == "__main__":
     agent_target    = QAgent(options,'Target')
     sess            = tf.InteractiveSession()
 
+#    printTFvars()
+
 #    sess = tf.InteractiveSession(config=tf.ConfigProto(log_device_placement=True))
 #    sess = tf.Session()
    
-    obs, Q_train         = agent_train.add_value_net(options)
-    next_obs, Q_target   = agent_target.add_value_net(options)
-    act                  = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
     rwd                  = tf.placeholder(tf.float32, [None, ], name='reward')
-    target_y             = tf.placeholder(tf.float32, [None, ], name='target_y' )  
-    ISWeights            = tf.placeholder(tf.float32, [None,1], name='IS_weights')
- 
-    values1 = tf.reduce_sum(tf.multiply(Q_train, act), reduction_indices=1, name='Q_val_Current')          # Q-value of current network
-    
-    # Absolute loss. It is a vector of size BATCH_SIZE
-    loss_per_data = tf.abs(values1 - target_y, name='loss_per_data')                                               
-
-    # Actual loss for optimization. Note importance sampling factor is multiplied due to prioritization
-    loss = tf.reduce_mean( ISWeights * tf.squared_difference(values1,target_y), name='loss')                            
-    train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
 
     # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
     target_vars = agent_target.getTrainableVarByName()
@@ -507,8 +535,6 @@ if __name__ == "__main__":
     feed = {}
     eps = options.INIT_EPS
     global_step = 0
-    exp_pointer = 0
-    learning_finished = False
 
     # The replay memory.
     if options.disable_PER == False:
@@ -543,13 +569,7 @@ if __name__ == "__main__":
         setMotorPosition(clientID, steer_handle, 0)
         setMotorSpeed(clientID, motor_handle, 5)
 
-        # Time reward
-        time_reward = 0
-
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
-           # if i % 10 == 0:
-#            print("\tStep:" + str(i))
-
             # Decay epsilon
             global_step += 1
             if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
@@ -565,10 +585,7 @@ if __name__ == "__main__":
             vehPosDataTrial[i] = prev_vehPos[0:2]
 
             # Update memory
-            action = agent_train.sample_action(Q_train, {obs : np.reshape(observation, (1, -1))}, eps, options)
-
-            # Print variables
-#            print(agent_train.b1.eval())
+            action = agent_train.sample_action({agent_train.observation : np.reshape(observation, (1, -1))}, eps, options)
 
             # Apply action
             applySteeringAction( action )
@@ -582,13 +599,14 @@ if __name__ == "__main__":
             # Get new Data
             dDistance, dState, gInfo, curr_vehPos = getVehicleState()
             next_observation = dDistance + gInfo
-            reward = -10*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
+            reward = -10*gInfo[1]**2        # cost is the distance squared + time it survived
 
 
             # If vehicle is stuck somehow
 #            print(prev_vehPos)
-#            print(abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])))
-            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.001 and i >= 15:
+#            print(abs(np.asarray(prev_vehPos[1]) - np.asarray(curr_vehPos[1])))
+
+            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15:
                 print('Vehicle Stuck!')
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
@@ -603,7 +621,7 @@ if __name__ == "__main__":
                 print('Vehicle collided!')
                 
                 # Print last Q-value 
-                curr_q_value = sess.run([Q_train], feed_dict = {obs : np.reshape(observation, (1, -1))})
+                curr_q_value = sess.run([agent_train.output], feed_dict = {agent_train.observation : np.reshape(observation, (1, -1))})
                 print(curr_q_value)
 
                 # Reset Simulation
@@ -637,10 +655,6 @@ if __name__ == "__main__":
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
 
-            exp_pointer += 1
-            if exp_pointer == options.MAX_EXPERIENCE:
-                exp_pointer = 0 # Refill the replay memory if it is full
-  
             if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
                 # Obtain the mini batch
                 rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
@@ -655,43 +669,39 @@ if __name__ == "__main__":
 
                 # Get Target Q-Value
                 feed.clear()
-                feed.update({next_obs : next_states_mb})
-                feed.update({obs : next_states_mb})
+                feed.update({agent_train.observation : next_states_mb})
+            #    feed.update({next_obs : next_states_mb})
 
-                # Calculate Target Q-value. Uses double network
-                action_train = np.argmax( Q_train.eval(feed_dict=feed), axis=1 )
+                # Calculate Target Q-value. Uses double network. First, get action from training network
+                action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
+
                 if options.disable_DN == False:
+                    feed.clear()
+                    feed.update({agent_target.observation : next_states_mb})
                     # Using Target + Double network
-                    q_target_val = rewards_mb + options.GAMMA * Q_target.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
+                    q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
                 else:
+                    feed.clear()
+                    feed.update({agent_target.observation : next_states_mb})
                     # Just using Target Network
-                    q_target_val = rewards_mb + options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
+                    q_target_val = rewards_mb + options.GAMMA * np.amax( agent.target.output.eval(feed_dict=feed), axis=1)
     
 
                 # Gradient Descent
                 feed.clear()
-                feed.update({obs : states_mb})
-                feed.update({act : actions_mb})
-                feed.update({rwd : rewards_mb})
-                feed.update({next_obs : next_states_mb})
-                feed.update({target_y : q_target_val } )        # Add target_y to feed
-                feed.update({ISWeights : ISWeights_mb   })
+                feed.update({agent_train.observation : states_mb})
+                feed.update({agent_train.act : actions_mb})
+                feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
+                feed.update({agent_train.ISWeights : ISWeights_mb   })
 
-                b_before = agent_train.b1.eval()
                 with tf.variable_scope("Training"):            
-                    step_loss_per_data, step_loss_value, _ = sess.run([loss_per_data, loss, train_step], feed_dict = feed)
+                    step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
 
                     # Use sum to calculate average loss of this episode
                     sum_loss_value += np.mean(step_loss_per_data)
     
-                b_after = agent_train.b1.eval()
-                delta = abs(np.mean(b_before-b_after))
-                if delta < 1e-10:
-                    print("WARNING: Update too small!" + str( delta ))
-
         
                 # Update priority
-#                print(step_loss_per_data)
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
 
                 # Visualizing graph     # use tensorboard --logdir=output
@@ -782,7 +792,7 @@ if __name__ == "__main__":
     print(END_TIME)
     print("===============================")
 
-
+    sys.exit()
 
     #############################3
     # Visualize Data
