@@ -610,15 +610,15 @@ if __name__ == "__main__":
 #            print(prev_vehPos)
 #            print(abs(np.asarray(prev_vehPos[1]) - np.asarray(curr_vehPos[1])))
 
-#            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15:
-#                print('Vehicle Stuck!')
+            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15 and curr_vehPos[1] < 35:
+                print('Vehicle Stuck!')
                 # Reset Simulation
-#                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-#                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
-#                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-#                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
-#                
-#                done = 1
+                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
+                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
+                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
+                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
+                
+                done = 1
 
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
@@ -795,8 +795,6 @@ if __name__ == "__main__":
     print("===============================")
     print(END_TIME)
     print("===============================")
-
-    sys.exit()
 
     #############################3
     # Visualize Data
