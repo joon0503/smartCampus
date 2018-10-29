@@ -433,7 +433,10 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize 
 if __name__ == "__main__":
     options = get_options()
     print(options)
-  
+ 
+    # Add 1 to episode to save last weights
+    options.MAX_EPISDOE =+ 1
+ 
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
