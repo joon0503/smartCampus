@@ -307,15 +307,16 @@ def getGoalPoint():
 
 # Detect whether vehicle reached goal point.
 # Input
-#   vehPos - [x,y,z]
+#   vehPos - [x,y,z] - center of vehicle. To get tip, add 2.075m
 #   gInfo  - [angle,distance]
 # Output
 #   True/False
 def detectReachedGoal(vehPos, gInfo):
-#    if gInfo[1] < 0.5/MAX_DISTANCE and gInfo[0] < 
-    print(vehPos)
-    print(gInfo)
-
+    # Distance less than 0.5m, angle less than 10 degrees
+    if abs(gInfo[1]*GOAL_DISTANCE - 2.075) < 0.5 and abs(gInfo[0]*math.pi) < math.radians(15): 
+        return True
+    else:
+        return False
 
 
 # Get current state of the vehicle. It is combination of different information
@@ -441,8 +442,9 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_hand
     if randomize == False:
         pass
     else:
-        x_pos = random.uniform(-1,-7.25)
-        err_code = vrep.simxSetObjectPosition(clientID,dummy_handle,-1,[x_pos,60,0.2],vrep.simx_opmode_blocking)
+        pass
+#        x_pos = random.uniform(-1,-7.25)
+#        err_code = vrep.simxSetObjectPosition(clientID,dummy_handle,-1,[x_pos,60,0.2],vrep.simx_opmode_blocking)
 
 
 
