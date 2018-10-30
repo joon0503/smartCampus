@@ -288,7 +288,7 @@ def detectCollision(dDistance, dState):
 
 # Get goal point vector. Returns angle and distance
 # Output
-# goal_angle: angle to the goal point in radians
+# goal_angle: angle to the goal point in radians / pi
 #             Positive angle mean goal point is on the right of vehicle, negative mean goal point is on the left
 # goal_distance: distance to the goal point / MAX_DISTANCE
 def getGoalPoint():
@@ -301,9 +301,22 @@ def getGoalPoint():
 
     # calculate angle
     goal_angle = math.atan( delta_distance[0]/delta_distance[1] )       # delta x / delta y
-    goal_angle = 0.5*goal_angle / math.pi                               # result in -1 to 1
+    goal_angle = goal_angle / math.pi                               # result in -1 to 1
 
     return goal_angle, goal_distance / GOAL_DISTANCE
+
+# Detect whether vehicle reached goal point.
+# Input
+#   vehPos - [x,y,z]
+#   gInfo  - [angle,distance]
+# Output
+#   True/False
+def detectReachedGoal(vehPos, gInfo):
+#    if gInfo[1] < 0.5/MAX_DISTANCE and gInfo[0] < 
+    print(vehPos)
+    print(gInfo)
+
+
 
 # Get current state of the vehicle. It is combination of different information
 # Output: 4 list of float
@@ -396,12 +409,12 @@ def printTFvars():
 #################################33/
 
 # Initialize to original scene
-def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = False):
+def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = False):
     # Reset position of vehicle. Randomize x-position if enabled
     if randomize == False:
         err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
     else:
-        x_pos = (random.random()-2)*1    
+        x_pos = random.uniform(-1,-7.25)
         err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[x_pos,0,0.2],vrep.simx_opmode_blocking)
 
     # Reset Orientation of vehicle
@@ -423,7 +436,13 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize 
             err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-1,30,1.1],vrep.simx_opmode_blocking)
         else:
             err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-6.5,30,1.1],vrep.simx_opmode_blocking)
-        
+    
+    # Reset position of dummy    
+    if randomize == False:
+        pass
+    else:
+        x_pos = random.uniform(-1,-7.25)
+        err_code = vrep.simxSetObjectPosition(clientID,dummy_handle,-1,[x_pos,60,0.2],vrep.simx_opmode_blocking)
 
 
 
@@ -617,7 +636,7 @@ if __name__ == "__main__":
                 print('Vehicle Stuck!')
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
+                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
                 vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
                 vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
                 
@@ -633,7 +652,7 @@ if __name__ == "__main__":
 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
+                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
                 vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
                 vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
@@ -642,12 +661,12 @@ if __name__ == "__main__":
                 reward = -1e3
 
             # If vehicle is at the goal point, give large positive reward
-            if abs( gInfo[1] ) < 0.5/MAX_DISTANCE:
+            if detectReachedGoal(curr_vehPos, gInfo):
                 print('Reached goal point')
                 
                 # Reset Simulation
                 vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
+                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
                 vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
                 vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
