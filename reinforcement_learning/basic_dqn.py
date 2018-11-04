@@ -313,7 +313,7 @@ def getGoalPoint():
 #   True/False
 def detectReachedGoal(vehPos, gInfo):
     # Distance less than 0.5m, angle less than 10 degrees
-    if abs(gInfo[1]*GOAL_DISTANCE + 2.075) < 0.5 and abs(gInfo[0]*math.pi) < math.radians(15): 
+    if abs(gInfo[1]*GOAL_DISTANCE - 2.075) < 1.0 and abs(gInfo[0]*math.pi) < math.radians(15): 
         return True
     else:
         return False
@@ -454,9 +454,6 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_hand
 if __name__ == "__main__":
     options = get_options()
     print(options)
- 
-    # Add 1 to episode to save last weights
-    options.MAX_EPISODE += 1
  
     ######################################33
     # SET 'GLOBAL' Variables
