@@ -13,6 +13,7 @@ import datetime
 import pickle
 import os
 import re
+from collections import deque
 from experience_replay import SumTree
 from experience_replay import Memory
 from argparse import ArgumentParser
@@ -79,6 +80,8 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
+    parser.add_argument('--FRAME_COUNT', type=int, default=2,
+                        help='Number of frames to be used')
     options = parser.parse_args()
     return options
 
@@ -95,27 +98,29 @@ class QAgent:
             ######################################:
 
             # Inputs
-            self.observation    = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
+#            self.sensor_input   = tf.placeholder(tf.float32, [None, SENSOR_COUNT*options.FRAME_COUNT], name='observation')
+#            self.goal_input     = tf.placeholder(tf.float32, [None, 2*options.FRAME_COUNT], name='observation')
+            self.observation    = tf.placeholder(tf.float32, [None, (SENSOR_COUNT+2)*options.FRAME_COUNT], name='observation')
             self.ISWeights      = tf.placeholder(tf.float32, [None,1], name='IS_weights')
             self.act            = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
             self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
 
 
             # Slicing
-            self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT])
-            self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT], [-1, 2])
+            self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
+            self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
 
             # "CNN-like" structure for sensor data. 2 Layers
             self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.relu,
+                                         activation = tf.nn.elu,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_s1"
                                        )
  
             self.h_s2 = tf.layers.dense( inputs=self.h_s1,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.relu,
+                                         activation = tf.nn.elu,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_s2"
                                        )
@@ -126,7 +131,7 @@ class QAgent:
             # FC Layer
             self.h_fc_1 = tf.layers.dense( inputs=self.h_s2,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.relu,
+                                         activation = tf.nn.elu,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_fc1"
                                        )
@@ -135,14 +140,14 @@ class QAgent:
                 # Regular DQN
                 self.h_fc_2 = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H1_SIZE,
-                                             activation = tf.nn.relu,
+                                             activation = tf.nn.elu,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_fc2"
                                            )
                 
                 self.output = tf.layers.dense( inputs=self.h_fc_2,
                                              units=options.ACTION_DIM,
-                                             activation = tf.nn.relu,
+                                             activation = tf.nn.elu,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="q_value"
                                            )
@@ -150,13 +155,13 @@ class QAgent:
                 # Dueling Network
                 self.h_layer_val = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H3_SIZE,
-                                             activation = tf.nn.relu,
+                                             activation = tf.nn.elu,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_layer_val"
                                            )
                 self.h_layer_adv = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H3_SIZE,
-                                             activation = tf.nn.relu,
+                                             activation = tf.nn.elu,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_layer_adv"
                                            )
@@ -394,9 +399,27 @@ def printTFvars():
         print(var)
     return
 
+##################################
+# GENERAL
+##################################
 
+# From sensor and goal queue, get observation.
+# observation is a row vector with all frames of information concatentated to each other
+# Recall that queue stores 2*FRAME_COUNT of information. 
+# first = True: get oldest info
+# first = False: get latest info
+def getObs( sensor_queue, goal_queue, first=True):
 
+    if first == True:
+        sensor_stack    = np.concatenate(sensor_queue)[0:SENSOR_COUNT*options.FRAME_COUNT]
+        goal_stack      = np.concatenate(goal_queue)[0:2*options.FRAME_COUNT]
+        observation     = np.concatenate((sensor_stack, goal_stack))    
+    else:
+        sensor_stack    = np.concatenate(sensor_queue)[SENSOR_COUNT*options.FRAME_COUNT:]
+        goal_stack      = np.concatenate(goal_queue)[2*options.FRAME_COUNT:]
+        observation     = np.concatenate((sensor_stack, goal_stack))    
 
+    return observation
 
 
 
@@ -572,7 +595,7 @@ if __name__ == "__main__":
     ###########################        
     reward_data         = np.empty(options.MAX_EPISODE)
     avg_loss_value_data = np.empty(options.MAX_EPISODE)
-    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
+#    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
     avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
 
     # EPISODE LOOP
@@ -590,23 +613,51 @@ if __name__ == "__main__":
         setMotorPosition(clientID, steer_handle, 0)
         setMotorSpeed(clientID, motor_handle, 5)
 
+
+        # get data
+        dDistance, dState, gInfo, prev_vehPos = getVehicleState()
+        observation = dDistance + gInfo
+
+        # Initilize queue for storing states.
+        # Queue stores latest info at the right, and oldest at the left
+        sensor_queue = deque()
+        goal_queue = deque()
+
+        # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
+        for q in range(0,options.FRAME_COUNT*2):
+            sensor_queue.append(dDistance)
+            goal_queue.append(gInfo)
+
+    
         for i in range(0,options.MAX_TIMESTEP):     # Time Step Loop
             # Decay epsilon
             global_step += 1
             if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
                 eps = eps * options.EPS_DECAY
 
-            # get data
-            dDistance, dState, gInfo, prev_vehPos = getVehicleState()
-            observation = dDistance + gInfo
 
             # Save data
 #            sensorData = np.vstack( (sensorData,dDistance) )
 #            sensorDetection = np.vstack( (sensorDetection,dState) )
-            vehPosDataTrial[i] = prev_vehPos[0:2]
+#            vehPosDataTrial[i] = prev_vehPos[0:2]
+
+            # Comparing sizes
+#            print( np.reshape(observation, (1, -1) ) )
+#            print( np.stack(goal_queue, axis=1 ) )
+
+            # observation
+            observation     = getObs( sensor_queue, goal_queue, first=True)
 
             # Update memory
-            action = agent_train.sample_action({agent_train.observation : np.reshape(observation, (1, -1))}, eps, options)
+            action = agent_train.sample_action(
+                                                {
+                                                    agent_train.observation : np.reshape(observation, (1, -1))
+#                                                    agent_train.sensor_input : np.stack(sensor_queue, axis=1),
+#                                                    agent_train.goal_input   : np.stack(goal_queue, axis=1)
+                                                },
+                                                eps,
+                                                options
+                                             )
 
             # Apply action
             applySteeringAction( action )
@@ -614,12 +665,21 @@ if __name__ == "__main__":
                 input('Press any key to step forward.')
 
             # Step simulation by one step
+            veh_pos_queue = deque()
             for q in range(0,options.FIX_INPUT_STEP):
                 vrep.simxSynchronousTrigger(clientID);
 
                 # Get new Data
                 dDistance, dState, gInfo, curr_vehPos = getVehicleState()
-                next_observation = dDistance + gInfo
+                veh_pos_queue.append(curr_vehPos)   
+ 
+                # Update queue
+                sensor_queue.append(dDistance)
+                sensor_queue.popleft()
+                goal_queue.append(gInfo)
+                goal_queue.popleft()
+
+#                next_observation = dDistance + gInfo
                 reward = -10*gInfo[1]**2        # cost is the distance squared + time it survived
                 
                 # If vehicle collided during stepping
@@ -630,6 +690,9 @@ if __name__ == "__main__":
             # If vehicle is stuck somehow
 #            print(prev_vehPos)
 #            print(abs(np.asarray(prev_vehPos[1]) - np.asarray(curr_vehPos[1])))
+
+            prev_vehPos = veh_pos_queue[0]
+            curr_vehPos = veh_pos_queue[-1]
 
             if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15 and curr_vehPos[1] < 35:
                 print('Vehicle Stuck!')
@@ -671,9 +734,10 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 done = 1
-                reward = 1e4
+                reward = 1e3
 
             # Save new memory
+            next_observation = getObs(sensor_queue,goal_queue,first=False)      # Get latest info
             experience = observation, action, reward, next_observation
             replay_memory.store(experience)
 
@@ -745,7 +809,7 @@ if __name__ == "__main__":
         
                 reward_data[j]          = episode_reward
                 avg_loss_value_data[j]  = sum_loss_value/(i+1)
-                veh_pos_data[j]         = vehPosDataTrial
+#                veh_pos_data[j]         = vehPosDataTrial
                 break
 
 
@@ -791,9 +855,9 @@ if __name__ == "__main__":
                 outfile.close()
 
                 # Save vehicle position
-                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME + " ", 'wb')  
-                pickle.dump( veh_pos_data, outfile )
-                outfile.close()
+#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME + " ", 'wb')  
+#                pickle.dump( veh_pos_data, outfile )
+#                outfile.close()
 
                 # Save loss data
                 outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME + " ", 'wb')  
