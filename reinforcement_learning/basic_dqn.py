@@ -54,15 +54,15 @@ def get_options():
                         help='Save network after this number of episodes')
     parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=200,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=100,
                         help='Number of steps required for target update')
-    parser.add_argument('--BATCH_SIZE', type=int, default=32,
+    parser.add_argument('--BATCH_SIZE', type=int, default=64,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=80,
+    parser.add_argument('--H1_SIZE', type=int, default=128,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=80,
+    parser.add_argument('--H2_SIZE', type=int, default=128,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=80,
+    parser.add_argument('--H3_SIZE', type=int, default=128,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_EPISODE', type=int, default=250,
                         help='number of episode after resetting the simulation')
@@ -80,7 +80,7 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--FRAME_COUNT', type=int, default=2,
+    parser.add_argument('--FRAME_COUNT', type=int, default=4,
                         help='Number of frames to be used')
     options = parser.parse_args()
     return options
@@ -616,7 +616,6 @@ if __name__ == "__main__":
 
         # get data
         dDistance, dState, gInfo, prev_vehPos = getVehicleState()
-        observation = dDistance + gInfo
 
         # Initilize queue for storing states.
         # Queue stores latest info at the right, and oldest at the left
