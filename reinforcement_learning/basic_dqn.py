@@ -26,7 +26,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=50000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=25000,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=100,
                         help='max number of time step of simulation per episode')
@@ -40,9 +40,9 @@ def get_options():
                         help='initial probability for randomly sampling action')
     parser.add_argument('--FINAL_EPS', type=float, default=1e-1,
                         help='finial probability for randomly sampling action')
-    parser.add_argument('--EPS_DECAY', type=float, default=0.995,
+    parser.add_argument('--EPS_DECAY', type=float, default=0.985,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=2.5e-4,
                         help='learning rate')
@@ -56,11 +56,11 @@ def get_options():
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=64,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=128,
+    parser.add_argument('--H1_SIZE', type=int, default=80,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=128,
+    parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=128,
+    parser.add_argument('--H3_SIZE', type=int, default=40,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_EPISODE', type=int, default=250,
                         help='number of episode after resetting the simulation')
