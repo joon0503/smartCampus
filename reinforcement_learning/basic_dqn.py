@@ -18,8 +18,6 @@ from experience_replay import SumTree
 from experience_replay import Memory
 from argparse import ArgumentParser
 
-
-MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
 MAX_DISTANCE = 15
 GOAL_DISTANCE = 60
 SENSOR_COUNT = 9
@@ -129,7 +127,7 @@ class QAgent:
             self.combined_layer = tf.concat([self.goal_data, self.h_s2], -1)
 
             # FC Layer
-            self.h_fc_1 = tf.layers.dense( inputs=self.h_s2,
+            self.h_fc_1 = tf.layers.dense( inputs=self.combined_layer,
                                          units=options.H1_SIZE,
                                          activation = tf.nn.elu,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
@@ -640,10 +638,6 @@ if __name__ == "__main__":
 #            sensorDetection = np.vstack( (sensorDetection,dState) )
 #            vehPosDataTrial[i] = prev_vehPos[0:2]
 
-            # Comparing sizes
-#            print( np.reshape(observation, (1, -1) ) )
-#            print( np.stack(goal_queue, axis=1 ) )
-
             # observation
             observation     = getObs( sensor_queue, goal_queue, first=True)
 
@@ -687,9 +681,6 @@ if __name__ == "__main__":
                     break
 
             # If vehicle is stuck somehow
-#            print(prev_vehPos)
-#            print(abs(np.asarray(prev_vehPos[1]) - np.asarray(curr_vehPos[1])))
-
             prev_vehPos = veh_pos_queue[0]
             curr_vehPos = veh_pos_queue[-1]
 
@@ -745,8 +736,6 @@ if __name__ == "__main__":
 
             if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
                 # Obtain the mini batch
-                rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
-
                 tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
 
                 # Get state/action/next state from obtained memory. Size same as queues
