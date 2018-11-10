@@ -26,7 +26,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=25000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=25001,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=100,
                         help='max number of time step of simulation per episode')
@@ -78,7 +78,7 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--FRAME_COUNT', type=int, default=4,
+    parser.add_argument('--FRAME_COUNT', type=int, default=1,
                         help='Number of frames to be used')
     options = parser.parse_args()
     return options
