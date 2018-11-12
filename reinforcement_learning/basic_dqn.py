@@ -40,7 +40,7 @@ def get_options():
                         help='initial probability for randomly sampling action')
     parser.add_argument('--FINAL_EPS', type=float, default=1e-1,
                         help='finial probability for randomly sampling action')
-    parser.add_argument('--EPS_DECAY', type=float, default=0.985,
+    parser.add_argument('--EPS_DECAY', type=float, default=0.99,
                         help='epsilon decay rate')
     parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
                         help='steps interval to decay epsilon')
@@ -595,6 +595,8 @@ if __name__ == "__main__":
     avg_loss_value_data = np.empty(options.MAX_EPISODE)
 #    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
     avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
+    track_eps           = []
+    track_eps.append((0,eps))
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
@@ -631,6 +633,8 @@ if __name__ == "__main__":
             global_step += 1
             if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
                 eps = eps * options.EPS_DECAY
+                # Save eps for plotting
+                track_eps.append((j,eps)) 
 
 
             # Save data
@@ -877,6 +881,12 @@ if __name__ == "__main__":
     # Plot Episode reward
     plt.figure(0)
     plt.plot(avg_epi_reward_data)
+
+    # Plot eps value
+    track_eps.append((options.MAX_EPISODE,eps))
+    for q in range(0,len(track_eps)-1 ): 
+        plt.plot([track_eps[q][0], track_eps[q+1][0]], [track_eps[q][1],track_eps[q+1][1]], linestyle='--', color='red')
+
     plt.title("Average episode Reward")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
@@ -889,7 +899,6 @@ if __name__ == "__main__":
     plt.xlabel("Episode")
     plt.ylabel("Avg Loss")
     plt.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
-
 
     # END
     sys.exit()
