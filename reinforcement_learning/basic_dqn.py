@@ -78,7 +78,7 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--FRAME_COUNT', type=int, default=1,
+    parser.add_argument('--FRAME_COUNT', type=int, default=4,
                         help='Number of frames to be used')
     options = parser.parse_args()
     return options
@@ -838,17 +838,17 @@ if __name__ == "__main__":
 
                 print("Saving data...") 
                 # Save Reward Data
-                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME + " ", 'wb')  
+                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME, 'wb')  
                 pickle.dump( reward_data, outfile )
                 outfile.close()
 
                 # Save vehicle position
-#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME + " ", 'wb')  
+#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME, 'wb')  
 #                pickle.dump( veh_pos_data, outfile )
 #                outfile.close()
 
                 # Save loss data
-                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME + " ", 'wb')  
+                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME, 'wb')  
                 pickle.dump( avg_loss_value_data, outfile )
                 outfile.close()
                 print("Done") 
@@ -880,15 +880,18 @@ if __name__ == "__main__":
     plt.title("Average episode Reward")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
-    plt.show()
+    plt.savefig('result_data/reward_data/reward_data_' + START_TIME + '.png') 
 
     # Plot Average Step Loss
-    plt.figure(0)
+    plt.figure(1)
     plt.plot(avg_loss_value_data)
     plt.title("Average Loss of an episode")
     plt.xlabel("Episode")
     plt.ylabel("Avg Loss")
-    plt.show()
+    plt.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
+
+
+    # END
     sys.exit()
 
     # Plot sensor data
