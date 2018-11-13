@@ -40,9 +40,9 @@ def get_options():
                         help='initial probability for randomly sampling action')
     parser.add_argument('--FINAL_EPS', type=float, default=1e-1,
                         help='finial probability for randomly sampling action')
-    parser.add_argument('--EPS_DECAY', type=float, default=0.99,
+    parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=2.5e-4,
                         help='learning rate')
@@ -78,7 +78,7 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--FRAME_COUNT', type=int, default=4,
+    parser.add_argument('--FRAME_COUNT', type=int, default=1,
                         help='Number of frames to be used')
     options = parser.parse_args()
     return options
@@ -634,7 +634,7 @@ if __name__ == "__main__":
             if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
                 eps = eps * options.EPS_DECAY
                 # Save eps for plotting
-                track_eps.append((j,eps)) 
+                track_eps.append((j+1,eps)) 
 
 
             # Save data
@@ -880,25 +880,29 @@ if __name__ == "__main__":
 
     # Plot Episode reward
     plt.figure(0)
-    plt.plot(avg_epi_reward_data)
+    fig, ax1 = plt.subplots()
+    ax1.plot(avg_epi_reward_data)
 
     # Plot eps value
+    ax2 = ax1.twinx()
     track_eps.append((options.MAX_EPISODE,eps))
     for q in range(0,len(track_eps)-1 ): 
-        plt.plot([track_eps[q][0], track_eps[q+1][0]], [track_eps[q][1],track_eps[q+1][1]], linestyle='--', color='red')
+        ax2.plot([track_eps[q][0], track_eps[q+1][0]], [track_eps[q][1],track_eps[q][1]], linestyle='--', color='red')
 
-    plt.title("Average episode Reward")
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.savefig('result_data/reward_data/reward_data_' + START_TIME + '.png') 
+    ax1.set_title("Average episode Reward")
+    ax1.set_xlabel("Episode")
+    ax1.set_ylabel("Reward")
+    fig.savefig('result_data/reward_data/reward_data_' + START_TIME + '.png') 
 
     # Plot Average Step Loss
     plt.figure(1)
-    plt.plot(avg_loss_value_data)
-    plt.title("Average Loss of an episode")
-    plt.xlabel("Episode")
-    plt.ylabel("Avg Loss")
-    plt.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
+    fig, ax2 = plt.subplots()
+    ax2.plot(avg_loss_value_data)
+    
+    ax2.set_title("Average Loss of an episode")
+    ax2.set_xlabel("Episode")
+    ax2.set_ylabel("Avg Loss")
+    fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
 
     # END
     sys.exit()
