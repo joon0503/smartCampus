@@ -80,6 +80,8 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--FRAME_COUNT', type=int, default=1,
                         help='Number of frames to be used')
+    parser.add_argument('--ACT_FUNC', type=str, default='elu'
+                        help='Activation function')
     options = parser.parse_args()
     return options
 
@@ -89,6 +91,16 @@ class QAgent:
     # A naive neural network with 3 hidden layers and relu as non-linear function.
     def __init__(self, options, name):
         self.scope = name
+    
+        # Parse input for activation function
+        if options.ACT_FUNC == 'elu':
+            act_function = tf.nn.elu
+        else if options.ACT_FUNC == 'relu':
+            act_function = tf.nn.relu
+        else
+            raise NameError('Supplied activation function is not supported!')
+            return 
+
         with tf.variable_scope(self.scope):      # Set variable scope
 
             ######################################:
@@ -111,14 +123,14 @@ class QAgent:
             # "CNN-like" structure for sensor data. 2 Layers
             self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.elu,
+                                         activation = act_function,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_s1"
                                        )
  
             self.h_s2 = tf.layers.dense( inputs=self.h_s1,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.elu,
+                                         activation = act_function,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_s2"
                                        )
@@ -129,7 +141,7 @@ class QAgent:
             # FC Layer
             self.h_fc_1 = tf.layers.dense( inputs=self.combined_layer,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.elu,
+                                         activation = act_function,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_fc1"
                                        )
@@ -138,14 +150,14 @@ class QAgent:
                 # Regular DQN
                 self.h_fc_2 = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H1_SIZE,
-                                             activation = tf.nn.elu,
+                                             activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_fc2"
                                            )
                 
                 self.output = tf.layers.dense( inputs=self.h_fc_2,
                                              units=options.ACTION_DIM,
-                                             activation = tf.nn.elu,
+                                             activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="q_value"
                                            )
@@ -153,13 +165,13 @@ class QAgent:
                 # Dueling Network
                 self.h_layer_val = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H3_SIZE,
-                                             activation = tf.nn.elu,
+                                             activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_layer_val"
                                            )
                 self.h_layer_adv = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H3_SIZE,
-                                             activation = tf.nn.elu,
+                                             activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_layer_adv"
                                            )
