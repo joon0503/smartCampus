@@ -80,7 +80,7 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--FRAME_COUNT', type=int, default=1,
                         help='Number of frames to be used')
-    parser.add_argument('--ACT_FUNC', type=str, default='elu'
+    parser.add_argument('--ACT_FUNC', type=str, default='elu',
                         help='Activation function')
     options = parser.parse_args()
     return options
@@ -95,9 +95,9 @@ class QAgent:
         # Parse input for activation function
         if options.ACT_FUNC == 'elu':
             act_function = tf.nn.elu
-        else if options.ACT_FUNC == 'relu':
+        elif options.ACT_FUNC == 'relu':
             act_function = tf.nn.relu
-        else
+        else:
             raise NameError('Supplied activation function is not supported!')
             return 
 
