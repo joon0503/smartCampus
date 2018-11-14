@@ -343,9 +343,9 @@ def getGoalPoint():
 #   gInfo  - [angle,distance]
 # Output
 #   True/False
-def detectReachedGoal(vehPos, gInfo):
+def detectReachedGoal(vehPos, gInfo, currHeading):
     # Distance less than 0.5m, angle less than 10 degrees
-    if abs(gInfo[1]*GOAL_DISTANCE - 2.075) < 1.0 and abs(gInfo[0]*math.pi) < math.radians(15): 
+    if abs(gInfo[1]*GOAL_DISTANCE - 2.075) < 1.0 and abs(currHeading*90)<20: 
         return True
     else:
         return False
@@ -755,7 +755,7 @@ if __name__ == "__main__":
                 reward = -1e3
 
             # If vehicle is at the goal point, give large positive reward
-            if detectReachedGoal(curr_vehPos, gInfo):
+            if detectReachedGoal(curr_vehPos, gInfo, curr_Heading):
                 print('Reached goal point')
                 
                 # Reset Simulation
