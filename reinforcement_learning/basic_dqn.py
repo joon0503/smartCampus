@@ -50,7 +50,7 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=1000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=2,
                         help='Fix chosen input for this number of steps')
     parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=100,
                         help='Number of steps required for target update')
@@ -220,6 +220,7 @@ class QAgent:
                 print(np.argmax(act_values))
                 print(act_values)
             action_index = np.argmax(act_values)
+
         action = np.zeros(options.ACTION_DIM)
         action[action_index] = 1
         return action
@@ -237,12 +238,20 @@ class QAgent:
 # Input:
 #   clientID    : client ID of vrep instance
 #   motorHandles: list of integers, denoting motors that you want to change the speed
-#   desiredSpd  : single number, speed
+#   desiredSpd  : single number, speed in km/hr
 def setMotorSpeed( clientID, motorHandles, desiredSpd ):
+    wheel_radius = 0.63407*0.5      # Wheel radius in metre
+
+    desiredSpd_rps = desiredSpd*(1000/3600)*(1/wheel_radius)   # km/hr into radians per second
+
+    # print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + "degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
     err_code = []
     for mHandle in motorHandles:
-        err_code.append( vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd, vrep.simx_opmode_blocking) )
-        
+        err_code.append( vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd_rps, vrep.simx_opmode_blocking) )
+        vrep.simxSetObjectFloatParameter(clientID, mHandle, vrep.sim_shapefloatparam_init_velocity_g, desiredSpd_rps, vrep.simx_opmode_blocking)
+    
+    
+            
     return err_code;
  
 # Set Position of motors
@@ -267,6 +276,14 @@ def getMotorPosition( clientID, motorHandles ):
         _, pos = vrep.simxGetJointPosition(clientID, mHandle, vrep.simx_opmode_blocking)
         motorPos.append(pos)
     return motorPos
+
+# Get motor orientation
+def getMotorOri( clientID, motorHandles ):
+    motorOri = np.empty(0)
+    for mHandle in motorHandles:
+        _, pos = vrep.simxGetJointPosition(clientID, mHandle, vrep.simx_opmode_blocking)
+        motorOri = np.append(motorOri, pos)
+    return motorOri
 
 def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_streaming ):
     dState      = []
@@ -451,6 +468,7 @@ def getObs( sensor_queue, goal_queue, first=True):
 
 # Initialize to original scene
 def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = False):
+    vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
     # Reset position of vehicle. Randomize x-position if enabled
     if randomize == False:
         err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
@@ -464,9 +482,17 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_hand
     # Reset position of motors & steering
     setMotorPosition(clientID, steer_handle, 0)
 
+    vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
+
+    vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
+
     # Reset motor speed
 #    print("Setting motor speed")
-    setMotorSpeed(clientID, motor_handle, 7)
+    init_speed = 60 # km/hr
+    setMotorSpeed(clientID, motor_handle, init_speed)
+
+    # Set initial speed of vehicle
+    vrep.simxSetObjectFloatParameter(clientID, vehicle_handle, vrep.sim_shapefloatparam_init_velocity_y, init_speed*(1000/3600), vrep.simx_opmode_blocking)
    
     # Read sensor
     dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
@@ -521,7 +547,7 @@ if __name__ == "__main__":
         sys.exit()
 
     # Set Sampling time
-    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.05, vrep.simx_opmode_oneshot)
+    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.025, vrep.simx_opmode_oneshot)
 
     # start simulation
     vrep.simxSynchronous(clientID,True)
@@ -617,6 +643,9 @@ if __name__ == "__main__":
     track_eps           = []
     track_eps.append((0,eps))
 
+    vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+    initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
+
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
 #        EPI_START_TIME = time.time()
@@ -626,12 +655,6 @@ if __name__ == "__main__":
         episode_reward = 0
         vehPosDataTrial = np.empty([options.MAX_TIMESTEP,2])        # Initialize data
         done = 0
-
-        # Start simulation and initilize scene
-        vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-        setMotorPosition(clientID, steer_handle, 0)
-        setMotorSpeed(clientID, motor_handle, 5)
-
 
         # get data
         dDistance, dState, gInfo, prev_vehPos, prev_Heading = getVehicleState()
@@ -678,7 +701,9 @@ if __name__ == "__main__":
             # Apply action
             applySteeringAction( action )
             if options.manual == True:
-                input('Press any key to step forward.')
+                input('Press any key to step forward. Curr i:' + str(i))
+
+
 
             # Step simulation by one step
             veh_pos_queue = deque()
@@ -707,13 +732,10 @@ if __name__ == "__main__":
             prev_vehPos = veh_pos_queue[0]
             curr_vehPos = veh_pos_queue[-1]
 
-            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15 and curr_vehPos[1] < 35:
+            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.0005 and i >= 15 and curr_vehPos[1] < 35:
                 print('Vehicle Stuck!')
                 # Reset Simulation
-                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
                 initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
-                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
                 
                 done = 1
 
@@ -726,10 +748,7 @@ if __name__ == "__main__":
                 print(curr_q_value)
 
                 # Reset Simulation
-                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
                 initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
-                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
                 # Set flag and reward
                 done = 1
@@ -740,10 +759,7 @@ if __name__ == "__main__":
                 print('Reached goal point')
                 
                 # Reset Simulation
-                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
                 initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
-                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
                 # Set flag and reward
                 done = 1
@@ -848,9 +864,9 @@ if __name__ == "__main__":
 
             # Start simulation and initilize scene
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+            vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            setMotorPosition(clientID, steer_handle, 0)
-            setMotorSpeed(clientID, motor_handle, 5)
+            initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
