@@ -26,7 +26,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=50000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=25001,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=100,
                         help='max number of time step of simulation per episode')
@@ -50,17 +50,17 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=1000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=2,
                         help='Fix chosen input for this number of steps')
     parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=100,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=64,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=128,
+    parser.add_argument('--H1_SIZE', type=int, default=80,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=128,
+    parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=128,
+    parser.add_argument('--H3_SIZE', type=int, default=40,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_EPISODE', type=int, default=250,
                         help='number of episode after resetting the simulation')
@@ -78,8 +78,10 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--FRAME_COUNT', type=int, default=4,
+    parser.add_argument('--FRAME_COUNT', type=int, default=1,
                         help='Number of frames to be used')
+    parser.add_argument('--ACT_FUNC', type=str, default='elu',
+                        help='Activation function')
     options = parser.parse_args()
     return options
 
@@ -89,6 +91,16 @@ class QAgent:
     # A naive neural network with 3 hidden layers and relu as non-linear function.
     def __init__(self, options, name):
         self.scope = name
+    
+        # Parse input for activation function
+        if options.ACT_FUNC == 'elu':
+            act_function = tf.nn.elu
+        elif options.ACT_FUNC == 'relu':
+            act_function = tf.nn.relu
+        else:
+            raise NameError('Supplied activation function is not supported!')
+            return 
+
         with tf.variable_scope(self.scope):      # Set variable scope
 
             ######################################:
@@ -111,14 +123,14 @@ class QAgent:
             # "CNN-like" structure for sensor data. 2 Layers
             self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.elu,
+                                         activation = act_function,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_s1"
                                        )
  
             self.h_s2 = tf.layers.dense( inputs=self.h_s1,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.elu,
+                                         activation = act_function,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_s2"
                                        )
@@ -129,7 +141,7 @@ class QAgent:
             # FC Layer
             self.h_fc_1 = tf.layers.dense( inputs=self.combined_layer,
                                          units=options.H1_SIZE,
-                                         activation = tf.nn.elu,
+                                         activation = act_function,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          name="h_fc1"
                                        )
@@ -138,14 +150,14 @@ class QAgent:
                 # Regular DQN
                 self.h_fc_2 = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H1_SIZE,
-                                             activation = tf.nn.elu,
+                                             activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_fc2"
                                            )
                 
                 self.output = tf.layers.dense( inputs=self.h_fc_2,
                                              units=options.ACTION_DIM,
-                                             activation = tf.nn.elu,
+                                             activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="q_value"
                                            )
@@ -153,13 +165,13 @@ class QAgent:
                 # Dueling Network
                 self.h_layer_val = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H3_SIZE,
-                                             activation = tf.nn.elu,
+                                             activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_layer_val"
                                            )
                 self.h_layer_adv = tf.layers.dense( inputs=self.h_fc_1,
                                              units=options.H3_SIZE,
-                                             activation = tf.nn.elu,
+                                             activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_layer_adv"
                                            )
@@ -208,6 +220,7 @@ class QAgent:
                 print(np.argmax(act_values))
                 print(act_values)
             action_index = np.argmax(act_values)
+
         action = np.zeros(options.ACTION_DIM)
         action[action_index] = 1
         return action
@@ -225,12 +238,20 @@ class QAgent:
 # Input:
 #   clientID    : client ID of vrep instance
 #   motorHandles: list of integers, denoting motors that you want to change the speed
-#   desiredSpd  : single number, speed
+#   desiredSpd  : single number, speed in km/hr
 def setMotorSpeed( clientID, motorHandles, desiredSpd ):
+    wheel_radius = 0.63407*0.5      # Wheel radius in metre
+
+    desiredSpd_rps = desiredSpd*(1000/3600)*(1/wheel_radius)   # km/hr into radians per second
+
+    # print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + "degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
     err_code = []
     for mHandle in motorHandles:
-        err_code.append( vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd, vrep.simx_opmode_blocking) )
-        
+        err_code.append( vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd_rps, vrep.simx_opmode_blocking) )
+        vrep.simxSetObjectFloatParameter(clientID, mHandle, vrep.sim_shapefloatparam_init_velocity_g, desiredSpd_rps, vrep.simx_opmode_blocking)
+    
+    
+            
     return err_code;
  
 # Set Position of motors
@@ -255,6 +276,14 @@ def getMotorPosition( clientID, motorHandles ):
         _, pos = vrep.simxGetJointPosition(clientID, mHandle, vrep.simx_opmode_blocking)
         motorPos.append(pos)
     return motorPos
+
+# Get motor orientation
+def getMotorOri( clientID, motorHandles ):
+    motorOri = np.empty(0)
+    for mHandle in motorHandles:
+        _, pos = vrep.simxGetJointPosition(clientID, mHandle, vrep.simx_opmode_blocking)
+        motorOri = np.append(motorOri, pos)
+    return motorOri
 
 def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_streaming ):
     dState      = []
@@ -314,9 +343,9 @@ def getGoalPoint():
 #   gInfo  - [angle,distance]
 # Output
 #   True/False
-def detectReachedGoal(vehPos, gInfo):
+def detectReachedGoal(vehPos, gInfo, currHeading):
     # Distance less than 0.5m, angle less than 10 degrees
-    if abs(gInfo[1]*GOAL_DISTANCE - 2.075) < 1.0 and abs(gInfo[0]*math.pi) < math.radians(15): 
+    if abs(gInfo[1]*GOAL_DISTANCE - 2.075) < 1.0 and abs(currHeading*90)<20: 
         return True
     else:
         return False
@@ -328,6 +357,7 @@ def detectReachedGoal(vehPos, gInfo):
 #  second list   : Sensor detection state (0-False, 1-True) 
 #  third list    : [goal angle, goal distance]
 #  fourth list   : vehicle position (x,y)
+#  fifth list    : vehicle heading from -1 to 1. 1 if facing left, -1 if facing right, 0 if facing front
 def getVehicleState():
     # Read sensor
     dState, dDistance   = readSensor(clientID, sensor_handle)
@@ -338,7 +368,13 @@ def getVehicleState():
     # Read Goal Point Angle & Distance
     gAngle, gDistance   = getGoalPoint()
 
-    return dDistance, dState, [gAngle, gDistance], vehPos
+    # Read vehicle heading
+    _, vehEuler         = vrep.simxGetObjectOrientation( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
+
+    # vehEuler - [alpha, beta, gamma] in radians. When vehicle is facing goal point, we have gamma = +90deg = pi/2. Facing right - +0deg, Facing left - +180deg Translate such that it is 0, positive for left, negative for right and within -1 to 1
+    vehHeading          = (vehEuler[2]-math.pi*0.5)/(math.pi/2)
+
+    return dDistance, dState, [gAngle, gDistance], vehPos, vehHeading
 
 
 # Given one-hot-encoded action array of steering angle, apply it to the vehicle
@@ -432,6 +468,7 @@ def getObs( sensor_queue, goal_queue, first=True):
 
 # Initialize to original scene
 def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = False):
+    vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
     # Reset position of vehicle. Randomize x-position if enabled
     if randomize == False:
         err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
@@ -445,9 +482,17 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_hand
     # Reset position of motors & steering
     setMotorPosition(clientID, steer_handle, 0)
 
+    vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
+
+    vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
+
     # Reset motor speed
 #    print("Setting motor speed")
-    setMotorSpeed(clientID, motor_handle, 7)
+    init_speed = 60 # km/hr
+    setMotorSpeed(clientID, motor_handle, init_speed)
+
+    # Set initial speed of vehicle
+    vrep.simxSetObjectFloatParameter(clientID, vehicle_handle, vrep.sim_shapefloatparam_init_velocity_y, init_speed*(1000/3600), vrep.simx_opmode_blocking)
    
     # Read sensor
     dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
@@ -502,7 +547,7 @@ if __name__ == "__main__":
         sys.exit()
 
     # Set Sampling time
-    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.05, vrep.simx_opmode_oneshot)
+    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.025, vrep.simx_opmode_oneshot)
 
     # start simulation
     vrep.simxSynchronous(clientID,True)
@@ -595,6 +640,11 @@ if __name__ == "__main__":
     avg_loss_value_data = np.empty(options.MAX_EPISODE)
 #    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
     avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
+    track_eps           = []
+    track_eps.append((0,eps))
+
+    vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+    initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
@@ -606,14 +656,8 @@ if __name__ == "__main__":
         vehPosDataTrial = np.empty([options.MAX_TIMESTEP,2])        # Initialize data
         done = 0
 
-        # Start simulation and initilize scene
-        vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-        setMotorPosition(clientID, steer_handle, 0)
-        setMotorSpeed(clientID, motor_handle, 5)
-
-
         # get data
-        dDistance, dState, gInfo, prev_vehPos = getVehicleState()
+        dDistance, dState, gInfo, prev_vehPos, prev_Heading = getVehicleState()
 
         # Initilize queue for storing states.
         # Queue stores latest info at the right, and oldest at the left
@@ -631,6 +675,8 @@ if __name__ == "__main__":
             global_step += 1
             if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
                 eps = eps * options.EPS_DECAY
+                # Save eps for plotting
+                track_eps.append((j+1,eps)) 
 
 
             # Save data
@@ -655,7 +701,9 @@ if __name__ == "__main__":
             # Apply action
             applySteeringAction( action )
             if options.manual == True:
-                input('Press any key to step forward.')
+                input('Press any key to step forward. Curr i:' + str(i))
+
+
 
             # Step simulation by one step
             veh_pos_queue = deque()
@@ -663,7 +711,7 @@ if __name__ == "__main__":
                 vrep.simxSynchronousTrigger(clientID);
 
                 # Get new Data
-                dDistance, dState, gInfo, curr_vehPos = getVehicleState()
+                dDistance, dState, gInfo, curr_vehPos, curr_Heading = getVehicleState()
                 veh_pos_queue.append(curr_vehPos)   
  
                 # Update queue
@@ -684,13 +732,10 @@ if __name__ == "__main__":
             prev_vehPos = veh_pos_queue[0]
             curr_vehPos = veh_pos_queue[-1]
 
-            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.005 and i >= 15 and curr_vehPos[1] < 35:
+            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.0005 and i >= 15 and curr_vehPos[1] < 35:
                 print('Vehicle Stuck!')
                 # Reset Simulation
-                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
                 initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
-                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
                 
                 done = 1
 
@@ -703,24 +748,18 @@ if __name__ == "__main__":
                 print(curr_q_value)
 
                 # Reset Simulation
-                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
                 initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
-                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
                 # Set flag and reward
                 done = 1
                 reward = -1e3
 
             # If vehicle is at the goal point, give large positive reward
-            if detectReachedGoal(curr_vehPos, gInfo):
+            if detectReachedGoal(curr_vehPos, gInfo, curr_Heading):
                 print('Reached goal point')
                 
                 # Reset Simulation
-                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
                 initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
-                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
                 # Set flag and reward
                 done = 1
@@ -825,9 +864,9 @@ if __name__ == "__main__":
 
             # Start simulation and initilize scene
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+            vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            setMotorPosition(clientID, steer_handle, 0)
-            setMotorSpeed(clientID, motor_handle, 5)
+            initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
@@ -876,20 +915,29 @@ if __name__ == "__main__":
 
     # Plot Episode reward
     plt.figure(0)
-    plt.plot(avg_epi_reward_data)
-    plt.title("Average episode Reward")
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.savefig('result_data/reward_data/reward_data_' + START_TIME + '.png') 
+    fig, ax1 = plt.subplots()
+    ax1.plot(avg_epi_reward_data)
+
+    # Plot eps value
+    ax2 = ax1.twinx()
+    track_eps.append((options.MAX_EPISODE,eps))
+    for q in range(0,len(track_eps)-1 ): 
+        ax2.plot([track_eps[q][0], track_eps[q+1][0]], [track_eps[q][1],track_eps[q][1]], linestyle='--', color='red')
+
+    ax1.set_title("Average episode Reward")
+    ax1.set_xlabel("Episode")
+    ax1.set_ylabel("Reward")
+    fig.savefig('result_data/reward_data/reward_data_' + START_TIME + '.png') 
 
     # Plot Average Step Loss
     plt.figure(1)
-    plt.plot(avg_loss_value_data)
-    plt.title("Average Loss of an episode")
-    plt.xlabel("Episode")
-    plt.ylabel("Avg Loss")
-    plt.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
-
+    fig, ax2 = plt.subplots()
+    ax2.plot(avg_loss_value_data)
+    
+    ax2.set_title("Average Loss of an episode")
+    ax2.set_xlabel("Episode")
+    ax2.set_ylabel("Avg Loss")
+    fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
 
     # END
     sys.exit()
