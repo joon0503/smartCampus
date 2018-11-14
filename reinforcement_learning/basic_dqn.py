@@ -340,6 +340,7 @@ def detectReachedGoal(vehPos, gInfo):
 #  second list   : Sensor detection state (0-False, 1-True) 
 #  third list    : [goal angle, goal distance]
 #  fourth list   : vehicle position (x,y)
+#  fifth list    : vehicle heading from -1 to 1. 1 if facing left, -1 if facing right, 0 if facing front
 def getVehicleState():
     # Read sensor
     dState, dDistance   = readSensor(clientID, sensor_handle)
@@ -350,7 +351,13 @@ def getVehicleState():
     # Read Goal Point Angle & Distance
     gAngle, gDistance   = getGoalPoint()
 
-    return dDistance, dState, [gAngle, gDistance], vehPos
+    # Read vehicle heading
+    _, vehEuler         = vrep.simxGetObjectOrientation( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
+
+    # vehEuler - [alpha, beta, gamma] in radians. When vehicle is facing goal point, we have gamma = +90deg = pi/2. Facing right - +0deg, Facing left - +180deg Translate such that it is 0, positive for left, negative for right and within -1 to 1
+    vehHeading          = (vehEuler[2]-math.pi*0.5)/(math.pi/2)
+
+    return dDistance, dState, [gAngle, gDistance], vehPos, vehHeading
 
 
 # Given one-hot-encoded action array of steering angle, apply it to the vehicle
@@ -627,7 +634,7 @@ if __name__ == "__main__":
 
 
         # get data
-        dDistance, dState, gInfo, prev_vehPos = getVehicleState()
+        dDistance, dState, gInfo, prev_vehPos, prev_Heading = getVehicleState()
 
         # Initilize queue for storing states.
         # Queue stores latest info at the right, and oldest at the left
@@ -679,7 +686,7 @@ if __name__ == "__main__":
                 vrep.simxSynchronousTrigger(clientID);
 
                 # Get new Data
-                dDistance, dState, gInfo, curr_vehPos = getVehicleState()
+                dDistance, dState, gInfo, curr_vehPos, curr_Heading = getVehicleState()
                 veh_pos_queue.append(curr_vehPos)   
  
                 # Update queue
