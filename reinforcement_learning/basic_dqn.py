@@ -21,6 +21,7 @@ from argparse import ArgumentParser
 MAX_DISTANCE = 15
 GOAL_DISTANCE = 60
 SENSOR_COUNT = 9
+VEH_COUNT = 10
 
 def get_options():
     parser = ArgumentParser(
@@ -400,25 +401,36 @@ def applySteeringAction(action):
 # Get Motor/Sensor Handles
 # Input: clientID?
 def getMotorHandles():
-    # Get Motor Handles
-    _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft", vrep.simx_opmode_blocking)
-    _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight", vrep.simx_opmode_blocking)
-    _,h3  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisRight", vrep.simx_opmode_blocking)
-    _,h4  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisLeft", vrep.simx_opmode_blocking)
-    _,h5  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringLeft", vrep.simx_opmode_blocking)
-    _,h6  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringRight", vrep.simx_opmode_blocking)
+    motor_handle = np.zeros([VEH_COUNT,2])
+    steer_handle = np.zeros([VEH_COUNT,2])
 
-    motor_handle = [h1, h2]
-    steer_handle = [h5, h6]
+    # Get Motor Handles
+    for i in range(0,VEH_COUNT):
+        _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft" + str(i), vrep.simx_opmode_blocking)
+        _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight" + str(i), vrep.simx_opmode_blocking)
+        _,h3  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisRight" + str(i), vrep.simx_opmode_blocking)
+        _,h4  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisLeft" + str(i), vrep.simx_opmode_blocking)
+        _,h5  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringLeft" + str(i), vrep.simx_opmode_blocking)
+        _,h6  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringRight" + str(i), vrep.simx_opmode_blocking)
+
+        motor_handle[i][0] = h1
+        motor_handle[i][1] = h2
+
+        steer_handle[i][0] = h5
+        steer_handle[i][1] = h6
 
     return motor_handle, steer_handle
 
 def getSensorHandles():
     # Get Sensor Handles
-    sensor_handle = []
-    for i in range(0,SENSOR_COUNT):
-        _,temp_handle  = vrep.simxGetObjectHandle(clientID, "Proximity_sensor" + str(i), vrep.simx_opmode_blocking)
-        sensor_handle.append(temp_handle)
+    sensor_handle = np.zeros([VEH_COUNT,SENSOR_COUNT])
+
+    k = 0
+    for v in range(0,VEH_COUNT):
+        for i in range(0,SENSOR_COUNT):
+            _,temp_handle  = vrep.simxGetObjectHandle(clientID, "Proximity_sensor" + str(k), vrep.simx_opmode_blocking)
+            sensor_handle[v][i] = temp_handle
+            k = k+1
 
     return sensor_handle
 
@@ -561,13 +573,19 @@ if __name__ == "__main__":
     sensor_handle = getSensorHandles()
 
     # Get vehicle handle
-    err_code, vehicle_handle = vrep.simxGetObjectHandle(clientID, "dyros_vehicle", vrep.simx_opmode_blocking)
+    vehicle_handle = np.zeros(VEH_COUNT)
+    for i in range(0,VEH_COUNT):
+        err_code, vehicle_handle[i] = vrep.simxGetObjectHandle(clientID, "dyros_vehicle" + str(i), vrep.simx_opmode_blocking)
 
     # Get goal point handle
-    err_code, dummy_handle = vrep.simxGetObjectHandle(clientID, "Dummy", vrep.simx_opmode_blocking)
+    dummy_handle = np.zeros(VEH_COUNT)
+    for i in range(0,VEH_COUNT):
+        err_code, dummy_handle[i] = vrep.simxGetObjectHandle(clientID, "GoalPoint" + str(i), vrep.simx_opmode_blocking)
 
     # Get obstacle handle
-    err_code, obs_handle = vrep.simxGetObjectHandle(clientID, "obstacle", vrep.simx_opmode_blocking)
+    obs_handle = np.zeros(VEH_COUNT)
+    for i in range(0,VEH_COUNT):
+        err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
 
     ########################
     # Initialize Test Scene
