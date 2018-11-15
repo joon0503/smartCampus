@@ -26,7 +26,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=25001,
+    parser.add_argument('--MAX_EPISODE', type=int, default=15001,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=100,
                         help='max number of time step of simulation per episode')
@@ -34,7 +34,7 @@ def get_options():
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.95,
+    parser.add_argument('--GAMMA', type=float, default=0.97,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -46,7 +46,7 @@ def get_options():
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=2.5e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=1000,
                         help='Save network after this number of episodes')
@@ -62,7 +62,7 @@ def get_options():
                         help='size of hidden layer 2')
     parser.add_argument('--H3_SIZE', type=int, default=40,
                         help='size of hidden layer 3')
-    parser.add_argument('--RESET_EPISODE', type=int, default=250,
+    parser.add_argument('--RESET_EPISODE', type=int, default=30,
                         help='number of episode after resetting the simulation')
     parser.add_argument('--RUNNING_AVG_STEP', type=int, default=100,
                         help='number of episode to calculate the average score')
@@ -648,6 +648,7 @@ if __name__ == "__main__":
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
+#        EPI_START_TIME   = datetime.datetime.now()
 #        EPI_START_TIME = time.time()
         print("Episode: " + str(j) + ". Global Step: " + str(global_step) + " eps: " + str(eps))
 
@@ -706,6 +707,7 @@ if __name__ == "__main__":
 
 
             # Step simulation by one step
+#            STEP_START_TIME   = datetime.datetime.now()
             veh_pos_queue = deque()
             for q in range(0,options.FIX_INPUT_STEP):
                 vrep.simxSynchronousTrigger(clientID);
@@ -727,12 +729,15 @@ if __name__ == "__main__":
                 if detectCollision(dDistance,dState)[0] == True:
                     reward = -1e3
                     break
+#            STEP_END_TIME   = datetime.datetime.now()
+#            print('\t\t' + str(STEP_END_TIME - STEP_START_TIME))
+
 
             # If vehicle is stuck somehow
             prev_vehPos = veh_pos_queue[0]
             curr_vehPos = veh_pos_queue[-1]
 
-            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.0005 and i >= 15 and curr_vehPos[1] < 35:
+            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.00005 and i >= 15 and curr_vehPos[1] < 35:
                 print('Vehicle Stuck!')
                 # Reset Simulation
                 initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
@@ -752,7 +757,7 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 done = 1
-                reward = -1e3
+                reward = -2e3
 
             # If vehicle is at the goal point, give large positive reward
             if detectReachedGoal(curr_vehPos, gInfo, curr_Heading):
@@ -763,7 +768,7 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 done = 1
-                reward = 1e3
+                reward = 1e4
 
             # Save new memory
             next_observation = getObs(sensor_queue,goal_queue,first=False)      # Get latest info
@@ -810,12 +815,14 @@ if __name__ == "__main__":
                 feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
                 feed.update({agent_train.ISWeights : ISWeights_mb   })
 
+#                TF_START_TIME   = datetime.datetime.now()
                 with tf.variable_scope("Training"):            
                     step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
 
                     # Use sum to calculate average loss of this episode
                     sum_loss_value += np.mean(step_loss_per_data)
-    
+#                TF_END_TIME   = datetime.datetime.now()
+#                print('\t' + str(TF_END_TIME - TF_START_TIME)) 
         
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
@@ -892,6 +899,9 @@ if __name__ == "__main__":
                 outfile.close()
                 print("Done") 
         # Line Separator
+#        EPI_END_TIME   = datetime.datetime.now()
+#        print(EPI_END_TIME - EPI_START_TIME)
+        
         print('')
 
     # stop the simulation & close connection
