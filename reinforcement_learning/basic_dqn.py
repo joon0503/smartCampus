@@ -286,10 +286,10 @@ def getMotorOri( clientID, motorHandles ):
         motorOri = np.append(motorOri, pos)
     return motorOri
 
-def readSensor( clientID, sensorHandles, op_mode=vrep.simx_opmode_streaming ):
+def readSensor( clientID, veh_index, op_mode=vrep.simx_opmode_streaming ):
     dState      = []
     dDistance   = []
-    for sHandle in sensorHandles:
+    for sHandle in sensor_handle[veh_index]:
         returnCode, detectionState, detectedPoint, detectedObjectHandle, detectedSurfaceNormalVector=vrep.simxReadProximitySensor(clientID, sHandle, op_mode)
         dState.append(detectionState)
         dDistance.append( np.linalg.norm(detectedPoint) )
@@ -324,9 +324,9 @@ def detectCollision(dDistance, dState):
 # goal_angle: angle to the goal point in radians / pi
 #             Positive angle mean goal point is on the right of vehicle, negative mean goal point is on the left
 # goal_distance: distance to the goal point / MAX_DISTANCE
-def getGoalPoint():
-    _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
-    _, dummyPos = vrep.simxGetObjectPosition( clientID, dummy_handle, -1, vrep.simx_opmode_blocking)            
+def getGoalPoint( veh_index ):
+    _, vehPos = vrep.simxGetObjectPosition( clientID, vehicle_handle[veh_index], -1, vrep.simx_opmode_blocking)            
+    _, dummyPos = vrep.simxGetObjectPosition( clientID, dummy_handle[veh_index], -1, vrep.simx_opmode_blocking)            
 
     # Calculate the distance
     delta_distance = np.array(dummyPos) - np.array(vehPos)              # delta x, delta y
@@ -353,35 +353,37 @@ def detectReachedGoal(vehPos, gInfo, currHeading):
 
 
 # Get current state of the vehicle. It is combination of different information
+# Input: veh_index - index of vehicle in vehicle_handle array
+#       
 # Output: 4 list of float
 #  first list    : Sensor distance
 #  second list   : Sensor detection state (0-False, 1-True) 
 #  third list    : [goal angle, goal distance]
 #  fourth list   : vehicle position (x,y)
 #  fifth list    : vehicle heading from -1 to 1. 1 if facing left, -1 if facing right, 0 if facing front
-def getVehicleState():
+def getVehicleState( veh_index ):
     # Read sensor
-    dState, dDistance   = readSensor(clientID, sensor_handle)
+    _, dDistance   = readSensor(clientID, veh_index)
 
     # Read Vehciel Position
-    _, vehPos           = vrep.simxGetObjectPosition( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
+    _, vehPos           = vrep.simxGetObjectPosition( clientID, vehicle_handle[veh_index], -1, vrep.simx_opmode_blocking)            
 
     # Read Goal Point Angle & Distance
-    gAngle, gDistance   = getGoalPoint()
+    gAngle, gDistance   = getGoalPoint( veh_index )
 
     # Read vehicle heading
-    _, vehEuler         = vrep.simxGetObjectOrientation( clientID, vehicle_handle, -1, vrep.simx_opmode_blocking)            
+    _, vehEuler         = vrep.simxGetObjectOrientation( clientID, vehicle_handle[veh_index], -1, vrep.simx_opmode_blocking)            
 
     # vehEuler - [alpha, beta, gamma] in radians. When vehicle is facing goal point, we have gamma = +90deg = pi/2. Facing right - +0deg, Facing left - +180deg Translate such that it is 0, positive for left, negative for right and within -1 to 1
     vehHeading          = (vehEuler[2]-math.pi*0.5)/(math.pi/2)
 
-    return dDistance, dState, [gAngle, gDistance], vehPos, vehHeading
+    return dDistance, [gAngle, gDistance], vehPos, vehHeading
 
 
 # Given one-hot-encoded action array of steering angle, apply it to the vehicle
 # Input:
 #   action: list of 1/0s. 1 means this action is applied
-def applySteeringAction(action):
+def applySteeringAction(action, veh_index):
     # Define maximum/minimum steering in degrees
     MAX_STEER = 15
     MIN_STEER = -15
@@ -393,7 +395,7 @@ def applySteeringAction(action):
     desired_angle = MAX_STEER - np.argmax(action) * action_delta
 
     # Set steering position
-    setMotorPosition(clientID, steer_handle, desired_angle)
+    setMotorPosition(clientID, steer_handle[veh_index], desired_angle)
     
     return
 
@@ -401,8 +403,8 @@ def applySteeringAction(action):
 # Get Motor/Sensor Handles
 # Input: clientID?
 def getMotorHandles():
-    motor_handle = np.zeros([VEH_COUNT,2])
-    steer_handle = np.zeros([VEH_COUNT,2])
+    motor_handle = np.zeros([VEH_COUNT,2], dtype=int)
+    steer_handle = np.zeros([VEH_COUNT,2], dtype=int)
 
     # Get Motor Handles
     for i in range(0,VEH_COUNT):
@@ -423,7 +425,7 @@ def getMotorHandles():
 
 def getSensorHandles():
     # Get Sensor Handles
-    sensor_handle = np.zeros([VEH_COUNT,SENSOR_COUNT])
+    sensor_handle = np.zeros([VEH_COUNT,SENSOR_COUNT], dtype=int)
 
     k = 0
     for v in range(0,VEH_COUNT):
@@ -479,14 +481,14 @@ def getObs( sensor_queue, goal_queue, first=True):
 #################################33/
 
 # Initialize to original scene
-def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = False):
+def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, veh_index, randomize = False):
     vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
     # Reset position of vehicle. Randomize x-position if enabled
     if randomize == False:
-        err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0,0,0.2],vrep.simx_opmode_blocking)
+        err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[veh_index*20 + 0,0,0.2],vrep.simx_opmode_blocking)
     else:
-        x_pos = random.uniform(-1,-7.25)
-        err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[x_pos,0,0.2],vrep.simx_opmode_blocking)
+        x_pos = random.uniform(-1,-3)
+        err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[veh_index*20 + x_pos,0,0.2],vrep.simx_opmode_blocking)
 
     # Reset Orientation of vehicle
     err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,math.radians(90)],vrep.simx_opmode_blocking)
@@ -507,14 +509,14 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_hand
     vrep.simxSetObjectFloatParameter(clientID, vehicle_handle, vrep.sim_shapefloatparam_init_velocity_y, init_speed*(1000/3600), vrep.simx_opmode_blocking)
    
     # Read sensor
-    dState, dDistance = readSensor(clientID, sensor_handle, vrep.simx_opmode_buffer)         # try it once for initialization
+    dState, dDistance = readSensor(clientID, veh_index, vrep.simx_opmode_buffer)         # try it once for initialization
 
     # Reset position of obstacle
     if randomize == True:
         if random.random() > 0.5:
-            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-1,30,1.1],vrep.simx_opmode_blocking)
+            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[veh_index*20 + -3.3,30,1.1],vrep.simx_opmode_blocking)
         else:
-            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-6.5,30,1.1],vrep.simx_opmode_blocking)
+            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[veh_index*20 + 1.675,30,1.1],vrep.simx_opmode_blocking)
     
     # Reset position of dummy    
     if randomize == False:
@@ -573,17 +575,17 @@ if __name__ == "__main__":
     sensor_handle = getSensorHandles()
 
     # Get vehicle handle
-    vehicle_handle = np.zeros(VEH_COUNT)
+    vehicle_handle = np.zeros(VEH_COUNT, dtype=int)
     for i in range(0,VEH_COUNT):
         err_code, vehicle_handle[i] = vrep.simxGetObjectHandle(clientID, "dyros_vehicle" + str(i), vrep.simx_opmode_blocking)
 
     # Get goal point handle
-    dummy_handle = np.zeros(VEH_COUNT)
+    dummy_handle = np.zeros(VEH_COUNT, dtype=int)
     for i in range(0,VEH_COUNT):
         err_code, dummy_handle[i] = vrep.simxGetObjectHandle(clientID, "GoalPoint" + str(i), vrep.simx_opmode_blocking)
 
     # Get obstacle handle
-    obs_handle = np.zeros(VEH_COUNT)
+    obs_handle = np.zeros(VEH_COUNT, dtype=int)
     for i in range(0,VEH_COUNT):
         err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
 
@@ -594,7 +596,7 @@ if __name__ == "__main__":
     # Data
     sensorData = np.zeros(SENSOR_COUNT)   
     sensorDetection = np.zeros(SENSOR_COUNT)   
-    vehPosData = []
+    #vehPosData = []
 
     ##############
     # TF Setup
@@ -662,7 +664,104 @@ if __name__ == "__main__":
     track_eps.append((0,eps))
 
     vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-    initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, dummy_handle, randomize = True)               # initialize
+
+
+
+
+
+
+
+    ###########################        
+    # Initialize Variables
+    ###########################        
+    
+    # Initialize Scene
+    for i in range(0,VEH_COUNT):    
+        initScene(vehicle_handle[i], steer_handle[i], motor_handle[i], obs_handle[i], dummy_handle[i], i, randomize = True)               # initialize
+
+    # List of deque to store data
+    sensor_queue = []
+    goal_queue   = []
+    for i in range(0,VEH_COUNT):
+        sensor_queue.append( deque() )
+        goal_queue.append( deque() )
+
+    # initilize them with initial data
+    for i in range(0,VEH_COUNT):
+        # Get initial data
+        dDistance, gInfo, prev_vehPos, prev_Heading = getVehicleState( i )
+
+        # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
+        for q in range(0,options.FRAME_COUNT*2):
+            sensor_queue[i].append(dDistance)
+            goal_queue[i].append(gInfo)
+
+
+    # Global Step Loop
+    for j in range(0,options.MAX_EPISODE):
+        # Decay epsilon
+        global_step += VEH_COUNT
+        if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
+            eps = eps * options.EPS_DECAY
+            # Save eps for plotting
+            track_eps.append((j+1,eps)) 
+
+        # For each vehicle
+        for v in range(0,VEH_COUNT):
+            ####
+            # Get Current State 
+            ####
+            observation     = getObs( sensor_queue[v], goal_queue[v], first=True)
+
+            ####
+            # Get Action
+            ####
+            action = agent_train.sample_action(
+                                                {
+                                                    agent_train.observation : np.reshape(observation, (1, -1))
+                                                },
+                                                eps,
+                                                options
+                                             )
+            applySteeringAction( action, v )
+
+
+        # Step
+        for q in range(0,options.FIX_INPUT_STEP):
+            vrep.simxSynchronousTrigger(clientID);
+
+            for v in range(0,VEH_COUNT):
+                # Get new Data
+                dDistance, gInfo, curr_vehPos, curr_Heading = getVehicleState( v )
+                #veh_pos_queue.append(curr_vehPos)   
+
+                # Update queue
+                sensor_queue[v].append(dDistance)
+                sensor_queue[v].popleft()
+                goal_queue[v].append(gInfo)
+                goal_queue[v].popleft()
+
+            #reward = -10*gInfo[1]**2        # cost is the distance squared + time it survived
+            
+        
+
+
+
+            ####
+            # Get Next State
+            ####
+            
+        # For each vehicle
+        for v in range(0,VEH_COUNT):
+            ####
+            # Get Current State 
+            ####
+            next_observation     = getObs( sensor_queue[v], goal_queue[v], first=False)
+
+
+       
+
+
 
     # EPISODE LOOP
     for j in range(0,options.MAX_EPISODE): 
@@ -676,7 +775,8 @@ if __name__ == "__main__":
         done = 0
 
         # get data
-        dDistance, dState, gInfo, prev_vehPos, prev_Heading = getVehicleState()
+        for v in range(0,VEH_COUNT):
+            dDistance, dState, gInfo, prev_vehPos, prev_Heading = getVehicleState()
 
         # Initilize queue for storing states.
         # Queue stores latest info at the right, and oldest at the left
