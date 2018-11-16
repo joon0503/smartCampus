@@ -50,7 +50,7 @@ def get_options():
                         help='learning rate')
     parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
                         help='size of experience replay memory')
-    parser.add_argument('--SAVER_RATE', type=int, default=1000,
+    parser.add_argument('--SAVER_RATE', type=int, default=10000,
                         help='Save network after this number of episodes')
     parser.add_argument('--FIX_INPUT_STEP', type=int, default=2,
                         help='Fix chosen input for this number of steps')
@@ -64,7 +64,7 @@ def get_options():
                         help='size of hidden layer 2')
     parser.add_argument('--H3_SIZE', type=int, default=40,
                         help='size of hidden layer 3')
-    parser.add_argument('--RESET_EPISODE', type=int, default=30,
+    parser.add_argument('--RESET_EPISODE', type=int, default=250,
                         help='number of episode after resetting the simulation')
     parser.add_argument('--RUNNING_AVG_STEP', type=int, default=100,
                         help='number of episode to calculate the average score')
@@ -491,9 +491,9 @@ def printTFvars():
 # Recall that queue stores 2*FRAME_COUNT of information. 
 # first = True: get oldest info
 # first = False: get latest info
-def getObs( sensor_queue, goal_queue, first=True):
+def getObs( sensor_queue, goal_queue, old=True):
 
-    if first == True:
+    if old == True:
         sensor_stack    = np.concatenate(sensor_queue)[0:SENSOR_COUNT*options.FRAME_COUNT]
         goal_stack      = np.concatenate(goal_queue)[0:2*options.FRAME_COUNT]
         observation     = np.concatenate((sensor_stack, goal_stack))    
@@ -519,7 +519,7 @@ def getObs( sensor_queue, goal_queue, first=True):
 # Input:
 #   veh_index: list of indicies of vehicles
 def initScene( veh_index_list, randomize = False):
-    init_speed = 60 # km/hr
+    init_speed = 30 # km/hr
 
     for veh_index in veh_index_list:
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
@@ -721,8 +721,12 @@ if __name__ == "__main__":
     ###########################        
    
     # Some variables
-    reward_stack = np.zeros(VEH_COUNT)
-
+    reward_stack = np.zeros(VEH_COUNT)                              # Holds rewards of current step
+    action_stack = np.zeros((VEH_COUNT, options.ACTION_DIM))        # action_stack[k] is the array of optinos.ACTION_DIM with one hot encoding
+    epi_step_stack = np.zeros(VEH_COUNT)      # Count number of step for each vehicle in each episode
+    epi_reward_stack = np.zeros(VEH_COUNT)                          # Holds reward of current episode
+    epi_counter  = 0                                                # Counts # of finished episodes
+   
  
     # Initialize Scene
 
@@ -746,7 +750,7 @@ if __name__ == "__main__":
 
     # Global Step Loop
     for j in range(0,options.MAX_EPISODE):
-        GS_START_TIME   = datetime.datetime.now()
+        #GS_START_TIME   = datetime.datetime.now()
         # Decay epsilon
         global_step += VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
@@ -754,23 +758,24 @@ if __name__ == "__main__":
             # Save eps for plotting
             track_eps.append((j+1,eps)) 
 
+        #print("=====================================")
+        #print("Global Step: " + str(global_step) + 'EPS: ' + str(eps) + ' Finished Episodes:' + str(epi_counter) )
         ####
         # Find & Apply Action
         ####
         for v in range(0,VEH_COUNT):
-            # Get Previous State 
-            #veh_pos, veh_ori, dDistance, gInfo = getVehicleStateLUA()
-            observation     = getObs( sensor_queue[v], goal_queue[v], first=False)
+            # Get current info to generate input
+            observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
 
             # Get Action
-            action = agent_train.sample_action(
+            action_stack[v] = agent_train.sample_action(
                                                 {
                                                     agent_train.observation : np.reshape(observation, (1, -1))
                                                 },
                                                 eps,
                                                 options
                                              )
-            applySteeringAction( action, v )
+            applySteeringAction( action_stack[v], v )
 
         ####
         # Step
@@ -801,7 +806,6 @@ if __name__ == "__main__":
         ###
         # Handle Events
         ###
-        # Detect Collision
         reset_veh_list = []
         for v in range(0,VEH_COUNT):
             # If vehicle collided, give large negative reward
@@ -816,11 +820,11 @@ if __name__ == "__main__":
                 reset_veh_list.append(v)
 
                 # Set flag and reward
-                #done = 1
                 reward_stack[v] = -2e3
+                epi_counter += 1
+                # If collided, skip checking for goal point
+                continue
 
-        # Detect Reaching goal point
-        for v in range(0,VEH_COUNT):
             # If vehicle is at the goal point, give large positive reward
             if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v]):
                 print('Vehicle #' + str(v) + ' reached goal point')
@@ -831,6 +835,7 @@ if __name__ == "__main__":
                 # Set flag and reward
                 #done = 1
                 reward_stack[v] = 1e5
+                epi_counter += 1
 
         # Detect being stuck
         #   Not coded yet.
@@ -838,15 +843,146 @@ if __name__ == "__main__":
         # Reset Vehicles    
         initScene( reset_veh_list, randomize = True)               # initialize
 
-        # For each vehicle
-        for v in range(0,VEH_COUNT):
-            ####
-            # Get Current State 
-            ####
-            next_observation     = getObs( sensor_queue[v], goal_queue[v], first=False)
+        
+        ###########
+        # START LEARNING
+        ###########
 
-        GS_END_TIME   = datetime.datetime.now()
-        print(GS_END_TIME - GS_START_TIME)
+        # Add latest information to memory
+        for v in range(0,VEH_COUNT):
+            # Get observation
+            observation             = getObs( sensor_queue[v], goal_queue[v], old = True)
+            next_observation        = getObs( sensor_queue[v], goal_queue[v], old = False)
+            experience = observation, action_stack[v], reward_stack[v], next_observation
+           
+            # Save new memory 
+            replay_memory.store(experience)
+
+        # Start training
+        if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
+            for tf_train_counter in range(0,VEH_COUNT):
+                # Obtain the mini batch
+                tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
+
+                # Get state/action/next state from obtained memory. Size same as queues
+                states_mb       = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x STATE_DIM 
+                actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
+                rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
+                next_states_mb  = np.array([each[0][3] for each in batch_memory])   
+
+                # Get Target Q-Value
+                feed.clear()
+                feed.update({agent_train.observation : next_states_mb})
+
+                # Calculate Target Q-value. Uses double network. First, get action from training network
+                action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
+
+                if options.disable_DN == False:
+                    feed.clear()
+                    feed.update({agent_target.observation : next_states_mb})
+                    # Using Target + Double network
+                    q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
+                else:
+                    feed.clear()
+                    feed.update({agent_target.observation : next_states_mb})
+                    # Just using Target Network
+                    q_target_val = rewards_mb + options.GAMMA * np.amax( agent.target.output.eval(feed_dict=feed), axis=1)
+
+                # Gradient Descent
+                feed.clear()
+                feed.update({agent_train.observation : states_mb})
+                feed.update({agent_train.act : actions_mb})
+                feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
+                feed.update({agent_train.ISWeights : ISWeights_mb   })
+
+                with tf.variable_scope("Training"):            
+                    step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+
+                    # Use sum to calculate average loss of this episode.
+                    avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
+        
+                # Update priority
+                replay_memory.batch_update(tree_idx, step_loss_per_data)
+
+        ###############
+        # Miscellaneous
+        ###############
+        # Update Target
+        if global_step % options.TARGET_UPDATE_STEP == 0:
+            print("Updating Target network.")
+            copy_online_to_target.run()
+
+        # Update rewards
+        for v in range(0,VEH_COUNT):
+            epi_reward_stack[v] = epi_reward_stack[v] + reward_stack[v]*(options.GAMMA**epi_step_stack[v])
+
+        # Print Rewards
+        for v in reset_veh_list:
+            print('\tGlobal Step:' + str(global_step))
+            print('\tEPS: ' + str(eps))
+            print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
+            print('')
+
+        # Print Loss
+        print(avg_loss_value_data[-1])
+
+        # Update Counters
+        epi_step_stack = epi_step_stack + 1
+
+        # Reset rewards for finished vehicles
+        for v in reset_veh_list:
+            epi_reward_stack[v] = 0
+            epi_step_stack[v] = 0
+
+        #GS_END_TIME   = datetime.datetime.now()
+        #print(GS_END_TIME - GS_START_TIME)
+
+        # Stop and Restart Simulation Every X episodes
+        if global_step % options.RESET_EPISODE == 0:
+            print("Resetting...")
+            vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
+            
+            # Wait until simulation is stopped.
+            simulation_status = 1
+            bit_mask = 1
+            #while bit_mask & simulation_status != 0:       # Get right-most bit and check if it is 1
+                #ret, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
+                #print(simulation_status)
+                #print('Ret:' + str(ret))
+                #print(bit_mask & simulation_status)
+                #print("{0:b}".format(simulation_status))
+                #time.sleep(0.1)
+            time.sleep(9)
+
+            # Start simulation and initilize scene
+            vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+            vrep.simxSynchronous(clientID,True)
+            time.sleep(1.0)
+            initScene( list(range(0,VEH_COUNT)), randomize = True)               # initialize
+        
+        # save progress every 1000 episodes AND testing is disabled
+        if options.TESTING == False:
+            if global_step // options.SAVER_RATE >= 1 and global_step % options.SAVER_RATE == 0 and options.NO_SAVE == False:
+                print("Saving network...")
+                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(epi_counter) + "_gs" + str(global_step))
+                print("Done") 
+
+                print("Saving data...") 
+                # Save Reward Data
+                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME, 'wb')  
+                pickle.dump( reward_data, outfile )
+                outfile.close()
+
+                # Save vehicle position
+#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME, 'wb')  
+#                pickle.dump( veh_pos_data, outfile )
+#                outfile.close()
+
+                # Save loss data
+                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME, 'wb')  
+                pickle.dump( avg_loss_value_data, outfile )
+                outfile.close()
+                print("Done") 
     sys.exit()
 
        
