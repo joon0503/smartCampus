@@ -18,7 +18,7 @@ from experience_replay import SumTree
 from experience_replay import Memory
 from argparse import ArgumentParser
 
-MAX_DISTANCE = 10
+MAX_DISTANCE = 20
 COLLISION_DISTANCE = 1.3
 GOAL_DISTANCE = 60
 SENSOR_COUNT = 9
@@ -28,9 +28,9 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=15001,
+    parser.add_argument('--MAX_EPISODE', type=int, default=50001,
                         help='max number of episodes iteration\n')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=500,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
@@ -40,21 +40,21 @@ def get_options():
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
-    parser.add_argument('--FINAL_EPS', type=float, default=1e-1,
+    parser.add_argument('--FINAL_EPS', type=float, default=1e-2,
                         help='finial probability for randomly sampling action')
-    parser.add_argument('--EPS_DECAY', type=float, default=0.995,
+    parser.add_argument('--EPS_DECAY', type=float, default=0.9985,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
                         help='steps interval to decay epsilon')
-    parser.add_argument('--LR', type=float, default=2.5e-4,
+    parser.add_argument('--LR', type=float, default=2.5e-8,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=5000,
                         help='size of experience replay memory')
-    parser.add_argument('--SAVER_RATE', type=int, default=10000,
+    parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
     parser.add_argument('--FIX_INPUT_STEP', type=int, default=2,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=100,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=5000,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=64,
                         help='mini batch size'),
@@ -64,7 +64,7 @@ def get_options():
                         help='size of hidden layer 2')
     parser.add_argument('--H3_SIZE', type=int, default=40,
                         help='size of hidden layer 3')
-    parser.add_argument('--RESET_STEP', type=int, default=2500,
+    parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
     parser.add_argument('--RUNNING_AVG_STEP', type=int, default=100,
                         help='number of episode to calculate the average score')
@@ -83,6 +83,10 @@ def get_options():
     parser.add_argument('--FRAME_COUNT', type=int, default=1,
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='elu',
+                        help='Activation function')
+    parser.add_argument('--GOAL_REW', type=int, default=5e5,
+                        help='Activation function')
+    parser.add_argument('--FAIL_REW', type=int, default=-5e4,
                         help='Activation function')
     options = parser.parse_args()
     return options
@@ -118,82 +122,113 @@ class QAgent:
             self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
 
 
-            # Slicing
-            self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
-            self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
+            if False:
+                # Slicing
+                self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
+                self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
 
-            # "CNN-like" structure for sensor data. 2 Layers
-            self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
-                                         units=options.H1_SIZE,
-                                         activation = act_function,
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                         name="h_s1"
-                                       )
- 
-            self.h_s2 = tf.layers.dense( inputs=self.h_s1,
-                                         units=options.H1_SIZE,
-                                         activation = act_function,
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                         name="h_s2"
-                                       )
-
-            # Combine sensor data and goal data
-            self.combined_layer = tf.concat([self.goal_data, self.h_s2], -1)
-
-            # FC Layer
-            self.h_fc_1 = tf.layers.dense( inputs=self.combined_layer,
-                                         units=options.H1_SIZE,
-                                         activation = act_function,
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                         name="h_fc1"
-                                       )
-
-            if options.disable_duel == True:
-                # Regular DQN
-                self.h_fc_2 = tf.layers.dense( inputs=self.h_fc_1,
+                # "CNN-like" structure for sensor data. 2 Layers
+                self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
                                              units=options.H1_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="h_fc2"
+                                             name="h_s1"
                                            )
-                
-                self.output = tf.layers.dense( inputs=self.h_fc_2,
-                                             units=options.ACTION_DIM,
+     
+                self.h_s2 = tf.layers.dense( inputs=self.h_s1,
+                                             units=options.H1_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="q_value"
+                                             name="h_s2"
                                            )
+
+                # Combine sensor data and goal data
+                self.combined_layer = tf.concat([self.goal_data, self.h_s2], -1)
+
+                # FC Layer
+                self.h_fc_1 = tf.layers.dense( inputs=self.combined_layer,
+                                             units=options.H1_SIZE,
+                                             activation = act_function,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="h_fc1"
+                                           )
+
+                if options.disable_duel == True:
+                    # Regular DQN
+                    self.h_fc_2 = tf.layers.dense( inputs=self.h_fc_1,
+                                                 units=options.H1_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_fc2"
+                                               )
+                    
+                    self.output = tf.layers.dense( inputs=self.h_fc_2,
+                                                 units=options.ACTION_DIM,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="q_value"
+                                               )
+                else:
+                    # Dueling Network
+                    self.h_layer_val = tf.layers.dense( inputs=self.h_fc_1,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_layer_val"
+                                               )
+                    self.h_layer_adv = tf.layers.dense( inputs=self.h_fc_1,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_layer_adv"
+                                               )
+
+                    # Value and advantage estimate
+                    self.val_est    = tf.layers.dense( inputs=self.h_layer_val,
+                                                 units=1,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="val_est"
+                                               )
+
+                    self.adv_est    = tf.layers.dense( inputs=self.h_layer_val,
+                                                 units=options.ACTION_DIM,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="adv_est"
+                                               )
+                 
+                    self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
             else:
-                # Dueling Network
-                self.h_layer_val = tf.layers.dense( inputs=self.h_fc_1,
+                print("======================")
+                print("Regular Net")
+                print("======================")
+                # Regular neural net
+                self.h_s1 = tf.layers.dense( inputs=self.observation,
+                                             units=options.H1_SIZE,
+                                             activation = act_function,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="h_s1"
+                                           )
+                self.h_s2 = tf.layers.dense( inputs=self.h_s1,
+                                             units=options.H2_SIZE,
+                                             activation = act_function,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="h_s2"
+                                           )
+                self.h_s3 = tf.layers.dense( inputs=self.h_s2,
                                              units=options.H3_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="h_layer_val"
+                                             name="h_s3"
                                            )
-                self.h_layer_adv = tf.layers.dense( inputs=self.h_fc_1,
-                                             units=options.H3_SIZE,
-                                             activation = act_function,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="h_layer_adv"
-                                           )
+                self.output = tf.layers.dense( inputs=self.h_s3,
+                                                  units=options.ACTION_DIM,
+                                                  activation = None,
+                                                  kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                  name="h_action"
+                                             )
 
-                # Value and advantage estimate
-                self.val_est    = tf.layers.dense( inputs=self.h_layer_val,
-                                             units=1,
-                                             activation = None,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="val_est"
-                                           )
-
-                self.adv_est    = tf.layers.dense( inputs=self.h_layer_val,
-                                             units=options.ACTION_DIM,
-                                             activation = None,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="adv_est"
-                                           )
-             
-                self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
             ######################################:
             ## END Constructing Neural Network
             ######################################:
@@ -206,19 +241,20 @@ class QAgent:
             
             # Loss for Optimization
             self.loss = tf.reduce_mean(self.ISWeights * tf.squared_difference(self.target_Q, self.Q))
+
             # Optimizer
             self.optimizer = tf.train.AdamOptimizer(options.LR).minimize(self.loss)
 
 
     # Sample action with random rate eps
-    def sample_action(self, feed, eps, options):
+    def sample_action(self, feed, eps, options, verbose = False):
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = random.randrange(options.ACTION_DIM)
 #            action = random.uniform(0,1)
         else:
             act_values = self.output.eval(feed_dict=feed)
-            if options.TESTING == True:
+            if options.TESTING == True or verbose == True:
                 print(np.argmax(act_values))
                 print(act_values)
             action_index = np.argmax(act_values)
@@ -427,6 +463,7 @@ def applySteeringAction(action, veh_index):
     action_delta = (MAX_STEER - MIN_STEER) / (options.ACTION_DIM-1)
 
     # Calculate desired angle
+    #action = [0,1,0,0,0]
     desired_angle = MAX_STEER - np.argmax(action) * action_delta
 
     # Set steering position
@@ -504,6 +541,29 @@ def getObs( sensor_queue, goal_queue, old=True):
 
     return observation
 
+def kmhr2ms( speed ):
+    return speed/3.6
+
+# Calculate Approximate Rewards for variaous cases
+def printRewards():
+    # Some parameters
+    init_speed = 5 #km/hr
+
+    # Time Steps
+    dt = 0.025
+
+
+    # Reward at the end
+    rew = 0
+    for i in range(0, 100):
+        #rew = rew +  
+        pass
+
+    return
+
+
+
+
 
 
 
@@ -519,7 +579,7 @@ def getObs( sensor_queue, goal_queue, old=True):
 # Input:
 #   veh_index: list of indicies of vehicles
 def initScene( veh_index_list, randomize = False):
-    init_speed = 30 # km/hr
+    init_speed = 10 # km/hr
 
     for veh_index in veh_index_list:
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
@@ -545,7 +605,7 @@ def initScene( veh_index_list, randomize = False):
         setMotorSpeed(clientID, motor_handle[veh_index], init_speed)
 
         # Set initial speed of vehicle
-        vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, init_speed*(1000/3600), vrep.simx_opmode_blocking)
+        vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, init_speed/3.6, vrep.simx_opmode_blocking)
        
         # Read sensor
         dState, dDistance = readSensor(clientID, sensor_handle[veh_index], vrep.simx_opmode_buffer)         # try it once for initialization
@@ -651,8 +711,7 @@ if __name__ == "__main__":
     agent_train     = QAgent(options,'Training')
     agent_target    = QAgent(options,'Target')
     sess            = tf.InteractiveSession()
-
-#    printTFvars()
+    
 
 #    sess = tf.InteractiveSession(config=tf.ConfigProto(log_device_placement=True))
 #    sess = tf.Session()
@@ -698,10 +757,11 @@ if __name__ == "__main__":
     # END TF SETUP
     ########################
 
+
     ###########################        
     # DATA VARIABLES
     ###########################        
-    reward_data         = np.empty(options.MAX_EPISODE)
+    reward_data         = np.empty(0)
     avg_loss_value_data = np.empty(1)
 #    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
     avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
@@ -731,7 +791,7 @@ if __name__ == "__main__":
  
     # Initialize Scene
 
-    initScene( list(range(0,VEH_COUNT)), randomize = True)               # initialize
+    initScene( list(range(0,VEH_COUNT)), randomize = False)               # initialize
 
     # List of deque to store data
     sensor_queue = []
@@ -749,8 +809,14 @@ if __name__ == "__main__":
             sensor_queue[i].append(dDistance[i])
             goal_queue[i].append(gInfo[i])
 
+    curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
+    prev_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
+        prev_weight = curr_weight
+        curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
+        print(np.linalg.norm(curr_weight - prev_weight))
+
         #GS_START_TIME   = datetime.datetime.now()
         # Decay epsilon
         global_step += VEH_COUNT
@@ -761,6 +827,8 @@ if __name__ == "__main__":
 
         #print("=====================================")
         #print("Global Step: " + str(global_step) + 'EPS: ' + str(eps) + ' Finished Episodes:' + str(epi_counter) )
+
+
         ####
         # Find & Apply Action
         ####
@@ -768,14 +836,24 @@ if __name__ == "__main__":
             # Get current info to generate input
             observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
 
-            # Get Action
-            action_stack[v] = agent_train.sample_action(
-                                                {
-                                                    agent_train.observation : np.reshape(observation, (1, -1))
-                                                },
-                                                eps,
-                                                options
-                                             )
+            # Get Action. First vehicle always exploit
+            if v == 0:
+                action_stack[v] = agent_train.sample_action(
+                                                    {
+                                                        agent_train.observation : np.reshape(observation, (1, -1))
+                                                    },
+                                                    0,
+                                                    options,
+                                                    True
+                                                 )
+            else:
+                action_stack[v] = agent_train.sample_action(
+                                                    {
+                                                        agent_train.observation : np.reshape(observation, (1, -1))
+                                                    },
+                                                    eps,
+                                                    options
+                                                 )
             applySteeringAction( action_stack[v], v )
 
         ####
@@ -784,11 +862,14 @@ if __name__ == "__main__":
         for q in range(0,options.FIX_INPUT_STEP):
             vrep.simxSynchronousTrigger(clientID);
 
+        if options.manual == True:
+            input('Press Enter')
 
         ####
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA()
+        #print(next_dDistance)
         for v in range(0,VEH_COUNT):
             # Get new Data
             #veh_pos_queue[v].append(next_veh_pos[v])   
@@ -800,7 +881,14 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            reward_stack[v] = -10*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
+            reward_stack[v] = -100*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
+
+            if v == 0:
+                #print(next_dDistance[v])
+                #print(next_gInfo[v])
+                pass
+
+
 
         #print(next_veh_heading)
 
@@ -822,7 +910,7 @@ if __name__ == "__main__":
                 reset_veh_list.append(v)
 
                 # Set flag and reward
-                reward_stack[v] = -2e3
+                reward_stack[v] = options.FAIL_REW
                 epi_counter += 1
                 # If collided, skip checking for goal point
                 continue
@@ -836,7 +924,7 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 #done = 1
-                reward_stack[v] = 1e5
+                reward_stack[v] = options.GOAL_REW
                 epi_counter += 1
 
             # If over MAXSTEP
@@ -853,7 +941,7 @@ if __name__ == "__main__":
         #   Not coded yet.
         
         # Reset Vehicles    
-        initScene( reset_veh_list, randomize = True)               # initialize
+        initScene( reset_veh_list, randomize = False)               # initialize
 
         
         ###########
@@ -898,7 +986,7 @@ if __name__ == "__main__":
                     feed.clear()
                     feed.update({agent_target.observation : next_states_mb})
                     # Just using Target Network
-                    q_target_val = rewards_mb + options.GAMMA * np.amax( agent.target.output.eval(feed_dict=feed), axis=1)
+                    q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
 
                 # Gradient Descent
                 feed.clear()
@@ -912,6 +1000,8 @@ if __name__ == "__main__":
 
                     # Use sum to calculate average loss of this episode.
                     avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
+                    #if tf_train_counter == 0:
+                        #print(step_loss_per_data)
         
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
@@ -930,14 +1020,14 @@ if __name__ == "__main__":
 
         # Print Rewards
         for v in reset_veh_list:
+            print('========')
+            print('Vehicle #:', v)
             print('\tGlobal Step:' + str(global_step))
             print('\tEPS: ' + str(eps))
-            print('\tEpisode #: ' + str(epi_counter)) 
+            print('\tEpisode #: ' + str(epi_counter) + ' Step: ' + str(epi_step_stack[v]))
             print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
+            print('Last Loss: ',avg_loss_value_data[-1])
             print('')
-
-        # Print Loss
-        print(avg_loss_value_data[-1])
 
         # Update Counters
         epi_step_stack = epi_step_stack + 1
@@ -945,6 +1035,9 @@ if __name__ == "__main__":
         # Reset rewards for finished vehicles
         for v in reset_veh_list:
             epi_reward_data = np.append(epi_reward_data,epi_reward_stack[v]) 
+            if v == 0:
+                reward_data = np.append(reward_data,epi_reward_stack[0])
+
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
 
@@ -972,7 +1065,7 @@ if __name__ == "__main__":
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            initScene( list(range(0,VEH_COUNT)), randomize = True)               # initialize
+            initScene( list(range(0,VEH_COUNT)), randomize = False)               # initialize
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
@@ -1009,6 +1102,7 @@ if __name__ == "__main__":
     # Print Current Time
     END_TIME = str(datetime.datetime.now()).replace(" ","_")
     print("===============================")
+    print(START_TIME)
     print(END_TIME)
     print("===============================")
 
@@ -1033,6 +1127,7 @@ if __name__ == "__main__":
     ax1.set_ylabel("Reward")
     fig.savefig('result_data/reward_data/reward_data_' + START_TIME + '.png') 
 
+
     # Plot Average Step Loss
     plt.figure(1)
     fig, ax2 = plt.subplots()
@@ -1042,6 +1137,15 @@ if __name__ == "__main__":
     ax2.set_xlabel("Global Step")
     ax2.set_ylabel("Avg Loss")
     fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
+
+    # Plot Greedy Reward
+    plt.figure(2)
+    fig, ax3 = plt.subplots()
+    ax3.plot(reward_data)
+    ax3.set_title("Cumulative Reward for Greedy Action")
+    ax3.set_xlabel("Episodes")
+    ax3.set_ylabel("Cumulative Reward")
+    fig.savefig('result_data/reward_data/greedy_reward_data_' + START_TIME + '.png') 
 
     # END
     sys.exit()
