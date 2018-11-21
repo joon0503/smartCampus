@@ -194,7 +194,7 @@ class QAgent:
                                                  name="val_est"
                                                )
 
-                    self.adv_est    = tf.layers.dense( inputs=self.h_layer_val,
+                    self.adv_est    = tf.layers.dense( inputs=self.h_layer_adv,
                                                  units=options.ACTION_DIM,
                                                  activation = None,
                                                  kernel_initializer=tf.contrib.layers.xavier_initializer(),
