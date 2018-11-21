@@ -167,7 +167,7 @@ class QAgent:
                     
                     self.output = tf.layers.dense( inputs=self.h_fc_2,
                                                  units=options.ACTION_DIM,
-                                                 activation = act_function,
+                                                 activation = None,
                                                  kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                                  name="q_value"
                                                )
