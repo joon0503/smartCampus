@@ -35,7 +35,7 @@ def get_options():
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.995,
+    parser.add_argument('--GAMMA', type=float, default=0.99,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -45,7 +45,7 @@ def get_options():
                         help='epsilon decay rate')
     parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
                         help='steps interval to decay epsilon')
-    parser.add_argument('--LR', type=float, default=2.5e-6,
+    parser.add_argument('--LR', type=float, default=2.5e-4,
                         help='learning rate')
     parser.add_argument('--MAX_EXPERIENCE', type=int, default=5000,
                         help='size of experience replay memory')
@@ -630,7 +630,7 @@ def initScene( veh_index_list, randomize = False):
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
         # Reset position of vehicle. Randomize x-position if enabled
         if randomize == False:
-            err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20 + 0,0,0.2],vrep.simx_opmode_blocking)
+            err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20-3 + 0,0,0.2],vrep.simx_opmode_blocking)
         else:
             x_pos = random.uniform(-1,-3)
             err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20 + x_pos,0,0.2],vrep.simx_opmode_blocking)
@@ -1208,4 +1208,11 @@ if __name__ == "__main__":
     plt.xlabel("Time Step")
     plt.ylabel("Distance")
 #    plt.show()
+
+
+
+    # Alert User
+    mstr='RL Simulation Done!'
+    os.system('notify-send '+mstr)
+
 
