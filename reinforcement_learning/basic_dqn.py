@@ -22,7 +22,6 @@ MAX_DISTANCE = 20
 COLLISION_DISTANCE = 1.3
 GOAL_DISTANCE = 60
 SENSOR_COUNT = 9
-VEH_COUNT = 10
 
 def get_options():
     parser = ArgumentParser(
@@ -36,7 +35,7 @@ def get_options():
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.97,
+    parser.add_argument('--GAMMA', type=float, default=0.995,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -46,7 +45,7 @@ def get_options():
                         help='epsilon decay rate')
     parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
                         help='steps interval to decay epsilon')
-    parser.add_argument('--LR', type=float, default=2.5e-8,
+    parser.add_argument('--LR', type=float, default=2.5e-6,
                         help='learning rate')
     parser.add_argument('--MAX_EXPERIENCE', type=int, default=5000,
                         help='size of experience replay memory')
@@ -62,7 +61,7 @@ def get_options():
                         help='size of hidden layer 1')
     parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=40,
+    parser.add_argument('--H3_SIZE', type=int, default=80,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
@@ -88,6 +87,10 @@ def get_options():
                         help='Activation function')
     parser.add_argument('--FAIL_REW', type=int, default=-5e4,
                         help='Activation function')
+    parser.add_argument('--VEH_COUNT', type=int, default=10,
+                        help='Number of vehicles to use for simulation')
+    parser.add_argument('--INIT_SPD', type=int, default=10,
+                        help='Initial speed of vehicle in  km/hr')
     options = parser.parse_args()
     return options
 
@@ -375,7 +378,7 @@ def getGoalPoint( veh_index ):
 
     return goal_angle, goal_distance / GOAL_DISTANCE
 
-# veh_pos_info: (VEH_COUNT x 2)
+# veh_pos_info: (options.VEH_COUNT x 2)
 def getGoalInfo( veh_pos_info, goal_pos_info ):
     # Calculate the distance
     delta_distance = goal_pos_info - veh_pos_info              # delta x, delta y
@@ -436,10 +439,10 @@ def getVehicleState( veh_index ):
 
 # Call LUA script to get information
 # Returns
-#   veh_pos (VEH_COUNT x 2)
-#   veh_heading (VEH_COUNT x 1) [-1,1] -1 if right, 0 if front, 1 if left
-#   dDistance (VEH_COUNT x SENSOR_COUNT)
-#   gInfo (VEH_COUNT x 2)
+#   veh_pos (options.VEH_COUNT x 2)
+#   veh_heading (options.VEH_COUNT x 1) [-1,1] -1 if right, 0 if front, 1 if left
+#   dDistance (options.VEH_COUNT x SENSOR_COUNT)
+#   gInfo (options.VEH_COUNT x 2)
 def getVehicleStateLUA():
     emptyBuff = bytearray()
 
@@ -475,11 +478,11 @@ def applySteeringAction(action, veh_index):
 # Get Motor/Sensor Handles
 # Input: clientID?
 def getMotorHandles():
-    motor_handle = np.zeros([VEH_COUNT,2], dtype=int)
-    steer_handle = np.zeros([VEH_COUNT,2], dtype=int)
+    motor_handle = np.zeros([options.VEH_COUNT,2], dtype=int)
+    steer_handle = np.zeros([options.VEH_COUNT,2], dtype=int)
 
     # Get Motor Handles
-    for i in range(0,VEH_COUNT):
+    for i in range(0,options.VEH_COUNT):
         _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft" + str(i), vrep.simx_opmode_blocking)
         _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight" + str(i), vrep.simx_opmode_blocking)
         _,h3  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisRight" + str(i), vrep.simx_opmode_blocking)
@@ -497,10 +500,10 @@ def getMotorHandles():
 
 def getSensorHandles():
     # Get Sensor Handles
-    sensor_handle = np.zeros([VEH_COUNT,SENSOR_COUNT], dtype=int)
+    sensor_handle = np.zeros([options.VEH_COUNT,SENSOR_COUNT], dtype=int)
 
     k = 0
-    for v in range(0,VEH_COUNT):
+    for v in range(0,options.VEH_COUNT):
         for i in range(0,SENSOR_COUNT):
             _,temp_handle  = vrep.simxGetObjectHandle(clientID, "Proximity_sensor" + str(k), vrep.simx_opmode_blocking)
             sensor_handle[v][i] = temp_handle
@@ -541,24 +544,66 @@ def getObs( sensor_queue, goal_queue, old=True):
 
     return observation
 
-def kmhr2ms( speed ):
-    return speed/3.6
-
 # Calculate Approximate Rewards for variaous cases
 def printRewards():
     # Some parameters
-    init_speed = 5 #km/hr
+    veh_speed = options.INIT_SPD/3.6  # 10km/hr in m/s
 
     # Time Steps
     dt = 0.025
+    dt_code = dt * options.FIX_INPUT_STEP
 
+    # Expected Total Time Steps
+    total_step = (60/veh_speed)*(1/dt_code)
 
     # Reward at the end
-    rew = 0
-    for i in range(0, 100):
-        #rew = rew +  
-        pass
+    rew_end = 0
+    for i in range(0, int(total_step)):
+        goal_distance = 60 - i*dt_code*veh_speed 
+        if i != total_step-1:
+            rew_end = rew_end -100*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+        else:
+            rew_end = rew_end + options.GOAL_REW*(options.GAMMA**i) 
 
+    # Reward at Obs
+    rew_obs = 0
+    for i in range(0, int(total_step*0.5)):
+        goal_distance = 60 - i*dt_code*veh_speed 
+        if i != int(total_step*0.5)-1:
+            rew_obs = rew_obs -100*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+        else:
+            rew_obs = rew_obs + options.FAIL_REW*(options.GAMMA**i) 
+
+    # Reward at 75%
+    rew_75 = 0
+    for i in range(0, int(total_step*0.75)):
+        goal_distance = 60 - i*dt_code*veh_speed 
+        if i != int(total_step*0.75)-1:
+            rew_75 = rew_75 -100*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+        else:
+            rew_75 = rew_75 + options.FAIL_REW*(options.GAMMA**i) 
+
+    # Reward at 25%
+    rew_25 = 0
+    for i in range(0, int(total_step*0.25)):
+        goal_distance = 60 - i*dt_code*veh_speed 
+        if i != int(total_step*0.25)-1:
+            rew_25 = rew_25 -100*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+        else:
+            rew_25 = rew_25 + options.FAIL_REW*(options.GAMMA**i) 
+    ########
+    # Print Info
+    ########
+
+    print("======================================")
+    print("        REWARD ESTIMATION")
+    print("======================================")
+    print("Expected Total Step    : ", total_step)
+    print("Expected Reward (25)  : ", rew_25)
+    print("Expected Reward (Obs)  : ", rew_obs)
+    print("Expected Reward (75)  : ", rew_75)
+    print("Expected Reward (Goal) : ", rew_end)
+    print("======================================")
     return
 
 
@@ -579,7 +624,7 @@ def printRewards():
 # Input:
 #   veh_index: list of indicies of vehicles
 def initScene( veh_index_list, randomize = False):
-    init_speed = 10 # km/hr
+    options.INIT_SPD = 10 # km/hr
 
     for veh_index in veh_index_list:
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
@@ -602,10 +647,10 @@ def initScene( veh_index_list, randomize = False):
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
         # Reset motor speed
-        setMotorSpeed(clientID, motor_handle[veh_index], init_speed)
+        setMotorSpeed(clientID, motor_handle[veh_index], options.INIT_SPD)
 
         # Set initial speed of vehicle
-        vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, init_speed/3.6, vrep.simx_opmode_blocking)
+        vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, options.INIT_SPD/3.6, vrep.simx_opmode_blocking)
        
         # Read sensor
         dState, dDistance = readSensor(clientID, sensor_handle[veh_index], vrep.simx_opmode_buffer)         # try it once for initialization
@@ -652,6 +697,9 @@ if __name__ == "__main__":
     )
     option_file.close()
 
+    # Print Rewards
+    printRewards()
+
     # Get client ID
     vrep.simxFinish(-1) 
     clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
@@ -674,24 +722,24 @@ if __name__ == "__main__":
     sensor_handle = getSensorHandles()
 
     # Get vehicle handle
-    vehicle_handle = np.zeros(VEH_COUNT, dtype=int)
-    for i in range(0,VEH_COUNT):
+    vehicle_handle = np.zeros(options.VEH_COUNT, dtype=int)
+    for i in range(0,options.VEH_COUNT):
         err_code, vehicle_handle[i] = vrep.simxGetObjectHandle(clientID, "dyros_vehicle" + str(i), vrep.simx_opmode_blocking)
 
     # Get goal point handle
-    dummy_handle = np.zeros(VEH_COUNT, dtype=int)
-    for i in range(0,VEH_COUNT):
+    dummy_handle = np.zeros(options.VEH_COUNT, dtype=int)
+    for i in range(0,options.VEH_COUNT):
         err_code, dummy_handle[i] = vrep.simxGetObjectHandle(clientID, "GoalPoint" + str(i), vrep.simx_opmode_blocking)
 
     # Get obstacle handle
-    obs_handle = np.zeros(VEH_COUNT, dtype=int)
-    for i in range(0,VEH_COUNT):
+    obs_handle = np.zeros(options.VEH_COUNT, dtype=int)
+    for i in range(0,options.VEH_COUNT):
         err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
 
     # Make Large handle list for communication
-    handle_list = [VEH_COUNT, SENSOR_COUNT] 
+    handle_list = [options.VEH_COUNT, SENSOR_COUNT] 
     # Make handles into big list
-    for v in range(0,VEH_COUNT):
+    for v in range(0,options.VEH_COUNT):
         handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
 
     ########################
@@ -782,28 +830,28 @@ if __name__ == "__main__":
     ###########################        
    
     # Some variables
-    reward_stack = np.zeros(VEH_COUNT)                              # Holds rewards of current step
-    action_stack = np.zeros((VEH_COUNT, options.ACTION_DIM))        # action_stack[k] is the array of optinos.ACTION_DIM with one hot encoding
-    epi_step_stack = np.zeros(VEH_COUNT)      # Count number of step for each vehicle in each episode
-    epi_reward_stack = np.zeros(VEH_COUNT)                          # Holds reward of current episode
+    reward_stack = np.zeros(options.VEH_COUNT)                              # Holds rewards of current step
+    action_stack = np.zeros((options.VEH_COUNT, options.ACTION_DIM))        # action_stack[k] is the array of optinos.ACTION_DIM with one hot encoding
+    epi_step_stack = np.zeros(options.VEH_COUNT)      # Count number of step for each vehicle in each episode
+    epi_reward_stack = np.zeros(options.VEH_COUNT)                          # Holds reward of current episode
     epi_counter  = 0                                                # Counts # of finished episodes
    
  
     # Initialize Scene
 
-    initScene( list(range(0,VEH_COUNT)), randomize = False)               # initialize
+    initScene( list(range(0,options.VEH_COUNT)), randomize = False)               # initialize
 
     # List of deque to store data
     sensor_queue = []
     goal_queue   = []
-    for i in range(0,VEH_COUNT):
+    for i in range(0,options.VEH_COUNT):
         sensor_queue.append( deque() )
         goal_queue.append( deque() )
 
 
     # initilize them with initial data
     veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA()
-    for i in range(0,VEH_COUNT):
+    for i in range(0,options.VEH_COUNT):
         # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
         for q in range(0,options.FRAME_COUNT*2):
             sensor_queue[i].append(dDistance[i])
@@ -819,7 +867,7 @@ if __name__ == "__main__":
 
         #GS_START_TIME   = datetime.datetime.now()
         # Decay epsilon
-        global_step += VEH_COUNT
+        global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
             eps = eps * options.EPS_DECAY
             # Save eps for plotting
@@ -832,7 +880,7 @@ if __name__ == "__main__":
         ####
         # Find & Apply Action
         ####
-        for v in range(0,VEH_COUNT):
+        for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
             observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
 
@@ -870,7 +918,7 @@ if __name__ == "__main__":
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA()
         #print(next_dDistance)
-        for v in range(0,VEH_COUNT):
+        for v in range(0,options.VEH_COUNT):
             # Get new Data
             #veh_pos_queue[v].append(next_veh_pos[v])   
 
@@ -896,7 +944,7 @@ if __name__ == "__main__":
         # Handle Events
         ###
         reset_veh_list = []
-        for v in range(0,VEH_COUNT):
+        for v in range(0,options.VEH_COUNT):
             # If vehicle collided, give large negative reward
             if detectCollision(next_dDistance[v])[0] == True:
                 print('Vehicle #' + str(v) + ' collided!')
@@ -949,7 +997,7 @@ if __name__ == "__main__":
         ###########
 
         # Add latest information to memory
-        for v in range(0,VEH_COUNT):
+        for v in range(0,options.VEH_COUNT):
             # Get observation
             observation             = getObs( sensor_queue[v], goal_queue[v], old = True)
             next_observation        = getObs( sensor_queue[v], goal_queue[v], old = False)
@@ -960,7 +1008,7 @@ if __name__ == "__main__":
 
         # Start training
         if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
-            for tf_train_counter in range(0,VEH_COUNT):
+            for tf_train_counter in range(0,options.VEH_COUNT):
                 # Obtain the mini batch
                 tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
 
@@ -1015,7 +1063,7 @@ if __name__ == "__main__":
             copy_online_to_target.run()
 
         # Update rewards
-        for v in range(0,VEH_COUNT):
+        for v in range(0,options.VEH_COUNT):
             epi_reward_stack[v] = epi_reward_stack[v] + reward_stack[v]*(options.GAMMA**epi_step_stack[v])
 
         # Print Rewards
@@ -1065,7 +1113,7 @@ if __name__ == "__main__":
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            initScene( list(range(0,VEH_COUNT)), randomize = False)               # initialize
+            initScene( list(range(0,options.VEH_COUNT)), randomize = False)               # initialize
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
