@@ -45,23 +45,23 @@ def get_options():
                         help='epsilon decay rate')
     parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
                         help='steps interval to decay epsilon')
-    parser.add_argument('--LR', type=float, default=2.5e-4,
+    parser.add_argument('--LR', type=float, default=2.5e-5,
                         help='learning rate')
     parser.add_argument('--MAX_EXPERIENCE', type=int, default=5000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=2,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=5000,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=500,
                         help='Number of steps required for target update')
-    parser.add_argument('--BATCH_SIZE', type=int, default=64,
+    parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=80,
+    parser.add_argument('--H1_SIZE', type=int, default=16,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=80,
+    parser.add_argument('--H2_SIZE', type=int, default=16,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=80,
+    parser.add_argument('--H3_SIZE', type=int, default=16,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
@@ -83,14 +83,16 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='elu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=5e5,
+    parser.add_argument('--GOAL_REW', type=int, default=5e4,
                         help='Activation function')
-    parser.add_argument('--FAIL_REW', type=int, default=-5e4,
+    parser.add_argument('--FAIL_REW', type=int, default=-1e4,
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=10,
                         help='Number of vehicles to use for simulation')
     parser.add_argument('--INIT_SPD', type=int, default=10,
                         help='Initial speed of vehicle in  km/hr')
+    parser.add_argument('--DIST_MUL', type=int, default=10,
+                        help='Multiplier for rewards based on the distance to the goal')
     options = parser.parse_args()
     return options
 
@@ -206,11 +208,14 @@ class QAgent:
                 print("======================")
                 print("Regular Net")
                 print("======================")
+                self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
+                self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
                 # Regular neural net
-                self.h_s1 = tf.layers.dense( inputs=self.observation,
+                self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
                                              units=options.H1_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             #kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=0.1)
                                              name="h_s1"
                                            )
                 self.h_s2 = tf.layers.dense( inputs=self.h_s1,
@@ -225,7 +230,7 @@ class QAgent:
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_s3"
                                            )
-                self.output = tf.layers.dense( inputs=self.h_s3,
+                self.output = tf.layers.dense( inputs=self.h_s2,
                                                   units=options.ACTION_DIM,
                                                   activation = None,
                                                   kernel_initializer=tf.contrib.layers.xavier_initializer(),
@@ -516,10 +521,19 @@ def getSensorHandles():
 ##################################
 
 def printTFvars():
-    tvars = tf.trainable_variables()
+    print("==Training==")
+    tvars = tf.trainable_variables(scope='Training')
 
     for var in tvars:
         print(var)
+
+    print("==Target==")
+    tvars = tf.trainable_variables(scope='Target')
+
+    for var in tvars:
+        print(var)
+    print("=========")
+
     return
 
 ##################################
@@ -561,7 +575,7 @@ def printRewards():
     for i in range(0, int(total_step)):
         goal_distance = 60 - i*dt_code*veh_speed 
         if i != total_step-1:
-            rew_end = rew_end -100*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+            rew_end = rew_end -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
         else:
             rew_end = rew_end + options.GOAL_REW*(options.GAMMA**i) 
 
@@ -570,7 +584,7 @@ def printRewards():
     for i in range(0, int(total_step*0.5)):
         goal_distance = 60 - i*dt_code*veh_speed 
         if i != int(total_step*0.5)-1:
-            rew_obs = rew_obs -100*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+            rew_obs = rew_obs -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
         else:
             rew_obs = rew_obs + options.FAIL_REW*(options.GAMMA**i) 
 
@@ -579,7 +593,7 @@ def printRewards():
     for i in range(0, int(total_step*0.75)):
         goal_distance = 60 - i*dt_code*veh_speed 
         if i != int(total_step*0.75)-1:
-            rew_75 = rew_75 -100*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+            rew_75 = rew_75 -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
         else:
             rew_75 = rew_75 + options.FAIL_REW*(options.GAMMA**i) 
 
@@ -588,7 +602,7 @@ def printRewards():
     for i in range(0, int(total_step*0.25)):
         goal_distance = 60 - i*dt_code*veh_speed 
         if i != int(total_step*0.25)-1:
-            rew_25 = rew_25 -100*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+            rew_25 = rew_25 -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
         else:
             rew_25 = rew_25 + options.FAIL_REW*(options.GAMMA**i) 
     ########
@@ -805,6 +819,7 @@ if __name__ == "__main__":
     # END TF SETUP
     ########################
 
+    printTFvars()
 
     ###########################        
     # DATA VARIABLES
@@ -859,11 +874,17 @@ if __name__ == "__main__":
 
     curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
     prev_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
+    #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
+    #prev_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
         prev_weight = curr_weight
         curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
-        print(np.linalg.norm(curr_weight - prev_weight))
+        print('Training Kernel 0 Diff:', np.linalg.norm(curr_weight - prev_weight))
+
+        #prev_weight_target = curr_weight_target
+        #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
+        #print('Target Kenel 0 Diff:', np.linalg.norm(curr_weight_target - prev_weight_target))
 
         #GS_START_TIME   = datetime.datetime.now()
         # Decay epsilon
@@ -929,7 +950,7 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            reward_stack[v] = -100*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
+            reward_stack[v] = -options.DIST_MUL*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
 
             if v == 0:
                 #print(next_dDistance[v])
@@ -1028,6 +1049,7 @@ if __name__ == "__main__":
                 if options.disable_DN == False:
                     feed.clear()
                     feed.update({agent_target.observation : next_states_mb})
+
                     # Using Target + Double network
                     q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
                 else:
