@@ -224,12 +224,12 @@ class QAgent:
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_s2"
                                            )
-                self.h_s3 = tf.layers.dense( inputs=self.h_s2,
-                                             units=options.H3_SIZE,
-                                             activation = act_function,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="h_s3"
-                                           )
+                #self.h_s3 = tf.layers.dense( inputs=self.h_s2,
+                                             #units=options.H3_SIZE,
+                                             #activation = act_function,
+                                             #kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             #name="h_s3"
+                                           #)
                 self.output = tf.layers.dense( inputs=self.h_s2,
                                                   units=options.ACTION_DIM,
                                                   activation = None,
@@ -850,7 +850,7 @@ if __name__ == "__main__":
     epi_step_stack = np.zeros(options.VEH_COUNT)      # Count number of step for each vehicle in each episode
     epi_reward_stack = np.zeros(options.VEH_COUNT)                          # Holds reward of current episode
     epi_counter  = 0                                                # Counts # of finished episodes
-   
+    epi_done = np.zeros(options.VEH_COUNT) 
  
     # Initialize Scene
 
@@ -964,7 +964,14 @@ if __name__ == "__main__":
         ###
         # Handle Events
         ###
+        
+        # Reset Done
+        epi_done = np.zeros(options.VEH_COUNT)
+
+        # List of resetting vehicles
         reset_veh_list = []
+
+        # Find reset list 
         for v in range(0,options.VEH_COUNT):
             # If vehicle collided, give large negative reward
             if detectCollision(next_dDistance[v])[0] == True:
@@ -981,6 +988,9 @@ if __name__ == "__main__":
                 # Set flag and reward
                 reward_stack[v] = options.FAIL_REW
                 epi_counter += 1
+
+                # Set done
+                epi_done[v] = 1
                 # If collided, skip checking for goal point
                 continue
 
@@ -992,9 +1002,11 @@ if __name__ == "__main__":
                 reset_veh_list.append(v)
 
                 # Set flag and reward
-                #done = 1
                 reward_stack[v] = options.GOAL_REW
                 epi_counter += 1
+
+                # Set done
+                epi_done[v] = 1
 
             # If over MAXSTEP
             if epi_step_stack[v] > options.MAX_TIMESTEP:
@@ -1022,7 +1034,9 @@ if __name__ == "__main__":
             # Get observation
             observation             = getObs( sensor_queue[v], goal_queue[v], old = True)
             next_observation        = getObs( sensor_queue[v], goal_queue[v], old = False)
-            experience = observation, action_stack[v], reward_stack[v], next_observation
+
+            # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
+            experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
            
             # Save new memory 
             replay_memory.store(experience)
@@ -1030,14 +1044,16 @@ if __name__ == "__main__":
         # Start training
         if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
             for tf_train_counter in range(0,options.VEH_COUNT):
-                # Obtain the mini batch
+                # Obtain the mini batch. (Batch Memory is '2D array' with BATCH_SIZE X size(experience)
                 tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
 
+            
                 # Get state/action/next state from obtained memory. Size same as queues
                 states_mb       = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x STATE_DIM 
                 actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
                 rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
                 next_states_mb  = np.array([each[0][3] for each in batch_memory])   
+                done_mb         = np.array([each[0][4] for each in batch_memory])   
 
                 # Get Target Q-Value
                 feed.clear()
@@ -1055,8 +1071,16 @@ if __name__ == "__main__":
                 else:
                     feed.clear()
                     feed.update({agent_target.observation : next_states_mb})
-                    # Just using Target Network
+
+                    # Just using Target Network.
                     q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
+           
+                    # set q_target to reward if episode is done
+                    for v_mb in range(0,options.VEH_COUNT):
+                        if done_mb[v_mb] == 1:
+                            q_target_val[v_mb] = rewards_mb[v_mb]
+ 
+
 
                 # Gradient Descent
                 feed.clear()
