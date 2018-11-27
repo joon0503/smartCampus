@@ -27,7 +27,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=50001,
+    parser.add_argument('--MAX_EPISODE', type=int, default=10001,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=500,
                         help='max number of time step of simulation per episode')
@@ -39,7 +39,7 @@ def get_options():
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
-    parser.add_argument('--FINAL_EPS', type=float, default=1e-2,
+    parser.add_argument('--FINAL_EPS', type=float, default=1e-1,
                         help='finial probability for randomly sampling action')
     parser.add_argument('--EPS_DECAY', type=float, default=0.9985,
                         help='epsilon decay rate')
@@ -51,9 +51,9 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=500,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=100,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
@@ -99,7 +99,6 @@ def get_options():
 
 # Class for Neural Network
 class QAgent:
-    # A naive neural network with 3 hidden layers and relu as non-linear function.
     def __init__(self, options, name):
         self.scope = name
     
@@ -210,6 +209,7 @@ class QAgent:
                 print("======================")
                 self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
                 self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
+
                 # Regular neural net
                 self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
                                              units=options.H1_SIZE,
@@ -851,6 +851,7 @@ if __name__ == "__main__":
     epi_reward_stack = np.zeros(options.VEH_COUNT)                          # Holds reward of current episode
     epi_counter  = 0                                                # Counts # of finished episodes
     epi_done = np.zeros(options.VEH_COUNT) 
+    eps_tracker = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
  
     # Initialize Scene
 
@@ -881,6 +882,9 @@ if __name__ == "__main__":
         prev_weight = curr_weight
         curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
         print('Training Kernel 0 Diff:', np.linalg.norm(curr_weight - prev_weight))
+        #print('WEIGHT:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval() )
+        #print('BIAS:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/bias:0').eval() )
+
 
         #prev_weight_target = curr_weight_target
         #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
@@ -892,7 +896,7 @@ if __name__ == "__main__":
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
             eps = eps * options.EPS_DECAY
             # Save eps for plotting
-            track_eps.append((epi_counter+1,eps)) 
+            #track_eps.append((epi_counter+1,eps)) 
 
         #print("=====================================")
         #print("Global Step: " + str(global_step) + 'EPS: ' + str(eps) + ' Finished Episodes:' + str(epi_counter) )
@@ -975,7 +979,9 @@ if __name__ == "__main__":
         for v in range(0,options.VEH_COUNT):
             # If vehicle collided, give large negative reward
             if detectCollision(next_dDistance[v])[0] == True:
+                print('-----------------------------------------')
                 print('Vehicle #' + str(v) + ' collided!')
+                print('-----------------------------------------')
                 
                 # Print last Q-value 
                 observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
@@ -985,8 +991,9 @@ if __name__ == "__main__":
                 # Add this vehicle to list of vehicles to reset
                 reset_veh_list.append(v)
 
-                # Set flag and reward
+                # Set flag and reward, and save eps
                 reward_stack[v] = options.FAIL_REW
+                eps_tracker[epi_counter] = eps
                 epi_counter += 1
 
                 # Set done
@@ -996,13 +1003,16 @@ if __name__ == "__main__":
 
             # If vehicle is at the goal point, give large positive reward
             if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v]):
+                print('-----------------------------------------')
                 print('Vehicle #' + str(v) + ' reached goal point')
+                print('-----------------------------------------')
                 
                 # Reset Simulation
                 reset_veh_list.append(v)
 
                 # Set flag and reward
                 reward_stack[v] = options.GOAL_REW
+                eps_tracker[epi_counter] = eps
                 epi_counter += 1
 
                 # Set done
@@ -1010,11 +1020,14 @@ if __name__ == "__main__":
 
             # If over MAXSTEP
             if epi_step_stack[v] > options.MAX_TIMESTEP:
+                print('-----------------------------------------')
                 print('Vehicle #' + str(v) + ' over max step')
+                print('-----------------------------------------')
 
                 # Reset Simulation
                 reset_veh_list.append(v)
 
+                eps_tracker[epi_counter] = eps
                 epi_counter += 1
                 
 
@@ -1105,7 +1118,9 @@ if __name__ == "__main__":
         ###############
         # Update Target
         if global_step % options.TARGET_UPDATE_STEP == 0:
+            print('-----------------------------------------')
             print("Updating Target network.")
+            print('-----------------------------------------')
             copy_online_to_target.run()
 
         # Update rewards
@@ -1121,6 +1136,7 @@ if __name__ == "__main__":
             print('\tEpisode #: ' + str(epi_counter) + ' Step: ' + str(epi_step_stack[v]))
             print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
             print('Last Loss: ',avg_loss_value_data[-1])
+            print('========')
             print('')
 
         # Update Counters
@@ -1140,7 +1156,9 @@ if __name__ == "__main__":
 
         # Stop and Restart Simulation Every X episodes
         if global_step % options.RESET_STEP == 0:
+            print('-----------------------------------------')
             print("Resetting...")
+            print('-----------------------------------------')
             vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
             
             # Wait until simulation is stopped.
@@ -1164,11 +1182,15 @@ if __name__ == "__main__":
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
             if global_step // options.SAVER_RATE >= 1 and global_step % options.SAVER_RATE == 0 and options.NO_SAVE == False:
+                print('-----------------------------------------')
                 print("Saving network...")
+                print('-----------------------------------------')
                 saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(epi_counter) + "_gs" + str(global_step))
-                print("Done") 
+                #print("Done") 
 
+                print('-----------------------------------------')
                 print("Saving data...") 
+                print('-----------------------------------------')
                 # Save Reward Data
                 outfile = open( 'result_data/reward_data/reward_data_' + START_TIME, 'wb')  
                 pickle.dump( epi_reward_data, outfile )
@@ -1183,7 +1205,7 @@ if __name__ == "__main__":
                 outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME, 'wb')  
                 pickle.dump( avg_loss_value_data, outfile )
                 outfile.close()
-                print("Done") 
+                #print("Done") 
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
@@ -1212,9 +1234,7 @@ if __name__ == "__main__":
 
     # Plot eps value
     ax2 = ax1.twinx()
-    #track_eps.append((options.MAX_EPISODE,eps))
-    #for q in range(0,len(track_eps)-1 ): 
-        #ax2.plot([track_eps[q][0], track_eps[q+1][0]], [track_eps[q][1],track_eps[q][1]], linestyle='--', color='red')
+    ax2.plot(eps_tracker,linestyle='--', color='red')
 
     ax1.set_title("Episode Reward")
     ax1.set_xlabel("Episode")
@@ -1227,7 +1247,7 @@ if __name__ == "__main__":
     fig, ax2 = plt.subplots()
     ax2.plot(avg_loss_value_data)
     
-    ax2.set_title("Average Loss of an episode")
+    ax2.set_title("Average Loss per Batch Step")
     ax2.set_xlabel("Global Step")
     ax2.set_ylabel("Avg Loss")
     fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
