@@ -57,11 +57,11 @@ def get_options():
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=16,
+    parser.add_argument('--H1_SIZE', type=int, default=80,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=16,
+    parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=16,
+    parser.add_argument('--H3_SIZE', type=int, default=80,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
@@ -1089,7 +1089,7 @@ if __name__ == "__main__":
                     q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
            
                     # set q_target to reward if episode is done
-                    for v_mb in range(0,options.VEH_COUNT):
+                    for v_mb in range(0,options.BATCH_SIZE):
                         if done_mb[v_mb] == 1:
                             q_target_val[v_mb] = rewards_mb[v_mb]
  
