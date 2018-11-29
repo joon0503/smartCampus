@@ -51,7 +51,7 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
                         help='Fix chosen input for this number of steps')
     parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=100,
                         help='Number of steps required for target update')
@@ -211,7 +211,7 @@ class QAgent:
                 self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
 
                 # Regular neural net
-                self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
+                self.h_s1 = tf.layers.dense( inputs=self.observation,
                                              units=options.H1_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
@@ -605,19 +605,33 @@ def printRewards():
             rew_25 = rew_25 -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
         else:
             rew_25 = rew_25 + options.FAIL_REW*(options.GAMMA**i) 
+
+    # EPS Info
+    
+
+
     ########
     # Print Info
     ########
 
     print("======================================")
+    print("======================================")
     print("        REWARD ESTIMATION")
     print("======================================")
     print("Expected Total Step    : ", total_step)
-    print("Expected Reward (25)  : ", rew_25)
+    print("Expected Reward (25)   : ", rew_25)
     print("Expected Reward (Obs)  : ", rew_obs)
-    print("Expected Reward (75)  : ", rew_75)
+    print("Expected Reward (75)   : ", rew_75)
     print("Expected Reward (Goal) : ", rew_end)
     print("======================================")
+    print("        EPS ESTIMATION")
+    print("Expected Step per Epi  : ", total_step*0.5)
+    print("Total Steps            : ", total_step*0.5*options.MAX_EPISODE)
+    print("EPS at Last Episode    : ", options.INIT_EPS*options.EPS_DECAY**(total_step*0.5*options.MAX_EPISODE/options.EPS_ANNEAL_STEPS)  )
+    print("======================================")
+    print("======================================")
+
+
     return
 
 
