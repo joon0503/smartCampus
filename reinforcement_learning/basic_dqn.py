@@ -710,12 +710,13 @@ if __name__ == "__main__":
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
-    START_TIME   = str(datetime.datetime.now()).replace(" ","_")
+    START_TIME       = datetime.datetime.now() 
+    START_TIME_STR   = str(START_TIME).replace(" ","_")
 
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
         os.makedirs("./checkpoints-vehicle")
-    option_file = open("./checkpoints-vehicle/options_"+START_TIME+'.txt', "w")
+    option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
     option_file.write(
         re.sub(
             r', ',
@@ -904,7 +905,7 @@ if __name__ == "__main__":
         #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
         #print('Target Kenel 0 Diff:', np.linalg.norm(curr_weight_target - prev_weight_target))
 
-        #GS_START_TIME   = datetime.datetime.now()
+        #GS_START_TIME_STR   = datetime.datetime.now()
         # Decay epsilon
         global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
@@ -929,7 +930,7 @@ if __name__ == "__main__":
                                                     {
                                                         agent_train.observation : np.reshape(observation, (1, -1))
                                                     },
-                                                    0,
+                                                    eps,
                                                     options,
                                                     True
                                                  )
@@ -992,9 +993,10 @@ if __name__ == "__main__":
         # Find reset list 
         for v in range(0,options.VEH_COUNT):
             # If vehicle collided, give large negative reward
-            if detectCollision(next_dDistance[v])[0] == True:
+            collision_detected, collision_sensor = detectCollision(next_dDistance[v])
+            if collision_detected == True:
                 print('-----------------------------------------')
-                print('Vehicle #' + str(v) + ' collided!')
+                print('Vehicle #' + str(v) + ' collided! Detected Sensor : ' + str(collision_sensor) )
                 print('-----------------------------------------')
                 
                 # Print last Q-value 
@@ -1166,7 +1168,7 @@ if __name__ == "__main__":
             epi_step_stack[v] = 0
 
         #GS_END_TIME   = datetime.datetime.now()
-        #print(GS_END_TIME - GS_START_TIME)
+        #print(GS_END_TIME - GS_START_TIME_STR)
 
         # Stop and Restart Simulation Every X episodes
         if global_step % options.RESET_STEP == 0:
@@ -1199,24 +1201,24 @@ if __name__ == "__main__":
                 print('-----------------------------------------')
                 print("Saving network...")
                 print('-----------------------------------------')
-                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(epi_counter) + "_gs" + str(global_step))
+                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step))
                 #print("Done") 
 
                 print('-----------------------------------------')
                 print("Saving data...") 
                 print('-----------------------------------------')
                 # Save Reward Data
-                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME, 'wb')  
+                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME_STR, 'wb')  
                 pickle.dump( epi_reward_data, outfile )
                 outfile.close()
 
                 # Save vehicle position
-#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME, 'wb')  
+#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME_STR, 'wb')  
 #                pickle.dump( veh_pos_data, outfile )
 #                outfile.close()
 
                 # Save loss data
-                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME, 'wb')  
+                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME_STR, 'wb')  
                 pickle.dump( avg_loss_value_data, outfile )
                 outfile.close()
                 #print("Done") 
@@ -1230,10 +1232,11 @@ if __name__ == "__main__":
     ######################################################
 
     # Print Current Time
-    END_TIME = str(datetime.datetime.now()).replace(" ","_")
+    END_TIME = datetime.datetime.now()
     print("===============================")
-    print(START_TIME)
-    print(END_TIME)
+    print("Start Time: ",START_TIME_STR)
+    print("End Time  : ",str(END_TIME).replace(" ","_"))
+    print("Duration  : ",END_TIME-START_TIME)
     print("===============================")
 
     #############################3
@@ -1253,7 +1256,7 @@ if __name__ == "__main__":
     ax1.set_title("Episode Reward")
     ax1.set_xlabel("Episode")
     ax1.set_ylabel("Reward")
-    fig.savefig('result_data/reward_data/reward_data_' + START_TIME + '.png') 
+    fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '.png') 
 
 
     # Plot Average Step Loss
@@ -1264,7 +1267,7 @@ if __name__ == "__main__":
     ax2.set_title("Average Loss per Batch Step")
     ax2.set_xlabel("Global Step")
     ax2.set_ylabel("Avg Loss")
-    fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
+    fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME_STR + '.png') 
 
     # Plot Greedy Reward
     plt.figure(2)
@@ -1273,7 +1276,7 @@ if __name__ == "__main__":
     ax3.set_title("Cumulative Reward for Greedy Action")
     ax3.set_xlabel("Episodes")
     ax3.set_ylabel("Cumulative Reward")
-    fig.savefig('result_data/reward_data/greedy_reward_data_' + START_TIME + '.png') 
+    fig.savefig('result_data/reward_data/greedy_reward_data_' + START_TIME_STR + '.png') 
 
     # END
     sys.exit()
