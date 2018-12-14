@@ -331,7 +331,7 @@ if __name__ == "__main__":
         sys.exit()
 
     # Set Sampling time
-    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.05, vrep.simx_opmode_oneshot)
+    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.025, vrep.simx_opmode_oneshot)
 
     # start simulation
     vrep.simxSynchronous(clientID,True)
