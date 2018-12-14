@@ -419,6 +419,7 @@ if __name__ == "__main__":
     act_queue = np.empty([options.MAX_EXPERIENCE, options.ACTION_DIM])
     rwd_queue = np.empty([options.MAX_EXPERIENCE])
     next_obs_queue = np.empty([options.MAX_EXPERIENCE, options.OBSERVATION_DIM])
+    done_queue = np.empty(options.MAX_EXPERIENCE)
 
     # END TF SETUP
 
@@ -519,6 +520,7 @@ if __name__ == "__main__":
 
             rwd_queue[exp_pointer] = reward
             next_obs_queue[exp_pointer] = observation
+            done_queue[exp_pointer] = 1 - done
     
             exp_pointer += 1
             if exp_pointer == options.MAX_EXPERIENCE:
@@ -529,8 +531,9 @@ if __name__ == "__main__":
 
                 # Get Target Q-Value
                 feed.update({next_obs : next_obs_queue[rand_indexs]})
+
                 # Calculate Target Q-value
-                q_target_val = rwd_queue[rand_indexs] + options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
+                q_target_val = rwd_queue[rand_indexs] + options.GAMMA * done_queue[rand_indexs] * np.amax( Q_target.eval(feed_dict=feed), axis=1)
 
                 # Gradient Descent
                 feed.clear()
