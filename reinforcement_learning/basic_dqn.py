@@ -578,6 +578,7 @@ if __name__ == "__main__":
 
             # Start simulation and initilize scene
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+            vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
             setMotorPosition(clientID, steer_handle, 0)
             setMotorSpeed(clientID, motor_handle, 5)
