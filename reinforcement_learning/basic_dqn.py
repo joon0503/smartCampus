@@ -28,7 +28,7 @@ def get_options():
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=7,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.95,
+    parser.add_argument('--GAMMA', type=float, default=0.99,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -513,7 +513,7 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 done = 1
-                reward = 1e3
+                reward = 2e3
 
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
