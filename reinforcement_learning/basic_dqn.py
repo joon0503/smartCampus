@@ -41,19 +41,19 @@ def get_options():
                         help='initial probability for randomly sampling action')
     parser.add_argument('--FINAL_EPS', type=float, default=1e-1,
                         help='finial probability for randomly sampling action')
-    parser.add_argument('--EPS_DECAY', type=float, default=0.9985,
+    parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1000,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
                         help='steps interval to decay epsilon')
-    parser.add_argument('--LR', type=float, default=2.5e-5,
+    parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=5000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=20000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=100,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
@@ -76,20 +76,20 @@ def get_options():
     parser.add_argument('--disable_DN', action='store_true',
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_PER', action='store_true',
-                        help='Disable the usage of double network.')
+                        help='Disable the usage of PER.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
     parser.add_argument('--FRAME_COUNT', type=int, default=1,
                         help='Number of frames to be used')
-    parser.add_argument('--ACT_FUNC', type=str, default='elu',
+    parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=5e4,
+    parser.add_argument('--GOAL_REW', type=int, default=1000,
                         help='Activation function')
-    parser.add_argument('--FAIL_REW', type=int, default=-1e4,
+    parser.add_argument('--FAIL_REW', type=int, default=-1000,
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=10,
                         help='Number of vehicles to use for simulation')
-    parser.add_argument('--INIT_SPD', type=int, default=10,
+    parser.add_argument('--INIT_SPD', type=int, default=6,
                         help='Initial speed of vehicle in  km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=10,
                         help='Multiplier for rewards based on the distance to the goal')
@@ -224,13 +224,13 @@ class QAgent:
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_s2"
                                            )
-                #self.h_s3 = tf.layers.dense( inputs=self.h_s2,
-                                             #units=options.H3_SIZE,
-                                             #activation = act_function,
-                                             #kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             #name="h_s3"
-                                           #)
-                self.output = tf.layers.dense( inputs=self.h_s2,
+                self.h_s3 = tf.layers.dense( inputs=self.h_s2,
+                                             units=options.H3_SIZE,
+                                             activation = act_function,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="h_s3"
+                                           )
+                self.output = tf.layers.dense( inputs=self.h_s3,
                                                   units=options.ACTION_DIM,
                                                   activation = None,
                                                   kernel_initializer=tf.contrib.layers.xavier_initializer(),
@@ -248,7 +248,7 @@ class QAgent:
             self.loss_per_data = tf.abs(self.target_Q - self.Q, name='loss_per_data')    
             
             # Loss for Optimization
-            self.loss = tf.reduce_mean(self.ISWeights * tf.squared_difference(self.target_Q, self.Q))
+            self.loss = tf.reduce_mean(self.ISWeights * tf.square(self.target_Q - self.Q))
 
             # Optimizer
             self.optimizer = tf.train.AdamOptimizer(options.LR).minimize(self.loss)
@@ -536,6 +536,13 @@ def printTFvars():
 
     return
 
+# Calculate the running average
+# x: input 1D numpy array
+# N: Window
+def runningAverage(x, N):
+    cumsum = np.cumsum(np.insert(x, 0, 0)) 
+    return (cumsum[N:] - cumsum[:-N]) / float(N)
+
 ##################################
 # GENERAL
 ##################################
@@ -652,8 +659,6 @@ def printRewards():
 # Input:
 #   veh_index: list of indicies of vehicles
 def initScene( veh_index_list, randomize = False):
-    options.INIT_SPD = 10 # km/hr
-
     for veh_index in veh_index_list:
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
         # Reset position of vehicle. Randomize x-position if enabled
@@ -705,8 +710,8 @@ def initScene( veh_index_list, randomize = False):
 ########################
 if __name__ == "__main__":
     options = get_options()
-    print(options)
- 
+    print(str(options).replace(" ",'\n'))
+
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
@@ -896,7 +901,7 @@ if __name__ == "__main__":
     while epi_counter <= options.MAX_EPISODE:
         prev_weight = curr_weight
         curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
-        print('Training Kernel 0 Diff:', np.linalg.norm(curr_weight - prev_weight))
+        #print('Training Kernel 0 Diff:', np.linalg.norm(curr_weight - prev_weight))
         #print('WEIGHT:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval() )
         #print('BIAS:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/bias:0').eval() )
 
@@ -1104,10 +1109,10 @@ if __name__ == "__main__":
                     # Just using Target Network.
                     q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
            
-                    # set q_target to reward if episode is done
-                    for v_mb in range(0,options.BATCH_SIZE):
-                        if done_mb[v_mb] == 1:
-                            q_target_val[v_mb] = rewards_mb[v_mb]
+                # set q_target to reward if episode is done
+                for v_mb in range(0,options.BATCH_SIZE):
+                    if done_mb[v_mb] == 1:
+                        q_target_val[v_mb] = rewards_mb[v_mb]
  
 
 
@@ -1120,6 +1125,8 @@ if __name__ == "__main__":
 
                 with tf.variable_scope("Training"):            
                     step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+                    print(rewards_mb)
+                    print(step_loss_value)
 
                     # Use sum to calculate average loss of this episode.
                     avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
@@ -1259,8 +1266,22 @@ if __name__ == "__main__":
     fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '.png') 
 
 
-    # Plot Average Step Loss
+    # Plot Episode running average of rewards
     plt.figure(1)
+    fig, ax1 = plt.subplots()
+    ax1.plot(runningAverage(epi_reward_data,options.RUNNING_AVG_STEP))
+
+    # Plot eps value
+    #ax2 = ax1.twinx()
+    #ax2.plot(eps_tracker,linestyle='--', color='red')
+
+    ax1.set_title("Running Average of Episode Reward")
+    ax1.set_xlabel("Episode")
+    ax1.set_ylabel("Reward (Running Average)")
+    fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '_average.png') 
+
+    # Plot Average Step Loss
+    plt.figure(2)
     fig, ax2 = plt.subplots()
     ax2.plot(avg_loss_value_data)
     
@@ -1270,7 +1291,7 @@ if __name__ == "__main__":
     fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME_STR + '.png') 
 
     # Plot Greedy Reward
-    plt.figure(2)
+    plt.figure(3)
     fig, ax3 = plt.subplots()
     ax3.plot(reward_data)
     ax3.set_title("Cumulative Reward for Greedy Action")
