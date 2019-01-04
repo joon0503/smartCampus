@@ -89,7 +89,7 @@ def get_options():
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=10,
                         help='Number of vehicles to use for simulation')
-    parser.add_argument('--INIT_SPD', type=int, default=6,
+    parser.add_argument('--INIT_SPD', type=int, default=10,
                         help='Initial speed of vehicle in  km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=10,
                         help='Multiplier for rewards based on the distance to the goal')
@@ -712,6 +712,11 @@ if __name__ == "__main__":
     options = get_options()
     print(str(options).replace(" ",'\n'))
 
+    # Set Seed
+    np.random.seed(1)
+    random.seed(1)
+    tf.set_random_seed(1)
+
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
@@ -1125,8 +1130,8 @@ if __name__ == "__main__":
 
                 with tf.variable_scope("Training"):            
                     step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
-                    print(rewards_mb)
-                    print(step_loss_value)
+                    #print(rewards_mb)
+                    #print(step_loss_value)
 
                     # Use sum to calculate average loss of this episode.
                     avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
