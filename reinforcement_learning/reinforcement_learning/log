@@ -1,0 +1,12 @@
+18/12/26 11:13
+ - fixed experience_replay.py to correctly sample uniformly if PER is disabled. Testin if this fixes.
+
+18/12/27/11:09
+ - fixed sampling experience not being correct. It was always sampling the first experience.
+ - fixed storing experience did not stored the latest reward
+ - updated code to set reward at the last stage as reward itself and no Q estimation.
+
+19/01/04
+ - Added seed to reproduce results consistently
+ - In order to add above, vrep MUST be running before executing python script
+ - Right now, delay for reset is set to be fixed time. Maybe update this later.

@@ -1,3 +1,4 @@
+# 0.1.3 Temp File
 # DQN model to solve vehicle control problem
 
 import tensorflow as tf
@@ -21,21 +22,21 @@ from argparse import ArgumentParser
 MAX_SCORE_QUEUE_SIZE = 100  # number of episode scores to calculate average performance
 MAX_DISTANCE = 15
 GOAL_DISTANCE = 60
-SENSOR_COUNT = 5
+SENSOR_COUNT = 9
 
 def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=30000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=1001,
                         help='max number of episodes iteration\n')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=100,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
-    parser.add_argument('--OBSERVATION_DIM', type=int, default=7,
+    parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.95,
+    parser.add_argument('--GAMMA', type=float, default=0.99,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -45,15 +46,15 @@ def get_options():
                         help='epsilon decay rate')
     parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
                         help='steps interval to decay epsilon')
-    parser.add_argument('--LR', type=float, default=2.5e-4,
+    parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
                         help='size of experience replay memory')
-    parser.add_argument('--SAVER_RATE', type=int, default=1000,
+    parser.add_argument('--SAVER_RATE', type=int, default=100,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=200,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
@@ -87,27 +88,27 @@ class QAgent:
     def __init__(self, options, name):
         self.scope = name
         with tf.variable_scope(name):      # Set scope as name
-            self.W1 = self.weight_variable([SENSOR_COUNT, options.H1_SIZE], 'W_s1')
-            self.b1 = self.bias_variable([options.H1_SIZE], 'b_s1')
-            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W_s2')
-            self.b2 = self.bias_variable([options.H2_SIZE], 'b_s2')
+            #self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W_s1')
+            #self.b1 = self.bias_variable([options.H1_SIZE], 'b_s1')
+            #self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W_s2')
+            #self.b2 = self.bias_variable([options.H2_SIZE], 'b_s2')
 
-            self.W3 = self.weight_variable([options.H2_SIZE+2, options.H3_SIZE], 'W_fc_1')
-            self.b3 = self.bias_variable([options.H3_SIZE], 'b_fc_1')
-            self.W4 = self.weight_variable([options.H3_SIZE, options.H3_SIZE], 'W_fc_2')
-            self.b4 = self.bias_variable([options.H3_SIZE], 'b_fc_2')
+            #self.W3 = self.weight_variable([options.H2_SIZE+2, options.H3_SIZE], 'W_fc_1')
+            #self.b3 = self.bias_variable([options.H3_SIZE], 'b_fc_1')
+            #self.W4 = self.weight_variable([options.H3_SIZE, options.H3_SIZE], 'W_fc_2')
+            #self.b4 = self.bias_variable([options.H3_SIZE], 'b_fc_2')
 
-            self.W5 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W_fc_3')
-            self.b5 = self.bias_variable([options.ACTION_DIM], 'b_fc_3')
+            #self.W5 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W_fc_3')
+            #self.b5 = self.bias_variable([options.ACTION_DIM], 'b_fc_3')
 
-#            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
-#            self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
-#            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
-#            self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
-#            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
-#            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
-#            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
-#            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
+            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
+            self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
+            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
+            self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
+            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
+            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
+            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
+            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
 
 #            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
 #            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
@@ -140,26 +141,26 @@ class QAgent:
             observation = tf.placeholder(tf.float32, [None, options.OBSERVATION_DIM], name='observation')
 
             # Slicing
-            sensor_data = tf.slice(observation, [0, 0], [-1, 5])
-            goal_data = tf.slice(observation, [0, 5], [-1, 2])
+            #sensor_data = tf.slice(observation, [0, 0], [-1, 5])
+            #goal_data = tf.slice(observation, [0, 5], [-1, 2])
 
             # Giving some structure            
-            h_s1 = tf.nn.relu(tf.matmul(sensor_data, self.W1) + self.b1, name='h_s1')
-            h_s2 = tf.nn.relu(tf.matmul(h_s1, self.W2) + self.b2, name='h_s2')
+            #h_s1 = tf.nn.relu(tf.matmul(sensor_data, self.W1) + self.b1, name='h_s1')
+            #h_s2 = tf.nn.relu(tf.matmul(h_s1, self.W2) + self.b2, name='h_s2')
 
             # Combine sensor data and goal data
-            combined_layer = tf.concat([goal_data, h_s2], -1)
+            #combined_layer = tf.concat([goal_data, h_s2], -1)
 
-            h_fc_1 = tf.nn.relu(tf.matmul(combined_layer, self.W3) + self.b3, name='h_fc1')
-            h_fc_2 = tf.nn.relu(tf.matmul(h_fc_1, self.W4) + self.b4, name='h_fc2')
+            #h_fc_1 = tf.nn.relu(tf.matmul(combined_layer, self.W3) + self.b3, name='h_fc1')
+            #h_fc_2 = tf.nn.relu(tf.matmul(h_fc_1, self.W4) + self.b4, name='h_fc2')
 
-            Q = tf.squeeze(tf.matmul(h_fc_2, self.W5) + self.b5)
+            #Q = tf.squeeze(tf.matmul(h_fc_2, self.W5) + self.b5)
 
 #           Regular DQN
-#            h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
-#            h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
-#            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
-#            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+            h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
+            h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
+            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
+            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
 
 #           Dueling Network
 #            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
@@ -183,10 +184,10 @@ class QAgent:
 #            action = random.uniform(0,1)
         else:
             act_values = Q.eval(feed_dict=feed)
+            action_index = np.argmax(act_values)
             if options.TESTING == True:
                 print(np.argmax(act_values))
                 print(act_values)
-            action_index = np.argmax(act_values)
         action = np.zeros(options.ACTION_DIM)
         action[action_index] = 1
         return action
@@ -380,10 +381,11 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize 
     # Reset position of obstacle
     if randomize == True:
         if random.random() > 0.5:
-            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-1,30,1.1],vrep.simx_opmode_blocking)
+            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[0,30,1.1],vrep.simx_opmode_blocking)
         else:
-            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-6.5,30,1.1],vrep.simx_opmode_blocking)
+            err_code = vrep.simxSetObjectPosition(clientID,obs_handle,-1,[-4.5,30,1.1],vrep.simx_opmode_blocking)
         
+    return
 
 
 
@@ -393,7 +395,12 @@ def initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize 
 if __name__ == "__main__":
     options = get_options()
     print(options)
-  
+ 
+    # Set Seeds
+    np.random.seed(1)
+    random.seed(1)
+    tf.set_random_seed(1)
+ 
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
@@ -420,7 +427,7 @@ if __name__ == "__main__":
         sys.exit()
 
     # Set Sampling time
-    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.05, vrep.simx_opmode_oneshot)
+    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.025, vrep.simx_opmode_oneshot)
 
     # start simulation
     vrep.simxSynchronous(clientID,True)
@@ -476,7 +483,8 @@ if __name__ == "__main__":
     loss_per_data = tf.abs(values1 - target_y, name='loss_per_data')                                               
 
     # Actual loss for optimization. Note importance sampling factor is multiplied due to prioritization
-    loss = tf.reduce_mean( ISWeights * tf.squared_difference(values1,target_y), name='loss')                            
+    #loss = tf.reduce_mean( ISWeights * tf.squared_difference(values1,target_y), name='loss')                            
+    loss = tf.reduce_mean( tf.square(values1-target_y), name='loss')                            
     train_step = tf.train.AdamOptimizer(options.LR).minimize(loss)
 
     # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
@@ -507,7 +515,6 @@ if __name__ == "__main__":
     feed = {}
     eps = options.INIT_EPS
     global_step = 0
-    exp_pointer = 0
     learning_finished = False
 
     # The replay memory.
@@ -533,15 +540,33 @@ if __name__ == "__main__":
 #        EPI_START_TIME = time.time()
         print("Episode: " + str(j) + ". Global Step: " + str(global_step) + " eps: " + str(eps))
 
+        # Stop and Restart Simulation Every X episodes
+        if j % options.RESET_EPISODE == 0:
+            print("Resetting...")
+            vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
+            
+            # Wait until simulation is stopped.
+            #simulation_status = 1
+            #bit_mask = 1
+            #while bit_mask & simulation_status != 0:       # Get right-most bit and check if it is 1
+                #_, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
+#                    print(bit_mask & simulation_status)
+#                    print("{0:b}".format(simulation_status))
+                #time.sleep(0.1)
+            time.sleep(8.0)
+
+            # Start simulation and initilize scene
+            vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
+            vrep.simxSynchronous(clientID,True)
+            time.sleep(1.0)
+            setMotorPosition(clientID, steer_handle, 0)
+            setMotorSpeed(clientID, motor_handle, 7)
+            print('Done')
+
         sum_loss_value = 0
         episode_reward = 0
         vehPosDataTrial = np.empty([options.MAX_TIMESTEP,2])        # Initialize data
         done = 0
-
-        # Start simulation and initilize scene
-        vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-        setMotorPosition(clientID, steer_handle, 0)
-        setMotorSpeed(clientID, motor_handle, 5)
 
         # Time reward
         time_reward = 0
@@ -584,21 +609,20 @@ if __name__ == "__main__":
             next_observation = dDistance + gInfo
             reward = -10*gInfo[1]**2 + time_reward         # cost is the distance squared + time it survived
 
-            experience = observation, action, reward, next_observation
-            replay_memory.store(experience)
 
             # If vehicle is stuck somehow
 #            print(prev_vehPos)
 #            print(abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])))
-            if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.001 and i >= 15:
-                print('Vehicle Stuck!')
+
+            #if abs(np.asarray(prev_vehPos[0:1]) - np.asarray(curr_vehPos[0:1])) < 0.001 and i >= 15:
+                #print('Vehicle Stuck!')
                 # Reset Simulation
-                vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-                initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
-                vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-                vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
+                #vrep.simxSetModelProperty( clientID, vehicle_handle, vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
+                #initScene(vehicle_handle, steer_handle, motor_handle, obs_handle, randomize = True)               # initialize
+                #vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
+                #vrep.simxSetModelProperty( clientID, vehicle_handle, 0 , vrep.simx_opmode_blocking   )      # enable dynamics
                 
-                done = 1
+                #done = 1
 
             # If vehicle collided, give large negative reward
             if detectCollision(dDistance,dState)[0] == True:
@@ -626,15 +650,14 @@ if __name__ == "__main__":
 
                 # Set flag and reward
                 done = 1
-                reward = 1e4
+                reward = 1e3
 
             # Record reward
             episode_reward = episode_reward + reward*(options.GAMMA**i)
 
-            exp_pointer += 1
-            if exp_pointer == options.MAX_EXPERIENCE:
-                exp_pointer = 0 # Refill the replay memory if it is full
-  
+            experience = observation, action, reward, next_observation, 1-done
+            replay_memory.store(experience)
+
             if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
                 # Obtain the mini batch
                 rand_indexs = np.random.choice(options.MAX_EXPERIENCE, options.BATCH_SIZE)
@@ -646,6 +669,7 @@ if __name__ == "__main__":
                 actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
                 rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
                 next_states_mb  = np.array([each[0][3] for each in batch_memory])   
+                done_mb         = np.array([each[0][4] for each in batch_memory])   
 
                 # Get Target Q-Value
                 feed.clear()
@@ -656,10 +680,10 @@ if __name__ == "__main__":
                 action_train = np.argmax( Q_train.eval(feed_dict=feed), axis=1 )
                 if options.disable_DN == False:
                     # Using Target + Double network
-                    q_target_val = rewards_mb + options.GAMMA * Q_target.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
+                    q_target_val = rewards_mb + done_mb * options.GAMMA * Q_target.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
                 else:
                     # Just using Target Network
-                    q_target_val = rewards_mb + options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
+                    q_target_val = rewards_mb + done_mb * options.GAMMA * np.amax( Q_target.eval(feed_dict=feed), axis=1)
     
 
                 # Gradient Descent
@@ -671,13 +695,28 @@ if __name__ == "__main__":
                 feed.update({target_y : q_target_val } )        # Add target_y to feed
                 feed.update({ISWeights : ISWeights_mb   })
 
+                #print(states_mb)
+                #print(actions_mb)
+                #print('rewards',rewards_mb)
+                #print(next_states_mb)
+                #print('q_target_val',q_target_val)
+                #print(ISWeights_mb)
+
+
                 b_before = agent_train.b1.eval()
                 with tf.variable_scope("Training"):            
-                    step_loss_per_data, step_loss_value, _ = sess.run([loss_per_data, loss, train_step], feed_dict = feed)
+                    step_loss_per_data, step_loss_value, q_values_1, _ = sess.run([loss_per_data, loss, values1, train_step], feed_dict = feed)
 
-                    # Use sum to calculate average loss of this episode
-                    sum_loss_value += step_loss_value
-    
+                    #print('step_loss_value:', step_loss_value)
+                    #print('step_per_data:', np.sum(step_loss_per_data))
+                    #print('step_per_data:', step_loss_per_data)
+                    #print('q_values_1:', q_values_1)
+                    #print('')
+        
+
+                # Use sum to calculate average loss of this episode
+                sum_loss_value += step_loss_value
+   
                 b_after = agent_train.b1.eval()
                 delta = abs(np.mean(b_before-b_after))
                 if delta < 1e-10:
@@ -716,25 +755,6 @@ if __name__ == "__main__":
             avg_epi_reward_data[j] = np.mean(reward_data[j-options.RUNNING_AVG_STEP+1:j])  
           
          
-        # Stop and Restart Simulation Every X episodes
-        if j % options.RESET_EPISODE == 0:
-            print("Resetting...")
-            vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
-            
-            # Wait until simulation is stopped.
-            simulation_status = 1
-            bit_mask = 1
-            while bit_mask & simulation_status != 0:       # Get right-most bit and check if it is 1
-                _, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
-#                    print(bit_mask & simulation_status)
-#                    print("{0:b}".format(simulation_status))
-                time.sleep(0.1)
-
-            # Start simulation and initilize scene
-            vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-            time.sleep(1.0)
-            setMotorPosition(clientID, steer_handle, 0)
-            setMotorSpeed(clientID, motor_handle, 5)
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
