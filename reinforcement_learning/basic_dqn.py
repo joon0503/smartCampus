@@ -770,9 +770,9 @@ if __name__ == "__main__":
                 outfile.close()
 
                 # Save vehicle position
-                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME + " ", 'wb')  
-                pickle.dump( veh_pos_data, outfile )
-                outfile.close()
+                #outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME + " ", 'wb')  
+                #pickle.dump( veh_pos_data, outfile )
+                #outfile.close()
 
                 # Save loss data
                 outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME + " ", 'wb')  
