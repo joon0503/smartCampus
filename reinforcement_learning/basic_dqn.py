@@ -28,7 +28,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=1001,
+    parser.add_argument('--MAX_EPISODE', type=int, default=5001,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
                         help='max number of time step of simulation per episode')
