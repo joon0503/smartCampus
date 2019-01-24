@@ -78,6 +78,8 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--disable_PER', action='store_true',
                         help='Disable the usage of double network.')
+    parser.add_argument('--disable_duel', action='store_true',
+                        help='Disable the usage of duel network.')
     options = parser.parse_args()
     return options
 
@@ -101,24 +103,31 @@ class QAgent:
             #self.W5 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W_fc_3')
             #self.b5 = self.bias_variable([options.ACTION_DIM], 'b_fc_3')
 
-            self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
-            self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
-            self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
-            self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
-            self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
-            self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
-            self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
-            self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
+            if options.disable_duel == True:
+                self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
+                self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
+                self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
+                self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
+                self.W3 = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3')
+                self.b3 = self.bias_variable([options.H3_SIZE], 'b3')
+                self.W4 = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4')
+                self.b4 = self.bias_variable([options.ACTION_DIM], 'b4')
+            else:
+                self.W1 = self.weight_variable([options.OBSERVATION_DIM, options.H1_SIZE], 'W1')
+                self.b1 = self.bias_variable([options.H1_SIZE], 'b1')
+                self.W2 = self.weight_variable([options.H1_SIZE, options.H2_SIZE], 'W2')
+                self.b2 = self.bias_variable([options.H2_SIZE], 'b2')
 
-#            self.W3_val = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_val')
-#            self.b3_val = self.bias_variable([options.H3_SIZE], 'b3_val')
-#            self.W3_adv = self.weight_variable([options.H2_SIZE, options.H3_SIZE], 'W3_adv')
-#            self.b3_adv = self.bias_variable([options.H3_SIZE], 'b3_adv')
-#            self.W4_val = self.weight_variable([options.H3_SIZE, 1], 'W4_val')
-#            self.b4_val = self.bias_variable([1], 'b4_val')
-#            self.W4_adv = self.weight_variable([options.H3_SIZE, options.ACTION_DIM], 'W4_adv')
-#            self.b4_adv = self.bias_variable([options.ACTION_DIM], 'b4_adv')
-   
+                self.W3_val = self.weight_variable([options.H2_SIZE, int(options.H3_SIZE*0.5)], 'W3_val')
+                self.b3_val = self.bias_variable([int(options.H3_SIZE*0.5)], 'b3_val')
+                self.W3_adv = self.weight_variable([options.H2_SIZE, int(options.H3_SIZE*0.5)], 'W3_adv')
+                self.b3_adv = self.bias_variable([int(options.H3_SIZE*0.5)], 'b3_adv')
+
+                self.W4_val = self.weight_variable([int(options.H3_SIZE*0.5), 1], 'W4_val')
+                self.b4_val = self.bias_variable([1], 'b4_val')
+                self.W4_adv = self.weight_variable([int(options.H3_SIZE*0.5), options.ACTION_DIM], 'W4_adv')
+                self.b4_adv = self.bias_variable([options.ACTION_DIM], 'b4_adv')
+
     # Weights initializer
     def xavier_initializer(self, shape):
         dim_sum = np.sum(shape)
@@ -156,20 +165,23 @@ class QAgent:
 
             #Q = tf.squeeze(tf.matmul(h_fc_2, self.W5) + self.b5)
 
-#           Regular DQN
+            # First two layers. Common to both regular and duel         
             h1 = tf.nn.relu(tf.matmul(observation, self.W1) + self.b1, name='h1')
             h2 = tf.nn.relu(tf.matmul(h1, self.W2) + self.b2, name='h2')
-            h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
-            Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
 
+            if options.disable_duel == True:
+                # Regular
+                h3 = tf.nn.relu(tf.matmul(h2, self.W3) + self.b3, name='h3')
+                Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
+            else:
 #           Dueling Network
-#            h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
-#            h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
+                h3_val = tf.nn.relu(tf.matmul(h2, self.W3_val) + self.b3_val, name='h3_val')
+                h3_adv = tf.nn.relu(tf.matmul(h2, self.W3_adv) + self.b3_adv, name='h3_adv')
 
-#            value_est = tf.nn.relu(tf.matmul(h3_val, self.W4_val) + self.b4_val, name='value_est')
-#            adv_est = tf.nn.relu(tf.matmul(h3_adv, self.W4_adv) + self.b4_adv, name='adv_est')
+                value_est = tf.matmul(h3_val, self.W4_val + self.b4_val, name='value_est')
+                adv_est = tf.matmul(h3_adv, self.W4_adv) + self.b4_adv
 
-#            Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
+                Q = value_est + tf.subtract(adv_est, tf.reduce_mean(adv_est, axis=1, keepdims=True) ) 
 
 #        Q = tf.squeeze(tf.matmul(h3, self.W4) + self.b4)
 #        Q = tf.matmul(h3, self.W4) + self.b4
