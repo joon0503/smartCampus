@@ -888,7 +888,7 @@ if __name__ == "__main__":
  
     # Initialize Scene
 
-    initScene( list(range(0,options.VEH_COUNT)), randomize = False)               # initialize
+    initScene( list(range(0,options.VEH_COUNT)), randomize = True)               # initialize
 
     # List of deque to store data
     sensor_queue = []
@@ -1075,7 +1075,7 @@ if __name__ == "__main__":
         #   Not coded yet.
         
         # Reset Vehicles    
-        initScene( reset_veh_list, randomize = False)               # initialize
+        initScene( reset_veh_list, randomize = True)               # initialize
 
         
         ###########
@@ -1237,7 +1237,7 @@ if __name__ == "__main__":
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            initScene( list(range(0,options.VEH_COUNT)), randomize = False)               # initialize
+            initScene( list(range(0,options.VEH_COUNT)), randomize = True)               # initialize
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
