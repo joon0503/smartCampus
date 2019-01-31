@@ -29,7 +29,6 @@ class SumTree(object):
         """
         
         # Contains the experiences (so the size of data is capacity)
-        # Each entry to data is a tuple of memory. object keywords represents it is an array of some python object
         self.data = np.zeros(capacity, dtype=object)
     
     
@@ -144,15 +143,15 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
     """
     PER_e = 0.01  # Hyperparameter that we use to avoid some experiences to have 0 probability of being taken
     PER_a = 0.6  # Hyperparameter that we use to make a tradeoff between taking only exp with high priority and sampling randomly
-    PER_b = 1.0  # importance-sampling, from initial value increasing to 1
+    PER_b = 0.4  # importance-sampling, from initial value increasing to 1
     
     PER_b_increment_per_sampling = 0.001
     
     absolute_error_upper = 1.  # clipped abs error
 
-    PER_disabled = False       # Switch for disabling PER. If on, just use uniform sampling
+    PER_disabled = False
 
-    def __init__(self, capacity, absolute_error_upperbound=1., disable_PER=False):
+    def __init__(self, capacity, absolute_error_upperbound = 1., disable_PER = False):
         # Making the tree 
         """
         Remember that our tree is composed of a sum tree that contains the priority scores at his leaf
@@ -161,11 +160,8 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         We prefer to use a simple array and to overwrite when the memory is full.
         """
         self.tree = SumTree(capacity)
-       
-        # Set upper bound of the TD error
         self.absolute_error_upper = absolute_error_upperbound
-        
-        self.PER_disabled = disable_PER 
+        self.PER_disabled = disable_PER        
     """
     Store a new experience in our tree
     Each new experience have a score of max_prority (it will be then improved when we use this exp to train our DDQN)
@@ -178,8 +174,11 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         # So we use a minimum priority
         if max_priority == 0:
             max_priority = self.absolute_error_upper
-        
-        self.tree.add(max_priority, experience)   # set the max p for new p
+
+        if self.PER_disabled == True:        
+            self.tree.add(1, experience)   # set the priority of each sample to 1 if PER is disabled
+        else:
+            self.tree.add(max_priority, experience)   # set the max p for new p
 
         
     """
@@ -193,60 +192,76 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         memory_b = []
         
         b_idx, b_ISWeights = np.empty((n,), dtype=np.int32), np.empty((n, 1), dtype=np.float32)
-        
-        # Calculate the priority segment
-        # Here, as explained in the paper, we divide the Range[0, ptotal] into n ranges
-        priority_segment = self.tree.total_priority / n       # priority segment
-    
-        # Here we increasing the PER_b each time we sample a new minibatch
-        self.PER_b = np.min([1., self.PER_b + self.PER_b_increment_per_sampling])  # max = 1
-        
-        # Calculating the max_weight
-        p_min = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.total_priority
-        max_weight = (p_min * n) ** (-self.PER_b)
-        
-        for i in range(n):
-            """
-            A value is uniformly sample from each range
-            """
-            a, b = priority_segment * i, priority_segment * (i + 1)
-            value = np.random.uniform(a, b)
+       
+        # Uniform sampling if PER is disabled
+
+        if self.PER_disabled == True:
+            for i in range(n):
+                value = np.random.uniform(0, self.tree.capacity)
+
+                #print(self.tree.tree) 
+                #print(value) 
+                """
+                Experience that correspond to each value is retrieved
+                """
+                index, priority, data = self.tree.get_leaf(value)
+               
+                #print('Data in experience_replay.sample', data) 
+                b_ISWeights[i, 0] = 1
+                                       
+                b_idx[i]= index
+                
+                experience = [data]
+                
+                memory_b.append(experience)
             
-            """
-            Experience that correspond to each value is retrieved
-            """
-            index, priority, data = self.tree.get_leaf(value)
+            return b_idx, memory_b, b_ISWeights
+
+        else: 
+            # Calculate the priority segment
+            # Here, as explained in the paper, we divide the Range[0, ptotal] into n ranges
+            priority_segment = self.tree.total_priority / n       # priority segment
+        
+            # Here we increasing the PER_b each time we sample a new minibatch
+            self.PER_b = np.min([1., self.PER_b + self.PER_b_increment_per_sampling])  # max = 1
             
-            #P(j)
-            sampling_probabilities = priority / self.tree.total_priority
-           
-            # If PER disabled, set IS weights to 1 
-            if self.PER_disabled == False:
+            # Calculating the max_weight
+            p_min = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.total_priority
+            max_weight = (p_min * n) ** (-self.PER_b)
+            
+            for i in range(n):
+                """
+                A value is uniformly sample from each range
+                """
+                a, b = priority_segment * i, priority_segment * (i + 1)
+                value = np.random.uniform(a, b)
+                
+                """
+                Experience that correspond to each value is retrieved
+                """
+                index, priority, data = self.tree.get_leaf(value)
+                
+                #P(j)
+                sampling_probabilities = priority / self.tree.total_priority
+                
                 #  IS = (1/N * 1/P(i))**b /max wi == (N*P(i))**-b  /max wi
                 b_ISWeights[i, 0] = np.power(n * sampling_probabilities, -self.PER_b)/ max_weight
-            else:
-                b_ISWeights[i, 0] = 1
+                                       
+                b_idx[i]= index
                 
-                                   
-            b_idx[i]= index
+                experience = [data]
+                
+                memory_b.append(experience)
             
-            experience = [data]
-            
-            memory_b.append(experience)
-       
-        # b_idx: index of sampled leaf 
-        # momory_b: (n,size) array with each row being a stored memory
-        # b_ISWeights: array of weights 
-        return b_idx, memory_b, b_ISWeights
+            return b_idx, memory_b, b_ISWeights
     
     """
     Update the priorities on the tree
     """
     def batch_update(self, tree_idx, abs_errors):
-        # Don't update the priority tree if PER is disabled. This will set priority of all nodes to MAX value, effectively resulting in uniform sampling
         if self.PER_disabled == True:
-           return
- 
+            return
+
         abs_errors += self.PER_e  # convert to abs and avoid 0
         clipped_errors = np.minimum(abs_errors, self.absolute_error_upper)
         ps = np.power(clipped_errors, self.PER_a)

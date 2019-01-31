@@ -27,15 +27,15 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=10001,
+    parser.add_argument('--MAX_EPISODE', type=int, default=1001,
                         help='max number of episodes iteration\n')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=500,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.99,
+    parser.add_argument('--GAMMA', type=float, default=0.98,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -47,11 +47,11 @@ def get_options():
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=20000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
                         help='Fix chosen input for this number of steps')
     parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
                         help='Number of steps required for target update')
@@ -83,7 +83,7 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=1000,
+    parser.add_argument('--GOAL_REW', type=int, default=2000,
                         help='Activation function')
     parser.add_argument('--FAIL_REW', type=int, default=-1000,
                         help='Activation function')
@@ -290,7 +290,7 @@ def setMotorSpeed( clientID, motorHandles, desiredSpd ):
 
     desiredSpd_rps = desiredSpd*(1000/3600)*(1/wheel_radius)   # km/hr into radians per second
 
-    # print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + "degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
+    #print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + "degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
     err_code = []
     for mHandle in motorHandles:
         err_code.append( vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd_rps, vrep.simx_opmode_blocking) )
@@ -641,15 +641,16 @@ def printRewards():
 
     return
 
+def printSpdInfo():
+    desiredSpd = options.INIT_SPD
 
+    wheel_radius = 0.63407*0.5      # Wheel radius in metre
 
+    desiredSpd_rps = desiredSpd*(1000/3600)*(1/wheel_radius)   # km/hr into radians per second
 
+    print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + " degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
 
-
-
-
-
-
+    return
 
 ###############################33
 # TRAINING
@@ -717,6 +718,10 @@ if __name__ == "__main__":
     random.seed(1)
     tf.set_random_seed(1)
 
+    # Set print options
+    np.set_printoptions( precision = 4, linewidth = 75 )
+
+
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
@@ -738,6 +743,9 @@ if __name__ == "__main__":
 
     # Print Rewards
     printRewards()
+
+    # Print Speed Infos
+    printSpdInfo()
 
     # Get client ID
     vrep.simxFinish(-1) 
@@ -889,7 +897,6 @@ if __name__ == "__main__":
         sensor_queue.append( deque() )
         goal_queue.append( deque() )
 
-
     # initilize them with initial data
     veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA()
     for i in range(0,options.VEH_COUNT):
@@ -967,6 +974,13 @@ if __name__ == "__main__":
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA()
+        #print("\n\n")
+        #print("==next_veh_pos==\n", next_veh_pos)
+        #print("==next_veh_heading==\n", next_veh_heading)
+        #print("==next_veh_dDistance==\n", next_dDistance)
+        #print("==next_veh_gInfo==\n", next_gInfo)
+        #print("\n\n")
+
         #print(next_dDistance)
         for v in range(0,options.VEH_COUNT):
             # Get new Data
@@ -1075,7 +1089,9 @@ if __name__ == "__main__":
             next_observation        = getObs( sensor_queue[v], goal_queue[v], old = False)
 
             # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
-            experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
+            #experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
+            experience = observation, np.argmax(action_stack[v]), reward_stack[v], next_observation, epi_done[v]
+            #print('experience', experience)
            
             # Save new memory 
             replay_memory.store(experience)
@@ -1086,13 +1102,27 @@ if __name__ == "__main__":
                 # Obtain the mini batch. (Batch Memory is '2D array' with BATCH_SIZE X size(experience)
                 tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
 
-            
+                #print("\n\n")
+                #print('batch_memory', batch_memory)
+                #print("\n\n")
+ 
                 # Get state/action/next state from obtained memory. Size same as queues
                 states_mb       = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x STATE_DIM 
                 actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
                 rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
                 next_states_mb  = np.array([each[0][3] for each in batch_memory])   
                 done_mb         = np.array([each[0][4] for each in batch_memory])   
+
+                #print("\n\n")
+                #print('states_mb', states_mb)
+                #print('actions_mb', actions_mb)
+                #print('rewards_mb', rewards_mb)
+                #print('next_states_mb', next_states_mb)
+                #print('done_mb', done_mb)
+
+                # actions mb is list of numbers. Need to change it into one hot encoding
+                actions_mb_hot = np.zeros((options.BATCH_SIZE,options.ACTION_DIM))
+                actions_mb_hot[np.arange(options.BATCH_SIZE),actions_mb] = 1
 
                 # Get Target Q-Value
                 feed.clear()
@@ -1118,25 +1148,27 @@ if __name__ == "__main__":
                 for v_mb in range(0,options.BATCH_SIZE):
                     if done_mb[v_mb] == 1:
                         q_target_val[v_mb] = rewards_mb[v_mb]
- 
+
+                #print('q_target_val', q_target_val) 
+                #print("\n\n")
 
 
                 # Gradient Descent
                 feed.clear()
                 feed.update({agent_train.observation : states_mb})
-                feed.update({agent_train.act : actions_mb})
+                feed.update({agent_train.act : actions_mb_hot})
                 feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
                 feed.update({agent_train.ISWeights : ISWeights_mb   })
 
-                with tf.variable_scope("Training"):            
-                    step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
-                    #print(rewards_mb)
-                    #print(step_loss_value)
+                #with tf.variable_scope("Training"):            
+                step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+                #print(rewards_mb)
+                #print(step_loss_value)
 
-                    # Use sum to calculate average loss of this episode.
-                    avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
-                    #if tf_train_counter == 0:
-                        #print(step_loss_per_data)
+                # Use sum to calculate average loss of this episode.
+                avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
+                #if tf_train_counter == 0:
+                    #print(step_loss_per_data)
         
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
@@ -1161,7 +1193,7 @@ if __name__ == "__main__":
             print('Vehicle #:', v)
             print('\tGlobal Step:' + str(global_step))
             print('\tEPS: ' + str(eps))
-            print('\tEpisode #: ' + str(epi_counter) + ' Step: ' + str(epi_step_stack[v]))
+            print('\tEpisode #: ' + str(epi_counter) + ' Step: ' + str(int(epi_step_stack[v])))
             print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
             print('Last Loss: ',avg_loss_value_data[-1])
             print('========')
