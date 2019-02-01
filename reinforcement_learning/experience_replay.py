@@ -149,9 +149,9 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
     
     absolute_error_upper = 1.  # clipped abs error
 
-    PER_disabled = False
+    PER_disabled = True
 
-    def __init__(self, capacity, absolute_error_upperbound = 1., disable_PER = False):
+    def __init__(self, capacity, absolute_error_upperbound = 1., disable_PER = True):
         # Making the tree 
         """
         Remember that our tree is composed of a sum tree that contains the priority scores at his leaf
