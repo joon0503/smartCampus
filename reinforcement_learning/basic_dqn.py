@@ -75,7 +75,7 @@ def get_options():
                         help='No training. Just testing. Use it with eps=1.0')
     parser.add_argument('--disable_DN', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--enable_PER', action='store_true', default = False
+    parser.add_argument('--enable_PER', action='store_true', default = False,
                         help='Enable the usage of PER.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
@@ -1234,7 +1234,7 @@ if __name__ == "__main__":
             print('Vehicle #:', v)
             print('\tGlobal Step:' + str(global_step))
             print('\tEPS: ' + str(eps))
-            print('\tEpisode #: ' + str(epi_counter) + ' Step: ' + str(int(epi_step_stack[v])))
+            print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE_ + '\n\tStep: ' + str(int(epi_step_stack[v])))
             print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
             print('Last Loss: ',avg_loss_value_data[-1])
             print('========')
