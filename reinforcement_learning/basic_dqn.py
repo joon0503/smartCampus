@@ -204,12 +204,6 @@ class QAgent:
                  
                     self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
             else:
-                print("======================")
-                print("Regular Net")
-                print("======================")
-                self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
-                self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
-
                 # Regular neural net
                 self.h_s1 = tf.layers.dense( inputs=self.observation,
                                              units=options.H1_SIZE,
@@ -224,19 +218,58 @@ class QAgent:
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                              name="h_s2"
                                            )
-                self.h_s3 = tf.layers.dense( inputs=self.h_s2,
-                                             units=options.H3_SIZE,
-                                             activation = act_function,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="h_s3"
-                                           )
-                self.output = tf.layers.dense( inputs=self.h_s3,
-                                                  units=options.ACTION_DIM,
-                                                  activation = None,
-                                                  kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                                  name="h_action"
-                                             )
 
+                if options.disable_duel == True:
+                    print("======================")
+                    print("Regular Net")
+                    print("======================")
+
+                    self.h_s3 = tf.layers.dense( inputs=self.h_s2,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_s3"
+                                               )
+                    self.output = tf.layers.dense( inputs=self.h_s3,
+                                                      units=options.ACTION_DIM,
+                                                      activation = None,
+                                                      kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                      name="h_action"
+                                                 )
+                else:
+                    print("======================")
+                    print("Dueling Network")
+                    print("======================")
+                    # Dueling Network
+                    self.h_layer_val = tf.layers.dense( inputs=self.h_s2,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_layer_val"
+                                               )
+                    self.h_layer_adv = tf.layers.dense( inputs=self.h_s2,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_layer_adv"
+                                               )
+
+                    # Value and advantage estimate
+                    self.val_est    = tf.layers.dense( inputs=self.h_layer_val,
+                                                 units=1,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="val_est"
+                                               )
+
+                    self.adv_est    = tf.layers.dense( inputs=self.h_layer_adv,
+                                                 units=options.ACTION_DIM,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="adv_est"
+                                               )
+                 
+                    self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
             ######################################:
             ## END Constructing Neural Network
             ######################################:
