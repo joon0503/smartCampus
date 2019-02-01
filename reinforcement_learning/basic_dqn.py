@@ -75,8 +75,8 @@ def get_options():
                         help='No training. Just testing. Use it with eps=1.0')
     parser.add_argument('--disable_DN', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--disable_PER', action='store_true',
-                        help='Disable the usage of PER.')
+    parser.add_argument('--enable_PER', action='store_true', default = False
+                        help='Enable the usage of PER.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
     parser.add_argument('--FRAME_COUNT', type=int, default=1,
@@ -876,10 +876,18 @@ if __name__ == "__main__":
     global_step = 0
 
     # The replay memory.
-    if options.disable_PER == False:
-        replay_memory = Memory(options.MAX_EXPERIENCE, absolute_error_upperbound=2000)
+    if options.enable_PER == False:
+        # Don't use PER
+        print("=================================================")
+        print("NOT using PER!")
+        print("=================================================")
+        replay_memory = Memory(options.MAX_EXPERIENCE)
     else:
-        replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = True)
+        # Use PER
+        print("=================================================")
+        print("Using PER!")
+        print("=================================================")
+        replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = False, absolute_error_upperbound = 2000)
         
     ########################
     # END TF SETUP
