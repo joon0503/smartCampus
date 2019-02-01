@@ -18,25 +18,24 @@ from experience_replay import SumTree
 from experience_replay import Memory
 from argparse import ArgumentParser
 
-MAX_DISTANCE = 10
+MAX_DISTANCE = 20
 COLLISION_DISTANCE = 1.3
 GOAL_DISTANCE = 60
 SENSOR_COUNT = 9
-VEH_COUNT = 10
 
 def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=15001,
+    parser.add_argument('--MAX_EPISODE', type=int, default=1001,
                         help='max number of episodes iteration\n')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.97,
+    parser.add_argument('--GAMMA', type=float, default=0.98,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -46,25 +45,25 @@ def get_options():
                         help='epsilon decay rate')
     parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
                         help='steps interval to decay epsilon')
-    parser.add_argument('--LR', type=float, default=2.5e-4,
+    parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
     parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
                         help='size of experience replay memory')
-    parser.add_argument('--SAVER_RATE', type=int, default=10000,
+    parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=2,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
                         help='Fix chosen input for this number of steps')
-    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=100,
+    parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
                         help='Number of steps required for target update')
-    parser.add_argument('--BATCH_SIZE', type=int, default=64,
+    parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
     parser.add_argument('--H1_SIZE', type=int, default=80,
                         help='size of hidden layer 1')
     parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=40,
+    parser.add_argument('--H3_SIZE', type=int, default=80,
                         help='size of hidden layer 3')
-    parser.add_argument('--RESET_STEP', type=int, default=2500,
+    parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
     parser.add_argument('--RUNNING_AVG_STEP', type=int, default=100,
                         help='number of episode to calculate the average score')
@@ -76,21 +75,30 @@ def get_options():
                         help='No training. Just testing. Use it with eps=1.0')
     parser.add_argument('--disable_DN', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--disable_PER', action='store_true',
-                        help='Disable the usage of double network.')
+    parser.add_argument('--enable_PER', action='store_true', default = False,
+                        help='Enable the usage of PER.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
     parser.add_argument('--FRAME_COUNT', type=int, default=1,
                         help='Number of frames to be used')
-    parser.add_argument('--ACT_FUNC', type=str, default='elu',
+    parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
+    parser.add_argument('--GOAL_REW', type=int, default=2000,
+                        help='Activation function')
+    parser.add_argument('--FAIL_REW', type=int, default=-1000,
+                        help='Activation function')
+    parser.add_argument('--VEH_COUNT', type=int, default=10,
+                        help='Number of vehicles to use for simulation')
+    parser.add_argument('--INIT_SPD', type=int, default=10,
+                        help='Initial speed of vehicle in  km/hr')
+    parser.add_argument('--DIST_MUL', type=int, default=10,
+                        help='Multiplier for rewards based on the distance to the goal')
     options = parser.parse_args()
     return options
 
 
 # Class for Neural Network
 class QAgent:
-    # A naive neural network with 3 hidden layers and relu as non-linear function.
     def __init__(self, options, name):
         self.scope = name
     
@@ -118,82 +126,150 @@ class QAgent:
             self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
 
 
-            # Slicing
-            self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
-            self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
+            if False:
+                # Slicing
+                self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
+                self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
 
-            # "CNN-like" structure for sensor data. 2 Layers
-            self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
-                                         units=options.H1_SIZE,
-                                         activation = act_function,
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                         name="h_s1"
-                                       )
- 
-            self.h_s2 = tf.layers.dense( inputs=self.h_s1,
-                                         units=options.H1_SIZE,
-                                         activation = act_function,
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                         name="h_s2"
-                                       )
-
-            # Combine sensor data and goal data
-            self.combined_layer = tf.concat([self.goal_data, self.h_s2], -1)
-
-            # FC Layer
-            self.h_fc_1 = tf.layers.dense( inputs=self.combined_layer,
-                                         units=options.H1_SIZE,
-                                         activation = act_function,
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                         name="h_fc1"
-                                       )
-
-            if options.disable_duel == True:
-                # Regular DQN
-                self.h_fc_2 = tf.layers.dense( inputs=self.h_fc_1,
+                # "CNN-like" structure for sensor data. 2 Layers
+                self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
                                              units=options.H1_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="h_fc2"
+                                             name="h_s1"
                                            )
-                
-                self.output = tf.layers.dense( inputs=self.h_fc_2,
-                                             units=options.ACTION_DIM,
+     
+                self.h_s2 = tf.layers.dense( inputs=self.h_s1,
+                                             units=options.H1_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="q_value"
+                                             name="h_s2"
                                            )
+
+                # Combine sensor data and goal data
+                self.combined_layer = tf.concat([self.goal_data, self.h_s2], -1)
+
+                # FC Layer
+                self.h_fc_1 = tf.layers.dense( inputs=self.combined_layer,
+                                             units=options.H1_SIZE,
+                                             activation = act_function,
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             name="h_fc1"
+                                           )
+
+                if options.disable_duel == True:
+                    # Regular DQN
+                    self.h_fc_2 = tf.layers.dense( inputs=self.h_fc_1,
+                                                 units=options.H1_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_fc2"
+                                               )
+                    
+                    self.output = tf.layers.dense( inputs=self.h_fc_2,
+                                                 units=options.ACTION_DIM,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="q_value"
+                                               )
+                else:
+                    # Dueling Network
+                    self.h_layer_val = tf.layers.dense( inputs=self.h_fc_1,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_layer_val"
+                                               )
+                    self.h_layer_adv = tf.layers.dense( inputs=self.h_fc_1,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_layer_adv"
+                                               )
+
+                    # Value and advantage estimate
+                    self.val_est    = tf.layers.dense( inputs=self.h_layer_val,
+                                                 units=1,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="val_est"
+                                               )
+
+                    self.adv_est    = tf.layers.dense( inputs=self.h_layer_adv,
+                                                 units=options.ACTION_DIM,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="adv_est"
+                                               )
+                 
+                    self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
             else:
-                # Dueling Network
-                self.h_layer_val = tf.layers.dense( inputs=self.h_fc_1,
-                                             units=options.H3_SIZE,
+                # Regular neural net
+                self.h_s1 = tf.layers.dense( inputs=self.observation,
+                                             units=options.H1_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="h_layer_val"
+                                             #kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=0.1)
+                                             name="h_s1"
                                            )
-                self.h_layer_adv = tf.layers.dense( inputs=self.h_fc_1,
-                                             units=options.H3_SIZE,
+                self.h_s2 = tf.layers.dense( inputs=self.h_s1,
+                                             units=options.H2_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="h_layer_adv"
+                                             name="h_s2"
                                            )
 
-                # Value and advantage estimate
-                self.val_est    = tf.layers.dense( inputs=self.h_layer_val,
-                                             units=1,
-                                             activation = None,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="val_est"
-                                           )
+                if options.disable_duel == True:
+                    print("======================")
+                    print("Regular Net")
+                    print("======================")
 
-                self.adv_est    = tf.layers.dense( inputs=self.h_layer_val,
-                                             units=options.ACTION_DIM,
-                                             activation = None,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="adv_est"
-                                           )
-             
-                self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
+                    self.h_s3 = tf.layers.dense( inputs=self.h_s2,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_s3"
+                                               )
+                    self.output = tf.layers.dense( inputs=self.h_s3,
+                                                      units=options.ACTION_DIM,
+                                                      activation = None,
+                                                      kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                      name="h_action"
+                                                 )
+                else:
+                    print("======================")
+                    print("Dueling Network")
+                    print("======================")
+                    # Dueling Network
+                    self.h_layer_val = tf.layers.dense( inputs=self.h_s2,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_layer_val"
+                                               )
+                    self.h_layer_adv = tf.layers.dense( inputs=self.h_s2,
+                                                 units=options.H3_SIZE,
+                                                 activation = act_function,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="h_layer_adv"
+                                               )
+
+                    # Value and advantage estimate
+                    self.val_est    = tf.layers.dense( inputs=self.h_layer_val,
+                                                 units=1,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="val_est"
+                                               )
+
+                    self.adv_est    = tf.layers.dense( inputs=self.h_layer_adv,
+                                                 units=options.ACTION_DIM,
+                                                 activation = None,
+                                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 name="adv_est"
+                                               )
+                 
+                    self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
             ######################################:
             ## END Constructing Neural Network
             ######################################:
@@ -205,20 +281,21 @@ class QAgent:
             self.loss_per_data = tf.abs(self.target_Q - self.Q, name='loss_per_data')    
             
             # Loss for Optimization
-            self.loss = tf.reduce_mean(self.ISWeights * tf.squared_difference(self.target_Q, self.Q))
+            self.loss = tf.reduce_mean(self.ISWeights * tf.square(self.target_Q - self.Q))
+
             # Optimizer
             self.optimizer = tf.train.AdamOptimizer(options.LR).minimize(self.loss)
 
 
     # Sample action with random rate eps
-    def sample_action(self, feed, eps, options):
+    def sample_action(self, feed, eps, options, verbose = False):
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = random.randrange(options.ACTION_DIM)
 #            action = random.uniform(0,1)
         else:
             act_values = self.output.eval(feed_dict=feed)
-            if options.TESTING == True:
+            if options.TESTING == True or verbose == True:
                 print(np.argmax(act_values))
                 print(act_values)
             action_index = np.argmax(act_values)
@@ -246,7 +323,7 @@ def setMotorSpeed( clientID, motorHandles, desiredSpd ):
 
     desiredSpd_rps = desiredSpd*(1000/3600)*(1/wheel_radius)   # km/hr into radians per second
 
-    # print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + "degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
+    #print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + "degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
     err_code = []
     for mHandle in motorHandles:
         err_code.append( vrep.simxSetJointTargetVelocity(clientID, mHandle, desiredSpd_rps, vrep.simx_opmode_blocking) )
@@ -339,7 +416,7 @@ def getGoalPoint( veh_index ):
 
     return goal_angle, goal_distance / GOAL_DISTANCE
 
-# veh_pos_info: (VEH_COUNT x 2)
+# veh_pos_info: (options.VEH_COUNT x 2)
 def getGoalInfo( veh_pos_info, goal_pos_info ):
     # Calculate the distance
     delta_distance = goal_pos_info - veh_pos_info              # delta x, delta y
@@ -400,10 +477,10 @@ def getVehicleState( veh_index ):
 
 # Call LUA script to get information
 # Returns
-#   veh_pos (VEH_COUNT x 2)
-#   veh_heading (VEH_COUNT x 1) [-1,1] -1 if right, 0 if front, 1 if left
-#   dDistance (VEH_COUNT x SENSOR_COUNT)
-#   gInfo (VEH_COUNT x 2)
+#   veh_pos (options.VEH_COUNT x 2)
+#   veh_heading (options.VEH_COUNT x 1) [-1,1] -1 if right, 0 if front, 1 if left
+#   dDistance (options.VEH_COUNT x SENSOR_COUNT)
+#   gInfo (options.VEH_COUNT x 2)
 def getVehicleStateLUA():
     emptyBuff = bytearray()
 
@@ -427,6 +504,7 @@ def applySteeringAction(action, veh_index):
     action_delta = (MAX_STEER - MIN_STEER) / (options.ACTION_DIM-1)
 
     # Calculate desired angle
+    #action = [0,1,0,0,0]
     desired_angle = MAX_STEER - np.argmax(action) * action_delta
 
     # Set steering position
@@ -438,11 +516,11 @@ def applySteeringAction(action, veh_index):
 # Get Motor/Sensor Handles
 # Input: clientID?
 def getMotorHandles():
-    motor_handle = np.zeros([VEH_COUNT,2], dtype=int)
-    steer_handle = np.zeros([VEH_COUNT,2], dtype=int)
+    motor_handle = np.zeros([options.VEH_COUNT,2], dtype=int)
+    steer_handle = np.zeros([options.VEH_COUNT,2], dtype=int)
 
     # Get Motor Handles
-    for i in range(0,VEH_COUNT):
+    for i in range(0,options.VEH_COUNT):
         _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft" + str(i), vrep.simx_opmode_blocking)
         _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight" + str(i), vrep.simx_opmode_blocking)
         _,h3  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisRight" + str(i), vrep.simx_opmode_blocking)
@@ -460,10 +538,10 @@ def getMotorHandles():
 
 def getSensorHandles():
     # Get Sensor Handles
-    sensor_handle = np.zeros([VEH_COUNT,SENSOR_COUNT], dtype=int)
+    sensor_handle = np.zeros([options.VEH_COUNT,SENSOR_COUNT], dtype=int)
 
     k = 0
-    for v in range(0,VEH_COUNT):
+    for v in range(0,options.VEH_COUNT):
         for i in range(0,SENSOR_COUNT):
             _,temp_handle  = vrep.simxGetObjectHandle(clientID, "Proximity_sensor" + str(k), vrep.simx_opmode_blocking)
             sensor_handle[v][i] = temp_handle
@@ -476,11 +554,27 @@ def getSensorHandles():
 ##################################
 
 def printTFvars():
-    tvars = tf.trainable_variables()
+    print("==Training==")
+    tvars = tf.trainable_variables(scope='Training')
 
     for var in tvars:
         print(var)
+
+    print("==Target==")
+    tvars = tf.trainable_variables(scope='Target')
+
+    for var in tvars:
+        print(var)
+    print("=========")
+
     return
+
+# Calculate the running average
+# x: input 1D numpy array
+# N: Window
+def runningAverage(x, N):
+    cumsum = np.cumsum(np.insert(x, 0, 0)) 
+    return (cumsum[N:] - cumsum[:-N]) / float(N)
 
 ##################################
 # GENERAL
@@ -504,12 +598,92 @@ def getObs( sensor_queue, goal_queue, old=True):
 
     return observation
 
+# Calculate Approximate Rewards for variaous cases
+def printRewards():
+    # Some parameters
+    veh_speed = options.INIT_SPD/3.6  # 10km/hr in m/s
+
+    # Time Steps
+    dt = 0.025
+    dt_code = dt * options.FIX_INPUT_STEP
+
+    # Expected Total Time Steps
+    total_step = (60/veh_speed)*(1/dt_code)
+
+    # Reward at the end
+    rew_end = 0
+    for i in range(0, int(total_step)):
+        goal_distance = 60 - i*dt_code*veh_speed 
+        if i != total_step-1:
+            rew_end = rew_end -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+        else:
+            rew_end = rew_end + options.GOAL_REW*(options.GAMMA**i) 
+
+    # Reward at Obs
+    rew_obs = 0
+    for i in range(0, int(total_step*0.5)):
+        goal_distance = 60 - i*dt_code*veh_speed 
+        if i != int(total_step*0.5)-1:
+            rew_obs = rew_obs -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+        else:
+            rew_obs = rew_obs + options.FAIL_REW*(options.GAMMA**i) 
+
+    # Reward at 75%
+    rew_75 = 0
+    for i in range(0, int(total_step*0.75)):
+        goal_distance = 60 - i*dt_code*veh_speed 
+        if i != int(total_step*0.75)-1:
+            rew_75 = rew_75 -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+        else:
+            rew_75 = rew_75 + options.FAIL_REW*(options.GAMMA**i) 
+
+    # Reward at 25%
+    rew_25 = 0
+    for i in range(0, int(total_step*0.25)):
+        goal_distance = 60 - i*dt_code*veh_speed 
+        if i != int(total_step*0.25)-1:
+            rew_25 = rew_25 -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+        else:
+            rew_25 = rew_25 + options.FAIL_REW*(options.GAMMA**i) 
+
+    # EPS Info
+    
 
 
+    ########
+    # Print Info
+    ########
+
+    print("======================================")
+    print("======================================")
+    print("        REWARD ESTIMATION")
+    print("======================================")
+    print("Expected Total Step    : ", total_step)
+    print("Expected Reward (25)   : ", rew_25)
+    print("Expected Reward (Obs)  : ", rew_obs)
+    print("Expected Reward (75)   : ", rew_75)
+    print("Expected Reward (Goal) : ", rew_end)
+    print("======================================")
+    print("        EPS ESTIMATION")
+    print("Expected Step per Epi  : ", total_step*0.5)
+    print("Total Steps            : ", total_step*0.5*options.MAX_EPISODE)
+    print("EPS at Last Episode    : ", options.INIT_EPS*options.EPS_DECAY**(total_step*0.5*options.MAX_EPISODE/options.EPS_ANNEAL_STEPS)  )
+    print("======================================")
+    print("======================================")
 
 
+    return
 
+def printSpdInfo():
+    desiredSpd = options.INIT_SPD
 
+    wheel_radius = 0.63407*0.5      # Wheel radius in metre
+
+    desiredSpd_rps = desiredSpd*(1000/3600)*(1/wheel_radius)   # km/hr into radians per second
+
+    print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + " degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
+
+    return
 
 ###############################33
 # TRAINING
@@ -519,13 +693,11 @@ def getObs( sensor_queue, goal_queue, old=True):
 # Input:
 #   veh_index: list of indicies of vehicles
 def initScene( veh_index_list, randomize = False):
-    init_speed = 30 # km/hr
-
     for veh_index in veh_index_list:
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
         # Reset position of vehicle. Randomize x-position if enabled
         if randomize == False:
-            err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20 + 0,0,0.2],vrep.simx_opmode_blocking)
+            err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20-3 + 0,0,0.2],vrep.simx_opmode_blocking)
         else:
             x_pos = random.uniform(-1,-3)
             err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20 + x_pos,0,0.2],vrep.simx_opmode_blocking)
@@ -542,10 +714,10 @@ def initScene( veh_index_list, randomize = False):
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], 0 , vrep.simx_opmode_blocking   )      # enable dynamics
 
         # Reset motor speed
-        setMotorSpeed(clientID, motor_handle[veh_index], init_speed)
+        setMotorSpeed(clientID, motor_handle[veh_index], options.INIT_SPD)
 
         # Set initial speed of vehicle
-        vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, init_speed*(1000/3600), vrep.simx_opmode_blocking)
+        vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, options.INIT_SPD/3.6, vrep.simx_opmode_blocking)
        
         # Read sensor
         dState, dDistance = readSensor(clientID, sensor_handle[veh_index], vrep.simx_opmode_buffer)         # try it once for initialization
@@ -572,17 +744,27 @@ def initScene( veh_index_list, randomize = False):
 ########################
 if __name__ == "__main__":
     options = get_options()
-    print(options)
- 
+    print(str(options).replace(" ",'\n'))
+
+    # Set Seed
+    np.random.seed(1)
+    random.seed(1)
+    tf.set_random_seed(1)
+
+    # Set print options
+    np.set_printoptions( precision = 4, linewidth = 75 )
+
+
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
-    START_TIME   = str(datetime.datetime.now()).replace(" ","_")
+    START_TIME       = datetime.datetime.now() 
+    START_TIME_STR   = str(START_TIME).replace(" ","_")
 
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
         os.makedirs("./checkpoints-vehicle")
-    option_file = open("./checkpoints-vehicle/options_"+START_TIME+'.txt', "w")
+    option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
     option_file.write(
         re.sub(
             r', ',
@@ -591,6 +773,12 @@ if __name__ == "__main__":
         )
     )
     option_file.close()
+
+    # Print Rewards
+    printRewards()
+
+    # Print Speed Infos
+    printSpdInfo()
 
     # Get client ID
     vrep.simxFinish(-1) 
@@ -614,24 +802,24 @@ if __name__ == "__main__":
     sensor_handle = getSensorHandles()
 
     # Get vehicle handle
-    vehicle_handle = np.zeros(VEH_COUNT, dtype=int)
-    for i in range(0,VEH_COUNT):
+    vehicle_handle = np.zeros(options.VEH_COUNT, dtype=int)
+    for i in range(0,options.VEH_COUNT):
         err_code, vehicle_handle[i] = vrep.simxGetObjectHandle(clientID, "dyros_vehicle" + str(i), vrep.simx_opmode_blocking)
 
     # Get goal point handle
-    dummy_handle = np.zeros(VEH_COUNT, dtype=int)
-    for i in range(0,VEH_COUNT):
+    dummy_handle = np.zeros(options.VEH_COUNT, dtype=int)
+    for i in range(0,options.VEH_COUNT):
         err_code, dummy_handle[i] = vrep.simxGetObjectHandle(clientID, "GoalPoint" + str(i), vrep.simx_opmode_blocking)
 
     # Get obstacle handle
-    obs_handle = np.zeros(VEH_COUNT, dtype=int)
-    for i in range(0,VEH_COUNT):
+    obs_handle = np.zeros(options.VEH_COUNT, dtype=int)
+    for i in range(0,options.VEH_COUNT):
         err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
 
     # Make Large handle list for communication
-    handle_list = [VEH_COUNT, SENSOR_COUNT] 
+    handle_list = [options.VEH_COUNT, SENSOR_COUNT] 
     # Make handles into big list
-    for v in range(0,VEH_COUNT):
+    for v in range(0,options.VEH_COUNT):
         handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
 
     ########################
@@ -651,8 +839,7 @@ if __name__ == "__main__":
     agent_train     = QAgent(options,'Training')
     agent_target    = QAgent(options,'Target')
     sess            = tf.InteractiveSession()
-
-#    printTFvars()
+    
 
 #    sess = tf.InteractiveSession(config=tf.ConfigProto(log_device_placement=True))
 #    sess = tf.Session()
@@ -689,19 +876,29 @@ if __name__ == "__main__":
     global_step = 0
 
     # The replay memory.
-    if options.disable_PER == False:
-        replay_memory = Memory(options.MAX_EXPERIENCE, absolute_error_upperbound=2000)
+    if options.enable_PER == False:
+        # Don't use PER
+        print("=================================================")
+        print("NOT using PER!")
+        print("=================================================")
+        replay_memory = Memory(options.MAX_EXPERIENCE)
     else:
-        replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = True)
+        # Use PER
+        print("=================================================")
+        print("Using PER!")
+        print("=================================================")
+        replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = False, absolute_error_upperbound = 2000)
         
     ########################
     # END TF SETUP
     ########################
 
+    printTFvars()
+
     ###########################        
     # DATA VARIABLES
     ###########################        
-    reward_data         = np.empty(options.MAX_EPISODE)
+    reward_data         = np.empty(0)
     avg_loss_value_data = np.empty(1)
 #    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
     avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
@@ -722,60 +919,87 @@ if __name__ == "__main__":
     ###########################        
    
     # Some variables
-    reward_stack = np.zeros(VEH_COUNT)                              # Holds rewards of current step
-    action_stack = np.zeros((VEH_COUNT, options.ACTION_DIM))        # action_stack[k] is the array of optinos.ACTION_DIM with one hot encoding
-    epi_step_stack = np.zeros(VEH_COUNT)      # Count number of step for each vehicle in each episode
-    epi_reward_stack = np.zeros(VEH_COUNT)                          # Holds reward of current episode
+    reward_stack = np.zeros(options.VEH_COUNT)                              # Holds rewards of current step
+    action_stack = np.zeros((options.VEH_COUNT, options.ACTION_DIM))        # action_stack[k] is the array of optinos.ACTION_DIM with one hot encoding
+    epi_step_stack = np.zeros(options.VEH_COUNT)      # Count number of step for each vehicle in each episode
+    epi_reward_stack = np.zeros(options.VEH_COUNT)                          # Holds reward of current episode
     epi_counter  = 0                                                # Counts # of finished episodes
-   
+    epi_done = np.zeros(options.VEH_COUNT) 
+    eps_tracker = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
  
     # Initialize Scene
 
-    initScene( list(range(0,VEH_COUNT)), randomize = True)               # initialize
+    initScene( list(range(0,options.VEH_COUNT)), randomize = True)               # initialize
 
     # List of deque to store data
     sensor_queue = []
     goal_queue   = []
-    for i in range(0,VEH_COUNT):
+    for i in range(0,options.VEH_COUNT):
         sensor_queue.append( deque() )
         goal_queue.append( deque() )
 
-
     # initilize them with initial data
     veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA()
-    for i in range(0,VEH_COUNT):
+    for i in range(0,options.VEH_COUNT):
         # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
         for q in range(0,options.FRAME_COUNT*2):
             sensor_queue[i].append(dDistance[i])
             goal_queue[i].append(gInfo[i])
 
+    curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
+    prev_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
+    #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
+    #prev_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
-        #GS_START_TIME   = datetime.datetime.now()
+        prev_weight = curr_weight
+        curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
+        #print('Training Kernel 0 Diff:', np.linalg.norm(curr_weight - prev_weight))
+        #print('WEIGHT:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval() )
+        #print('BIAS:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/bias:0').eval() )
+
+
+        #prev_weight_target = curr_weight_target
+        #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
+        #print('Target Kenel 0 Diff:', np.linalg.norm(curr_weight_target - prev_weight_target))
+
+        #GS_START_TIME_STR   = datetime.datetime.now()
         # Decay epsilon
-        global_step += VEH_COUNT
+        global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
             eps = eps * options.EPS_DECAY
             # Save eps for plotting
-            track_eps.append((epi_counter+1,eps)) 
+            #track_eps.append((epi_counter+1,eps)) 
 
         #print("=====================================")
         #print("Global Step: " + str(global_step) + 'EPS: ' + str(eps) + ' Finished Episodes:' + str(epi_counter) )
+
+
         ####
         # Find & Apply Action
         ####
-        for v in range(0,VEH_COUNT):
+        for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
             observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
 
-            # Get Action
-            action_stack[v] = agent_train.sample_action(
-                                                {
-                                                    agent_train.observation : np.reshape(observation, (1, -1))
-                                                },
-                                                eps,
-                                                options
-                                             )
+            # Get Action. First vehicle always exploit
+            if v == 0:
+                action_stack[v] = agent_train.sample_action(
+                                                    {
+                                                        agent_train.observation : np.reshape(observation, (1, -1))
+                                                    },
+                                                    eps,
+                                                    options,
+                                                    True
+                                                 )
+            else:
+                action_stack[v] = agent_train.sample_action(
+                                                    {
+                                                        agent_train.observation : np.reshape(observation, (1, -1))
+                                                    },
+                                                    eps,
+                                                    options
+                                                 )
             applySteeringAction( action_stack[v], v )
 
         ####
@@ -784,12 +1008,22 @@ if __name__ == "__main__":
         for q in range(0,options.FIX_INPUT_STEP):
             vrep.simxSynchronousTrigger(clientID);
 
+        if options.manual == True:
+            input('Press Enter')
 
         ####
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA()
-        for v in range(0,VEH_COUNT):
+        #print("\n\n")
+        #print("==next_veh_pos==\n", next_veh_pos)
+        #print("==next_veh_heading==\n", next_veh_heading)
+        #print("==next_veh_dDistance==\n", next_dDistance)
+        #print("==next_veh_gInfo==\n", next_gInfo)
+        #print("\n\n")
+
+        #print(next_dDistance)
+        for v in range(0,options.VEH_COUNT):
             # Get new Data
             #veh_pos_queue[v].append(next_veh_pos[v])   
 
@@ -800,18 +1034,35 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            reward_stack[v] = -10*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
+            reward_stack[v] = -options.DIST_MUL*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
+
+            if v == 0:
+                #print(next_dDistance[v])
+                #print(next_gInfo[v])
+                pass
+
+
 
         #print(next_veh_heading)
 
         ###
         # Handle Events
         ###
+        
+        # Reset Done
+        epi_done = np.zeros(options.VEH_COUNT)
+
+        # List of resetting vehicles
         reset_veh_list = []
-        for v in range(0,VEH_COUNT):
+
+        # Find reset list 
+        for v in range(0,options.VEH_COUNT):
             # If vehicle collided, give large negative reward
-            if detectCollision(next_dDistance[v])[0] == True:
-                print('Vehicle #' + str(v) + ' collided!')
+            collision_detected, collision_sensor = detectCollision(next_dDistance[v])
+            if collision_detected == True:
+                print('-----------------------------------------')
+                print('Vehicle #' + str(v) + ' collided! Detected Sensor : ' + str(collision_sensor) )
+                print('-----------------------------------------')
                 
                 # Print last Q-value 
                 observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
@@ -821,31 +1072,43 @@ if __name__ == "__main__":
                 # Add this vehicle to list of vehicles to reset
                 reset_veh_list.append(v)
 
-                # Set flag and reward
-                reward_stack[v] = -2e3
+                # Set flag and reward, and save eps
+                reward_stack[v] = options.FAIL_REW
+                eps_tracker[epi_counter] = eps
                 epi_counter += 1
+
+                # Set done
+                epi_done[v] = 1
                 # If collided, skip checking for goal point
                 continue
 
             # If vehicle is at the goal point, give large positive reward
             if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v]):
+                print('-----------------------------------------')
                 print('Vehicle #' + str(v) + ' reached goal point')
+                print('-----------------------------------------')
                 
                 # Reset Simulation
                 reset_veh_list.append(v)
 
                 # Set flag and reward
-                #done = 1
-                reward_stack[v] = 1e5
+                reward_stack[v] = options.GOAL_REW
+                eps_tracker[epi_counter] = eps
                 epi_counter += 1
+
+                # Set done
+                epi_done[v] = 1
 
             # If over MAXSTEP
             if epi_step_stack[v] > options.MAX_TIMESTEP:
+                print('-----------------------------------------')
                 print('Vehicle #' + str(v) + ' over max step')
+                print('-----------------------------------------')
 
                 # Reset Simulation
                 reset_veh_list.append(v)
 
+                eps_tracker[epi_counter] = eps
                 epi_counter += 1
                 
 
@@ -861,26 +1124,46 @@ if __name__ == "__main__":
         ###########
 
         # Add latest information to memory
-        for v in range(0,VEH_COUNT):
+        for v in range(0,options.VEH_COUNT):
             # Get observation
             observation             = getObs( sensor_queue[v], goal_queue[v], old = True)
             next_observation        = getObs( sensor_queue[v], goal_queue[v], old = False)
-            experience = observation, action_stack[v], reward_stack[v], next_observation
+
+            # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
+            #experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
+            experience = observation, np.argmax(action_stack[v]), reward_stack[v], next_observation, epi_done[v]
+            #print('experience', experience)
            
             # Save new memory 
             replay_memory.store(experience)
 
         # Start training
         if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
-            for tf_train_counter in range(0,VEH_COUNT):
-                # Obtain the mini batch
+            for tf_train_counter in range(0,options.VEH_COUNT):
+                # Obtain the mini batch. (Batch Memory is '2D array' with BATCH_SIZE X size(experience)
                 tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
 
+                #print("\n\n")
+                #print('batch_memory', batch_memory)
+                #print("\n\n")
+ 
                 # Get state/action/next state from obtained memory. Size same as queues
                 states_mb       = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x STATE_DIM 
                 actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
                 rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
                 next_states_mb  = np.array([each[0][3] for each in batch_memory])   
+                done_mb         = np.array([each[0][4] for each in batch_memory])   
+
+                #print("\n\n")
+                #print('states_mb', states_mb)
+                #print('actions_mb', actions_mb)
+                #print('rewards_mb', rewards_mb)
+                #print('next_states_mb', next_states_mb)
+                #print('done_mb', done_mb)
+
+                # actions mb is list of numbers. Need to change it into one hot encoding
+                actions_mb_hot = np.zeros((options.BATCH_SIZE,options.ACTION_DIM))
+                actions_mb_hot[np.arange(options.BATCH_SIZE),actions_mb] = 1
 
                 # Get Target Q-Value
                 feed.clear()
@@ -892,26 +1175,41 @@ if __name__ == "__main__":
                 if options.disable_DN == False:
                     feed.clear()
                     feed.update({agent_target.observation : next_states_mb})
+
                     # Using Target + Double network
                     q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
                 else:
                     feed.clear()
                     feed.update({agent_target.observation : next_states_mb})
-                    # Just using Target Network
-                    q_target_val = rewards_mb + options.GAMMA * np.amax( agent.target.output.eval(feed_dict=feed), axis=1)
+
+                    # Just using Target Network.
+                    q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
+           
+                # set q_target to reward if episode is done
+                for v_mb in range(0,options.BATCH_SIZE):
+                    if done_mb[v_mb] == 1:
+                        q_target_val[v_mb] = rewards_mb[v_mb]
+
+                #print('q_target_val', q_target_val) 
+                #print("\n\n")
+
 
                 # Gradient Descent
                 feed.clear()
                 feed.update({agent_train.observation : states_mb})
-                feed.update({agent_train.act : actions_mb})
+                feed.update({agent_train.act : actions_mb_hot})
                 feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
                 feed.update({agent_train.ISWeights : ISWeights_mb   })
 
-                with tf.variable_scope("Training"):            
-                    step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+                #with tf.variable_scope("Training"):            
+                step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+                #print(rewards_mb)
+                #print(step_loss_value)
 
-                    # Use sum to calculate average loss of this episode.
-                    avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
+                # Use sum to calculate average loss of this episode.
+                avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
+                #if tf_train_counter == 0:
+                    #print(step_loss_per_data)
         
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
@@ -921,23 +1219,26 @@ if __name__ == "__main__":
         ###############
         # Update Target
         if global_step % options.TARGET_UPDATE_STEP == 0:
+            print('-----------------------------------------')
             print("Updating Target network.")
+            print('-----------------------------------------')
             copy_online_to_target.run()
 
         # Update rewards
-        for v in range(0,VEH_COUNT):
+        for v in range(0,options.VEH_COUNT):
             epi_reward_stack[v] = epi_reward_stack[v] + reward_stack[v]*(options.GAMMA**epi_step_stack[v])
 
         # Print Rewards
         for v in reset_veh_list:
+            print('========')
+            print('Vehicle #:', v)
             print('\tGlobal Step:' + str(global_step))
             print('\tEPS: ' + str(eps))
-            print('\tEpisode #: ' + str(epi_counter)) 
+            print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(epi_step_stack[v])) )
             print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
+            print('Last Loss: ',avg_loss_value_data[-1])
+            print('========')
             print('')
-
-        # Print Loss
-        print(avg_loss_value_data[-1])
 
         # Update Counters
         epi_step_stack = epi_step_stack + 1
@@ -945,15 +1246,20 @@ if __name__ == "__main__":
         # Reset rewards for finished vehicles
         for v in reset_veh_list:
             epi_reward_data = np.append(epi_reward_data,epi_reward_stack[v]) 
+            if v == 0:
+                reward_data = np.append(reward_data,epi_reward_stack[0])
+
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
 
         #GS_END_TIME   = datetime.datetime.now()
-        #print(GS_END_TIME - GS_START_TIME)
+        #print(GS_END_TIME - GS_START_TIME_STR)
 
         # Stop and Restart Simulation Every X episodes
         if global_step % options.RESET_STEP == 0:
+            print('-----------------------------------------')
             print("Resetting...")
+            print('-----------------------------------------')
             vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
             
             # Wait until simulation is stopped.
@@ -972,31 +1278,35 @@ if __name__ == "__main__":
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            initScene( list(range(0,VEH_COUNT)), randomize = True)               # initialize
+            initScene( list(range(0,options.VEH_COUNT)), randomize = True)               # initialize
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
             if global_step // options.SAVER_RATE >= 1 and global_step % options.SAVER_RATE == 0 and options.NO_SAVE == False:
+                print('-----------------------------------------')
                 print("Saving network...")
-                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME + "_e" + str(epi_counter) + "_gs" + str(global_step))
-                print("Done") 
+                print('-----------------------------------------')
+                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step))
+                #print("Done") 
 
+                print('-----------------------------------------')
                 print("Saving data...") 
+                print('-----------------------------------------')
                 # Save Reward Data
-                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME, 'wb')  
+                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME_STR, 'wb')  
                 pickle.dump( epi_reward_data, outfile )
                 outfile.close()
 
                 # Save vehicle position
-#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME, 'wb')  
+#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME_STR, 'wb')  
 #                pickle.dump( veh_pos_data, outfile )
 #                outfile.close()
 
                 # Save loss data
-                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME, 'wb')  
+                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME_STR, 'wb')  
                 pickle.dump( avg_loss_value_data, outfile )
                 outfile.close()
-                print("Done") 
+                #print("Done") 
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
@@ -1007,9 +1317,11 @@ if __name__ == "__main__":
     ######################################################
 
     # Print Current Time
-    END_TIME = str(datetime.datetime.now()).replace(" ","_")
+    END_TIME = datetime.datetime.now()
     print("===============================")
-    print(END_TIME)
+    print("Start Time: ",START_TIME_STR)
+    print("End Time  : ",str(END_TIME).replace(" ","_"))
+    print("Duration  : ",END_TIME-START_TIME)
     print("===============================")
 
     #############################3
@@ -1024,24 +1336,46 @@ if __name__ == "__main__":
 
     # Plot eps value
     ax2 = ax1.twinx()
-    #track_eps.append((options.MAX_EPISODE,eps))
-    #for q in range(0,len(track_eps)-1 ): 
-        #ax2.plot([track_eps[q][0], track_eps[q+1][0]], [track_eps[q][1],track_eps[q][1]], linestyle='--', color='red')
+    ax2.plot(eps_tracker,linestyle='--', color='red')
 
     ax1.set_title("Episode Reward")
     ax1.set_xlabel("Episode")
     ax1.set_ylabel("Reward")
-    fig.savefig('result_data/reward_data/reward_data_' + START_TIME + '.png') 
+    fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '.png') 
+
+
+    # Plot Episode running average of rewards
+    plt.figure(1)
+    fig, ax1 = plt.subplots()
+    ax1.plot(runningAverage(epi_reward_data,options.RUNNING_AVG_STEP))
+
+    # Plot eps value
+    #ax2 = ax1.twinx()
+    #ax2.plot(eps_tracker,linestyle='--', color='red')
+
+    ax1.set_title("Running Average of Episode Reward")
+    ax1.set_xlabel("Episode")
+    ax1.set_ylabel("Reward (Running Average)")
+    fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '_average.png') 
 
     # Plot Average Step Loss
-    plt.figure(1)
+    plt.figure(2)
     fig, ax2 = plt.subplots()
     ax2.plot(avg_loss_value_data)
     
-    ax2.set_title("Average Loss of an episode")
+    ax2.set_title("Average Loss per Batch Step")
     ax2.set_xlabel("Global Step")
     ax2.set_ylabel("Avg Loss")
-    fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME + '.png') 
+    fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME_STR + '.png') 
+
+    # Plot Greedy Reward
+    plt.figure(3)
+    fig, ax3 = plt.subplots()
+    ax3.plot(reward_data)
+    ax3.set_title("Cumulative Reward for Greedy Action")
+    ax3.set_xlabel("Episodes")
+    ax3.set_ylabel("Cumulative Reward")
+    fig.savefig('result_data/reward_data/greedy_reward_data_' + START_TIME_STR + '.png') 
 
     # END
     sys.exit()
@@ -1056,4 +1390,11 @@ if __name__ == "__main__":
     plt.xlabel("Time Step")
     plt.ylabel("Distance")
 #    plt.show()
+
+
+
+    # Alert User
+    mstr='RL Simulation Done!'
+    os.system('notify-send '+mstr)
+
 
