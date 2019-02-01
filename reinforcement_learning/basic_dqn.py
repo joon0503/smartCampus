@@ -1234,7 +1234,7 @@ if __name__ == "__main__":
             print('Vehicle #:', v)
             print('\tGlobal Step:' + str(global_step))
             print('\tEPS: ' + str(eps))
-            print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE_ + '\n\tStep: ' + str(int(epi_step_stack[v])))
+            print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(epi_step_stack[v])) )
             print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
             print('Last Loss: ',avg_loss_value_data[-1])
             print('========')
