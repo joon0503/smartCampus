@@ -27,7 +27,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=1001,
+    parser.add_argument('--MAX_EPISODE', type=int, default=10001,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
                         help='max number of time step of simulation per episode')
@@ -83,15 +83,15 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=2000,
+    parser.add_argument('--GOAL_REW', type=int, default=0,
                         help='Activation function')
-    parser.add_argument('--FAIL_REW', type=int, default=-1000,
+    parser.add_argument('--FAIL_REW', type=int, default=-2000,
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=10,
                         help='Number of vehicles to use for simulation')
     parser.add_argument('--INIT_SPD', type=int, default=10,
                         help='Initial speed of vehicle in  km/hr')
-    parser.add_argument('--DIST_MUL', type=int, default=10,
+    parser.add_argument('--DIST_MUL', type=int, default=20,
                         help='Multiplier for rewards based on the distance to the goal')
     options = parser.parse_args()
     return options
