@@ -93,6 +93,8 @@ def get_options():
                         help='Initial speed of vehicle in  km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=20,
                         help='Multiplier for rewards based on the distance to the goal')
+    parser.add_argument('--EXPORT', action='store_true', default=False,
+                        help='Export the weights into a csv file')
     options = parser.parse_args()
     return options
 
@@ -441,7 +443,7 @@ def getGoalInfo( veh_pos_info, goal_pos_info ):
 #   True/False
 def detectReachedGoal(vehPos, gInfo, currHeading):
     # Distance less than 0.5m, angle less than 10 degrees
-    if abs(gInfo[1]*GOAL_DISTANCE - 2.075) < 1.0 and abs(currHeading*90)<20: 
+    if abs(gInfo[1]*GOAL_DISTANCE - 2.075) < 1.0 and abs(currHeading*90)<5: 
         return True
     else:
         return False
@@ -889,11 +891,21 @@ if __name__ == "__main__":
         print("=================================================")
         replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = False, absolute_error_upperbound = 2000)
         
+
+    printTFvars()
+
+    # Export weights
+    if options.EXPORT == True:
+        print("Exporting weights...")
+        val = tf.trainable_variables(scope='Training')
+        for v in val:
+            np.savetxt( './model_weights/' + str(v.name).replace('/','_')+ '.txt', sess.run([v])[0], delimiter=',')
+        sys.exit() 
+
+
     ########################
     # END TF SETUP
     ########################
-
-    printTFvars()
 
     ###########################        
     # DATA VARIABLES
