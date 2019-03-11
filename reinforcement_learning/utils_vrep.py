@@ -71,19 +71,16 @@ def getMotorOri( clientID, motorHandles ):
 #   veh_index: index of vehicle
 #   options: options containing various info. For this function, we only use ACTION_DIM
 #   max_steer: max_steering
-def applySteeringAction(action, veh_index, options, clientID, steer_handle, max_steer = 15):
-    # Define maximum/minimum steering in degrees
-    min_steer = -1*max_steer
-
+def applySteeringAction(action, veh_index, options, steer_handle, scene_const):
     # Delta of angle between each action
-    action_delta = (max_steer - min_steer) / (options.ACTION_DIM-1)
+    action_delta = (scene_const.max_steer - scene_const.min_steer) / (options.ACTION_DIM-1)
 
     # Calculate desired angle
     #action = [0,1,0,0,0]
-    desired_angle = max_steer - np.argmax(action) * action_delta
+    desired_angle = scene_const.max_steer - np.argmax(action) * action_delta
 
     # Set steering position
-    setMotorPosition(clientID, steer_handle[veh_index], desired_angle)
+    setMotorPosition(scene_const.clientID, steer_handle[veh_index], desired_angle)
     
     return
 
@@ -93,22 +90,22 @@ def applySteeringAction(action, veh_index, options, clientID, steer_handle, max_
 #############################
 
 # max_distance : normalization factor for sensor readings
-def readSensor( clientID, sensorHandle, op_mode=vrep.simx_opmode_streaming, max_distance = 20 ):
+def readSensor( sensorHandle, scene_const, op_mode=vrep.simx_opmode_streaming):
     dState      = []
     dDistance   = []
     for sHandle in sensorHandle:
-        returnCode, detectionState, detectedPoint, detectedObjectHandle, detectedSurfaceNormalVector=vrep.simxReadProximitySensor(clientID, sHandle, op_mode)
+        returnCode, detectionState, detectedPoint, detectedObjectHandle, detectedSurfaceNormalVector=vrep.simxReadProximitySensor(scene_const.clientID, sHandle, op_mode)
         dState.append(detectionState)
         dDistance.append( np.linalg.norm(detectedPoint) )
 
     # Set false sensors to max distance
     for i in range(len(dDistance)):
         if dState[i] == 0:
-            dDistance[i] = max_distance
+            dDistance[i] = scene_const.max_distance
 
     # change it into numpy int array
     dState =  np.array(dState)*1
-    dDistance = np.array(dDistance)/max_distance
+    dDistance = np.array(dDistance)/scene_const.max_distance
     return dState.tolist(), dDistance.tolist()
 
 
@@ -125,18 +122,18 @@ def readSensor( clientID, sensorHandle, op_mode=vrep.simx_opmode_streaming, max_
 #  third list    : [goal angle, goal distance]
 #  fourth list   : vehicle position (x,y)
 #  fifth list    : vehicle heading from -1 to 1. 1 if facing left, -1 if facing right, 0 if facing front
-def getVehicleState( veh_index ):
+def getVehicleState( veh_index, scene_const ):
     # Read sensor
-    _, dDistance   = readSensor(clientID, sensor_handle[veh_index])
+    _, dDistance   = readSensor(sensor_handle[veh_index], scene_const)
 
     # Read Vehciel Position
-    _, vehPos           = vrep.simxGetObjectPosition( clientID, vehicle_handle[veh_index], -1, vrep.simx_opmode_blocking)            
+    _, vehPos           = vrep.simxGetObjectPosition( scene_const.clientID, vehicle_handle[veh_index], -1, vrep.simx_opmode_blocking)            
 
     # Read Goal Point Angle & Distance
     gAngle, gDistance   = getGoalPoint( veh_index )
 
     # Read vehicle heading
-    _, vehEuler         = vrep.simxGetObjectOrientation( clientID, vehicle_handle[veh_index], -1, vrep.simx_opmode_blocking)            
+    _, vehEuler         = vrep.simxGetObjectOrientation( scene_const.clientID, vehicle_handle[veh_index], -1, vrep.simx_opmode_blocking)            
 
     # vehEuler - [alpha, beta, gamma] in radians. When vehicle is facing goal point, we have gamma = +90deg = pi/2. Facing right - +0deg, Facing left - +180deg Translate such that it is 0, positive for left, negative for right and within -1 to 1
     vehHeading          = (vehEuler[2]-math.pi*0.5)/(math.pi/2)
@@ -150,15 +147,15 @@ def getVehicleState( veh_index ):
 #   veh_heading (options.VEH_COUNT x 1) [-1,1] -1 if right, 0 if front, 1 if left
 #   dDistance (options.VEH_COUNT x SENSOR_COUNT)
 #   gInfo (options.VEH_COUNT x 2)
-def getVehicleStateLUA( clientID, handle_list, sensor_count = 9, max_distance = 20):
+def getVehicleStateLUA( handle_list, scene_const):
     emptyBuff = bytearray()
 
-    res,retInts,retFloats,retStrings,retBuffer=vrep.simxCallScriptFunction(clientID,'remoteApiCommandServer',vrep.sim_scripttype_childscript,'getVehicleState_function',handle_list,[],[],emptyBuff,vrep.simx_opmode_blocking)
+    res,retInts,retFloats,retStrings,retBuffer=vrep.simxCallScriptFunction(scene_const.clientID,'remoteApiCommandServer',vrep.sim_scripttype_childscript,'getVehicleState_function',handle_list,[],[],emptyBuff,vrep.simx_opmode_blocking)
 
     # Unpack Data
     out_data = np.reshape(retFloats, (-1,18))       # Reshape such that each row is 18 elements. 3 for pos, 3 for ori, 9 for sensor, 3 for goal pos
 
-    return out_data[:,0:2], ((out_data[:,5]-math.pi*0.5)/(math.pi/2)), out_data[:,6:6+sensor_count]/max_distance, np.transpose( getGoalInfo( out_data[:,0:2], out_data[:,15:17] ) )
+    return out_data[:,0:2], ((out_data[:,5]-math.pi*0.5)/(math.pi/2)), out_data[:,6:6+scene_const.sensor_count]/scene_const.max_distance, np.transpose( getGoalInfo( out_data[:,0:2], out_data[:,15:17], scene_const ) )
 
 
 ##################################
@@ -168,18 +165,18 @@ def getVehicleStateLUA( clientID, handle_list, sensor_count = 9, max_distance = 
 
 # Get Motor/Sensor Handles
 # Input: clientID?
-def getMotorHandles( clientID, options ):
+def getMotorHandles( options, scene_const ):
     motor_handle = np.zeros([options.VEH_COUNT,2], dtype=int)
     steer_handle = np.zeros([options.VEH_COUNT,2], dtype=int)
 
     # Get Motor Handles
     for i in range(0,options.VEH_COUNT):
-        _,h1  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorLeft" + str(i), vrep.simx_opmode_blocking)
-        _,h2  = vrep.simxGetObjectHandle(clientID, "nakedCar_motorRight" + str(i), vrep.simx_opmode_blocking)
-        _,h3  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisRight" + str(i), vrep.simx_opmode_blocking)
-        _,h4  = vrep.simxGetObjectHandle(clientID, "nakedCar_freeAxisLeft" + str(i), vrep.simx_opmode_blocking)
-        _,h5  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringLeft" + str(i), vrep.simx_opmode_blocking)
-        _,h6  = vrep.simxGetObjectHandle(clientID, "nakedCar_steeringRight" + str(i), vrep.simx_opmode_blocking)
+        _,h1  = vrep.simxGetObjectHandle(scene_const.clientID, "nakedCar_motorLeft" + str(i), vrep.simx_opmode_blocking)
+        _,h2  = vrep.simxGetObjectHandle(scene_const.clientID, "nakedCar_motorRight" + str(i), vrep.simx_opmode_blocking)
+        _,h3  = vrep.simxGetObjectHandle(scene_const.clientID, "nakedCar_freeAxisRight" + str(i), vrep.simx_opmode_blocking)
+        _,h4  = vrep.simxGetObjectHandle(scene_const.clientID, "nakedCar_freeAxisLeft" + str(i), vrep.simx_opmode_blocking)
+        _,h5  = vrep.simxGetObjectHandle(scene_const.clientID, "nakedCar_steeringLeft" + str(i), vrep.simx_opmode_blocking)
+        _,h6  = vrep.simxGetObjectHandle(scene_const.clientID, "nakedCar_steeringRight" + str(i), vrep.simx_opmode_blocking)
 
         motor_handle[i][0] = h1
         motor_handle[i][1] = h2
@@ -189,14 +186,14 @@ def getMotorHandles( clientID, options ):
 
     return motor_handle, steer_handle
 
-def getSensorHandles( clientID, options, sensor_count = 9 ):
+def getSensorHandles( options, scene_const ):
     # Get Sensor Handles
-    sensor_handle = np.zeros([options.VEH_COUNT,sensor_count], dtype=int)
+    sensor_handle = np.zeros([options.VEH_COUNT,scene_const.sensor_count], dtype=int)
 
     k = 0
     for v in range(0,options.VEH_COUNT):
-        for i in range(0,sensor_count):
-            _,temp_handle  = vrep.simxGetObjectHandle(clientID, "Proximity_sensor" + str(k), vrep.simx_opmode_blocking)
+        for i in range(0,scene_const.sensor_count):
+            _,temp_handle  = vrep.simxGetObjectHandle(scene_const.clientID, "Proximity_sensor" + str(k), vrep.simx_opmode_blocking)
             sensor_handle[v][i] = temp_handle
             k = k+1
 

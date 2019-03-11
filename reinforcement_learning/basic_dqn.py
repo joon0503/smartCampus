@@ -19,11 +19,8 @@ from experience_replay import Memory
 from argparse import ArgumentParser
 from utils_vrep import *            # import everything directly from utils_vrep.py
 from utils_training import *            # import everything directly from utils_vrep.py
- 
-MAX_DISTANCE = 20
-COLLISION_DISTANCE = 1.3
-GOAL_DISTANCE = 60
-SENSOR_COUNT = 9
+from scene_constants import scene_constants 
+
 
 def get_options():
     parser = ArgumentParser(
@@ -122,9 +119,9 @@ class QAgent:
             ######################################:
 
             # Inputs
-#            self.sensor_input   = tf.placeholder(tf.float32, [None, SENSOR_COUNT*options.FRAME_COUNT], name='observation')
+#            self.sensor_input   = tf.placeholder(tf.float32, [None, scene_const.sensor_count*options.FRAME_COUNT], name='observation')
 #            self.goal_input     = tf.placeholder(tf.float32, [None, 2*options.FRAME_COUNT], name='observation')
-            self.observation    = tf.placeholder(tf.float32, [None, (SENSOR_COUNT+2)*options.FRAME_COUNT], name='observation')
+            self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2)*options.FRAME_COUNT], name='observation')
             self.ISWeights      = tf.placeholder(tf.float32, [None,1], name='IS_weights')
             self.act            = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
             self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
@@ -132,8 +129,8 @@ class QAgent:
 
             if False:
                 # Slicing
-                self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, SENSOR_COUNT*options.FRAME_COUNT])
-                self.goal_data      = tf.slice(self.observation, [0, SENSOR_COUNT*options.FRAME_COUNT], [-1, 2])
+                self.sensor_data    = tf.slice(self.observation, [0, 0], [-1, scene_const.sensor_count*options.FRAME_COUNT])
+                self.goal_data      = tf.slice(self.observation, [0, scene_const.sensor_count*options.FRAME_COUNT], [-1, 2])
 
                 # "CNN-like" structure for sensor data. 2 Layers
                 self.h_s1 = tf.layers.dense( inputs=self.sensor_data,
@@ -355,18 +352,18 @@ def runningAverage(x, N):
 def getObs( sensor_queue, goal_queue, old=True):
 
     if old == True:
-        sensor_stack    = np.concatenate(sensor_queue)[0:SENSOR_COUNT*options.FRAME_COUNT]
+        sensor_stack    = np.concatenate(sensor_queue)[0:scene_const.sensor_count*options.FRAME_COUNT]
         goal_stack      = np.concatenate(goal_queue)[0:2*options.FRAME_COUNT]
         observation     = np.concatenate((sensor_stack, goal_stack))    
     else:
-        sensor_stack    = np.concatenate(sensor_queue)[SENSOR_COUNT*options.FRAME_COUNT:]
+        sensor_stack    = np.concatenate(sensor_queue)[scene_const.sensor_count*options.FRAME_COUNT:]
         goal_stack      = np.concatenate(goal_queue)[2*options.FRAME_COUNT:]
         observation     = np.concatenate((sensor_stack, goal_stack))    
 
     return observation
 
 # Calculate Approximate Rewards for variaous cases
-def printRewards():
+def printRewards( scene_const ):
     # Some parameters
     veh_speed = options.INIT_SPD/3.6  # 10km/hr in m/s
 
@@ -382,7 +379,7 @@ def printRewards():
     for i in range(0, int(total_step)):
         goal_distance = 60 - i*dt_code*veh_speed 
         if i != total_step-1:
-            rew_end = rew_end -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+            rew_end = rew_end -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
             rew_end = rew_end + options.GOAL_REW*(options.GAMMA**i) 
 
@@ -391,7 +388,7 @@ def printRewards():
     for i in range(0, int(total_step*0.5)):
         goal_distance = 60 - i*dt_code*veh_speed 
         if i != int(total_step*0.5)-1:
-            rew_obs = rew_obs -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+            rew_obs = rew_obs -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
             rew_obs = rew_obs + options.FAIL_REW*(options.GAMMA**i) 
 
@@ -400,7 +397,7 @@ def printRewards():
     for i in range(0, int(total_step*0.75)):
         goal_distance = 60 - i*dt_code*veh_speed 
         if i != int(total_step*0.75)-1:
-            rew_75 = rew_75 -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+            rew_75 = rew_75 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
             rew_75 = rew_75 + options.FAIL_REW*(options.GAMMA**i) 
 
@@ -409,7 +406,7 @@ def printRewards():
     for i in range(0, int(total_step*0.25)):
         goal_distance = 60 - i*dt_code*veh_speed 
         if i != int(total_step*0.25)-1:
-            rew_25 = rew_25 -options.DIST_MUL*(goal_distance/GOAL_DISTANCE)**2*(options.GAMMA**i) 
+            rew_25 = rew_25 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
             rew_25 = rew_25 + options.FAIL_REW*(options.GAMMA**i) 
 
@@ -487,7 +484,7 @@ def initScene( veh_index_list, randomize = False):
         vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, options.INIT_SPD/3.6, vrep.simx_opmode_blocking)
        
         # Read sensor
-        dState, dDistance = readSensor(clientID, sensor_handle[veh_index], vrep.simx_opmode_buffer)         # try it once for initialization
+        dState, dDistance = readSensor(sensor_handle[veh_index], scene_const, vrep.simx_opmode_buffer)         # try it once for initialization
 
         # Reset position of obstacle
         if randomize == True:
@@ -528,6 +525,22 @@ if __name__ == "__main__":
     START_TIME       = datetime.datetime.now() 
     START_TIME_STR   = str(START_TIME).replace(" ","_")
 
+    # Get client ID
+    vrep.simxFinish(-1) 
+    clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
+    if clientID == -1:
+        print("ERROR: Cannot establish connection to vrep.")
+        sys.exit()
+
+    # Set scene_constants
+    scene_const = scene_constants()
+    scene_const.max_distance        = 20
+    scene_const.sensor_count        = 9
+    scene_const.clientID            = clientID
+    scene_const.max_steer           = 15
+    scene_const.collision_distance  = 1.3
+    scene_const.goal_distance       = 60
+
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
         os.makedirs("./checkpoints-vehicle")
@@ -542,17 +555,12 @@ if __name__ == "__main__":
     option_file.close()
 
     # Print Rewards
-    printRewards()
+    printRewards( scene_const )
 
     # Print Speed Infos
     printSpdInfo()
 
-    # Get client ID
-    vrep.simxFinish(-1) 
-    clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
-    if clientID == -1:
-        print("ERROR: Cannot establish connection to vrep.")
-        sys.exit()
+
 
     # Set Sampling time
     vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.025, vrep.simx_opmode_oneshot)
@@ -565,8 +573,8 @@ if __name__ == "__main__":
     #####################
 
     print("Getting handles...")
-    motor_handle, steer_handle = getMotorHandles( clientID, options )
-    sensor_handle = getSensorHandles( clientID, options )
+    motor_handle, steer_handle = getMotorHandles( options, scene_const )
+    sensor_handle = getSensorHandles( options, scene_const )
 
     # Get vehicle handle
     vehicle_handle = np.zeros(options.VEH_COUNT, dtype=int)
@@ -584,7 +592,7 @@ if __name__ == "__main__":
         err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
 
     # Make Large handle list for communication
-    handle_list = [options.VEH_COUNT, SENSOR_COUNT] 
+    handle_list = [options.VEH_COUNT, scene_const.sensor_count] 
     # Make handles into big list
     for v in range(0,options.VEH_COUNT):
         handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
@@ -594,8 +602,8 @@ if __name__ == "__main__":
     ########################
 
     # Data
-    sensorData = np.zeros(SENSOR_COUNT)   
-    sensorDetection = np.zeros(SENSOR_COUNT)   
+    sensorData = np.zeros(scene_const.sensor_count)   
+    sensorDetection = np.zeros(scene_const.sensor_count)   
     #vehPosData = []
 
     ##############
@@ -716,7 +724,7 @@ if __name__ == "__main__":
         goal_queue.append( deque() )
 
     # initilize them with initial data
-    veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA( clientID, handle_list )
+    veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA( handle_list, scene_const )
     for i in range(0,options.VEH_COUNT):
         # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
         for q in range(0,options.FRAME_COUNT*2):
@@ -777,7 +785,7 @@ if __name__ == "__main__":
                                                     eps,
                                                     options
                                                  )
-            applySteeringAction( action_stack[v], v, options, clientID, steer_handle )
+            applySteeringAction( action_stack[v], v, options, steer_handle, scene_const )
 
         ####
         # Step
@@ -791,7 +799,7 @@ if __name__ == "__main__":
         ####
         # Get Next State
         ####
-        next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA( clientID, handle_list)
+        next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA( handle_list, scene_const )
         #print("\n\n")
         #print("==next_veh_pos==\n", next_veh_pos)
         #print("==next_veh_heading==\n", next_veh_heading)
@@ -835,7 +843,7 @@ if __name__ == "__main__":
         # Find reset list 
         for v in range(0,options.VEH_COUNT):
             # If vehicle collided, give large negative reward
-            collision_detected, collision_sensor = detectCollision(next_dDistance[v])
+            collision_detected, collision_sensor = detectCollision(next_dDistance[v], scene_const)
             if collision_detected == True:
                 print('-----------------------------------------')
                 print('Vehicle #' + str(v) + ' collided! Detected Sensor : ' + str(collision_sensor) )
@@ -860,7 +868,7 @@ if __name__ == "__main__":
                 continue
 
             # If vehicle is at the goal point, give large positive reward
-            if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v]):
+            if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v], scene_const):
                 print('-----------------------------------------')
                 print('Vehicle #' + str(v) + ' reached goal point')
                 print('-----------------------------------------')
@@ -1160,7 +1168,7 @@ if __name__ == "__main__":
     # Plot sensor data
 #    t = range(0,220)
     plt.figure(0)
-#    for i in range(0,SENSOR_COUNT):
+#    for i in range(0,scene_const.sensor_count):
 #        plt.plot(sensorData[1:None,i]*sensorDetection[1:None,i], label="Sensor " + str(i) )       # plot sensor0
     plt.legend()
     plt.title("Sensor Data")
