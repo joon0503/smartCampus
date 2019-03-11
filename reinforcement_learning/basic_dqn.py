@@ -14,15 +14,15 @@ import pickle
 import os
 import re
 from collections import deque
-from experience_replay import SumTree
-from experience_replay import Memory
 from argparse import ArgumentParser
 
 # From other files
-from utils_vrep import *            # import everything directly from utils_vrep.py
-from utils_training import *            # import everything directly from utils_vrep.py
-from scene_constants import scene_constants 
-from rl_dqn import QAgent
+from utils.utils_vrep import *            # import everything directly from utils_vrep.py
+from utils.utils_training import *            # import everything directly from utils_vrep.py
+from utils.scene_constants import scene_constants 
+from utils.rl_dqn import QAgent
+from utils.experience_replay import SumTree 
+from utils.experience_replay import Memory
 
 def get_options():
     parser = ArgumentParser(

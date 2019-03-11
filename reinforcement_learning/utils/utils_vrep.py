@@ -7,7 +7,7 @@ import math
 import sys
 import numpy as np
 import vrep
-from utils_training import getGoalInfo
+from utils.utils_training import getGoalInfo
 # Parameters
 
 #########################
