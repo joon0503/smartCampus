@@ -102,7 +102,7 @@ else:
     sys.exit()
   
 
-COPY_NUM = 20
+COPY_NUM = 10
 err_code,dyros_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
 
 for i in range(0,COPY_NUM):
