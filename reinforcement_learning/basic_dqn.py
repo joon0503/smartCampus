@@ -1,3 +1,4 @@
+
 # DQN model to solve vehicle control problem
 
 import tensorflow as tf
@@ -23,6 +24,7 @@ from utils.scene_constants import scene_constants
 from utils.rl_dqn import QAgent
 from utils.experience_replay import SumTree 
 from utils.experience_replay import Memory
+from utils.utils_data import data_pack
 
 def get_options():
     parser = ArgumentParser(
@@ -120,12 +122,6 @@ def printTFvars():
 
     return
 
-# Calculate the running average
-# x: input 1D numpy array
-# N: Window
-def runningAverage(x, N):
-    cumsum = np.cumsum(np.insert(x, 0, 0)) 
-    return (cumsum[N:] - cumsum[:-N]) / float(N)
 
 ##################################
 # GENERAL
@@ -470,6 +466,8 @@ if __name__ == "__main__":
     ###########################        
     # DATA VARIABLES
     ###########################        
+    data_package = data_pack( START_TIME_STR )    
+
     reward_data         = np.empty(0)
     avg_loss_value_data = np.empty(1)
 #    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
@@ -479,10 +477,6 @@ if __name__ == "__main__":
     track_eps.append((0,eps))
 
     vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-
-
-
-
 
 
 
@@ -587,14 +581,7 @@ if __name__ == "__main__":
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA( handle_list, scene_const )
-        #print("\n\n")
-        #print("==next_veh_pos==\n", next_veh_pos)
-        #print("==next_veh_heading==\n", next_veh_heading)
-        #print("==next_veh_dDistance==\n", next_dDistance)
-        #print("==next_veh_gInfo==\n", next_gInfo)
-        #print("\n\n")
 
-        #print(next_dDistance)
         for v in range(0,options.VEH_COUNT):
             # Get new Data
             #veh_pos_queue[v].append(next_veh_pos[v])   
@@ -713,23 +700,12 @@ if __name__ == "__main__":
                 # Obtain the mini batch. (Batch Memory is '2D array' with BATCH_SIZE X size(experience)
                 tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
 
-                #print("\n\n")
-                #print('batch_memory', batch_memory)
-                #print("\n\n")
- 
                 # Get state/action/next state from obtained memory. Size same as queues
                 states_mb       = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x STATE_DIM 
                 actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
                 rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
                 next_states_mb  = np.array([each[0][3] for each in batch_memory])   
                 done_mb         = np.array([each[0][4] for each in batch_memory])   
-
-                #print("\n\n")
-                #print('states_mb', states_mb)
-                #print('actions_mb', actions_mb)
-                #print('rewards_mb', rewards_mb)
-                #print('next_states_mb', next_states_mb)
-                #print('done_mb', done_mb)
 
                 # actions mb is list of numbers. Need to change it into one hot encoding
                 actions_mb_hot = np.zeros((options.BATCH_SIZE,options.ACTION_DIM))
@@ -816,6 +792,9 @@ if __name__ == "__main__":
         # Reset rewards for finished vehicles
         for v in reset_veh_list:
             epi_reward_data = np.append(epi_reward_data,epi_reward_stack[v]) 
+
+            data_package.add_reward( epi_reward_stack[v] )
+
             if v == 0:
                 reward_data = np.append(reward_data,epi_reward_stack[0])
 
@@ -863,9 +842,10 @@ if __name__ == "__main__":
                 print("Saving data...") 
                 print('-----------------------------------------')
                 # Save Reward Data
-                outfile = open( 'result_data/reward_data/reward_data_' + START_TIME_STR, 'wb')  
-                pickle.dump( epi_reward_data, outfile )
-                outfile.close()
+                data_package.save_reward()
+                #outfile = open( 'result_data/reward_data/reward_data_' + START_TIME_STR, 'wb')  
+                #pickle.dump( epi_reward_data, outfile )
+                #outfile.close()
 
                 # Save vehicle position
 #                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME_STR, 'wb')  
@@ -898,35 +878,23 @@ if __name__ == "__main__":
     # Visualize Data
     ##############################3
 
+    # Plot Reward
+    data_package.plot_reward( options.RUNNING_AVG_STEP )
 
     # Plot Episode reward
-    plt.figure(0)
-    fig, ax1 = plt.subplots()
-    ax1.plot(epi_reward_data)
-
-    # Plot eps value
-    ax2 = ax1.twinx()
-    ax2.plot(eps_tracker,linestyle='--', color='red')
-
-    ax1.set_title("Episode Reward")
-    ax1.set_xlabel("Episode")
-    ax1.set_ylabel("Reward")
-    fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '.png') 
-
-
-    # Plot Episode running average of rewards
-    plt.figure(1)
-    fig, ax1 = plt.subplots()
-    ax1.plot(runningAverage(epi_reward_data,options.RUNNING_AVG_STEP))
+    #plt.figure(0)
+    #fig, ax1 = plt.subplots()
+    #ax1.plot(epi_reward_data)
 
     # Plot eps value
     #ax2 = ax1.twinx()
     #ax2.plot(eps_tracker,linestyle='--', color='red')
 
-    ax1.set_title("Running Average of Episode Reward")
-    ax1.set_xlabel("Episode")
-    ax1.set_ylabel("Reward (Running Average)")
-    fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '_average.png') 
+    #ax1.set_title("Episode Reward")
+    #ax1.set_xlabel("Episode")
+    #ax1.set_ylabel("Reward")
+    #fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '.png') 
+
 
     # Plot Average Step Loss
     plt.figure(2)
@@ -947,18 +915,16 @@ if __name__ == "__main__":
     ax3.set_ylabel("Cumulative Reward")
     fig.savefig('result_data/reward_data/greedy_reward_data_' + START_TIME_STR + '.png') 
 
-    # END
-    sys.exit()
 
     # Plot sensor data
 #    t = range(0,220)
-    plt.figure(0)
+    #plt.figure(0)
 #    for i in range(0,scene_const.sensor_count):
 #        plt.plot(sensorData[1:None,i]*sensorDetection[1:None,i], label="Sensor " + str(i) )       # plot sensor0
-    plt.legend()
-    plt.title("Sensor Data")
-    plt.xlabel("Time Step")
-    plt.ylabel("Distance")
+    #plt.legend()
+    #plt.title("Sensor Data")
+    #plt.xlabel("Time Step")
+    #plt.ylabel("Distance")
 #    plt.show()
 
 
@@ -967,3 +933,5 @@ if __name__ == "__main__":
     mstr='RL Simulation Done!'
     os.system('notify-send '+mstr)
 
+    # END
+    sys.exit()
