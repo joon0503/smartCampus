@@ -238,7 +238,7 @@ def printSpdInfo():
 # Initialize to original scene
 # Input:
 #   veh_index: list of indicies of vehicles
-def initScene( veh_index_list, randomize = False):
+def initScene( veh_index_list, sensor_handle, randomize = False):
     for veh_index in veh_index_list:
         vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
         # Reset position of vehicle. Randomize x-position if enabled
@@ -494,7 +494,7 @@ if __name__ == "__main__":
  
     # Initialize Scene
 
-    initScene( list(range(0,options.VEH_COUNT)), randomize = True)               # initialize
+    initScene( list(range(0,options.VEH_COUNT)), sensor_handle, randomize = True)               # initialize
 
     # List of deque to store data
     sensor_queue = []
@@ -672,7 +672,7 @@ if __name__ == "__main__":
         #   Not coded yet.
         
         # Reset Vehicles    
-        initScene( reset_veh_list, randomize = True)               # initialize
+        initScene( reset_veh_list, sensor_handle, randomize = True)               # initialize
 
         
         ###########
@@ -754,7 +754,6 @@ if __name__ == "__main__":
                 # Use sum to calculate average loss of this episode.
                 data_package.add_loss( np.mean(step_loss_per_data) )
 
-                #avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
                 #if tf_train_counter == 0:
                     #print(step_loss_per_data)
         
@@ -792,12 +791,7 @@ if __name__ == "__main__":
 
         # Reset rewards for finished vehicles
         for v in reset_veh_list:
-            #epi_reward_data = np.append(epi_reward_data,epi_reward_stack[v]) 
-
             data_package.add_reward( epi_reward_stack[v] )
-
-            #if v == 0:
-                #reward_data = np.append(reward_data,epi_reward_stack[0])
 
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
@@ -828,7 +822,7 @@ if __name__ == "__main__":
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            initScene( list(range(0,options.VEH_COUNT)), randomize = True)               # initialize
+            initScene( list(range(0,options.VEH_COUNT)), sensor_handle, randomize = True)               # initialize
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
@@ -845,20 +839,11 @@ if __name__ == "__main__":
                 # Save Reward Data
                 data_package.save_reward()
                 data_package.save_loss()
-                #outfile = open( 'result_data/reward_data/reward_data_' + START_TIME_STR, 'wb')  
-                #pickle.dump( epi_reward_data, outfile )
-                #outfile.close()
 
                 # Save vehicle position
 #                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME_STR, 'wb')  
 #                pickle.dump( veh_pos_data, outfile )
 #                outfile.close()
-
-                # Save loss data
-                #outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME_STR, 'wb')  
-                #pickle.dump( avg_loss_value_data, outfile )
-                #outfile.close()
-                #print("Done") 
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
@@ -892,32 +877,6 @@ if __name__ == "__main__":
     # Plot eps value
     #ax2 = ax1.twinx()
     #ax2.plot(eps_tracker,linestyle='--', color='red')
-
-    #ax1.set_title("Episode Reward")
-    #ax1.set_xlabel("Episode")
-    #ax1.set_ylabel("Reward")
-    #fig.savefig('result_data/reward_data/reward_data_' + START_TIME_STR + '.png') 
-
-
-    # Plot Average Step Loss
-    #plt.figure(2)
-    #fig, ax2 = plt.subplots()
-    #ax2.plot(avg_loss_value_data)
-    #
-    #ax2.set_title("Average Loss per Batch Step")
-    #ax2.set_xlabel("Global Step")
-    #ax2.set_ylabel("Avg Loss")
-    #fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME_STR + '.png') 
-
-    # Plot Greedy Reward
-    #plt.figure(3)
-    #fig, ax3 = plt.subplots()
-    #ax3.plot(reward_data)
-    #ax3.set_title("Cumulative Reward for Greedy Action")
-    #ax3.set_xlabel("Episodes")
-    #ax3.set_ylabel("Cumulative Reward")
-    #fig.savefig('result_data/reward_data/greedy_reward_data_' + START_TIME_STR + '.png') 
-
 
     # Plot sensor data
 #    t = range(0,220)
