@@ -1,4 +1,3 @@
-
 # DQN model to solve vehicle control problem
 
 import tensorflow as tf
@@ -472,7 +471,7 @@ if __name__ == "__main__":
     avg_loss_value_data = np.empty(1)
 #    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
     avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
-    epi_reward_data = np.zeros(0)
+    #epi_reward_data = np.zeros(0)
     track_eps           = []
     track_eps.append((0,eps))
 
@@ -750,10 +749,12 @@ if __name__ == "__main__":
                 #with tf.variable_scope("Training"):            
                 step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
                 #print(rewards_mb)
-                #print(step_loss_value)
+                #print(step_loss_per_data)
 
                 # Use sum to calculate average loss of this episode.
-                avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
+                data_package.add_loss( np.mean(step_loss_per_data) )
+
+                #avg_loss_value_data = np.append(avg_loss_value_data,np.mean(step_loss_per_data))
                 #if tf_train_counter == 0:
                     #print(step_loss_per_data)
         
@@ -782,7 +783,7 @@ if __name__ == "__main__":
             print('\tEPS: ' + str(eps))
             print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(epi_step_stack[v])) )
             print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
-            print('Last Loss: ',avg_loss_value_data[-1])
+            print('Last Loss: ',data_package.avg_loss[-1])
             print('========')
             print('')
 
@@ -791,12 +792,12 @@ if __name__ == "__main__":
 
         # Reset rewards for finished vehicles
         for v in reset_veh_list:
-            epi_reward_data = np.append(epi_reward_data,epi_reward_stack[v]) 
+            #epi_reward_data = np.append(epi_reward_data,epi_reward_stack[v]) 
 
             data_package.add_reward( epi_reward_stack[v] )
 
-            if v == 0:
-                reward_data = np.append(reward_data,epi_reward_stack[0])
+            #if v == 0:
+                #reward_data = np.append(reward_data,epi_reward_stack[0])
 
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
@@ -843,6 +844,7 @@ if __name__ == "__main__":
                 print('-----------------------------------------')
                 # Save Reward Data
                 data_package.save_reward()
+                data_package.save_loss()
                 #outfile = open( 'result_data/reward_data/reward_data_' + START_TIME_STR, 'wb')  
                 #pickle.dump( epi_reward_data, outfile )
                 #outfile.close()
@@ -853,9 +855,9 @@ if __name__ == "__main__":
 #                outfile.close()
 
                 # Save loss data
-                outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME_STR, 'wb')  
-                pickle.dump( avg_loss_value_data, outfile )
-                outfile.close()
+                #outfile = open( 'result_data/loss_data/avg_loss_value_data_' + START_TIME_STR, 'wb')  
+                #pickle.dump( avg_loss_value_data, outfile )
+                #outfile.close()
                 #print("Done") 
 
     # stop the simulation & close connection
@@ -880,6 +882,7 @@ if __name__ == "__main__":
 
     # Plot Reward
     data_package.plot_reward( options.RUNNING_AVG_STEP )
+    data_package.plot_loss()
 
     # Plot Episode reward
     #plt.figure(0)
@@ -897,23 +900,23 @@ if __name__ == "__main__":
 
 
     # Plot Average Step Loss
-    plt.figure(2)
-    fig, ax2 = plt.subplots()
-    ax2.plot(avg_loss_value_data)
-    
-    ax2.set_title("Average Loss per Batch Step")
-    ax2.set_xlabel("Global Step")
-    ax2.set_ylabel("Avg Loss")
-    fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME_STR + '.png') 
+    #plt.figure(2)
+    #fig, ax2 = plt.subplots()
+    #ax2.plot(avg_loss_value_data)
+    #
+    #ax2.set_title("Average Loss per Batch Step")
+    #ax2.set_xlabel("Global Step")
+    #ax2.set_ylabel("Avg Loss")
+    #fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + START_TIME_STR + '.png') 
 
     # Plot Greedy Reward
-    plt.figure(3)
-    fig, ax3 = plt.subplots()
-    ax3.plot(reward_data)
-    ax3.set_title("Cumulative Reward for Greedy Action")
-    ax3.set_xlabel("Episodes")
-    ax3.set_ylabel("Cumulative Reward")
-    fig.savefig('result_data/reward_data/greedy_reward_data_' + START_TIME_STR + '.png') 
+    #plt.figure(3)
+    #fig, ax3 = plt.subplots()
+    #ax3.plot(reward_data)
+    #ax3.set_title("Cumulative Reward for Greedy Action")
+    #ax3.set_xlabel("Episodes")
+    #ax3.set_ylabel("Cumulative Reward")
+    #fig.savefig('result_data/reward_data/greedy_reward_data_' + START_TIME_STR + '.png') 
 
 
     # Plot sensor data
@@ -930,8 +933,8 @@ if __name__ == "__main__":
 
 
     # Alert User
-    mstr='RL Simulation Done!'
-    os.system('notify-send '+mstr)
+    #mstr='RL Simulation Done!'
+    #os.system('notify-send '+mstr)
 
     # END
     sys.exit()
