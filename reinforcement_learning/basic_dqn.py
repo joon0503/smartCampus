@@ -17,8 +17,8 @@ from collections import deque
 from argparse import ArgumentParser
 
 # From other files
-from utils.utils_vrep import *            # import everything directly from utils_vrep.py
-from utils.utils_training import *            # import everything directly from utils_vrep.py
+from utils.utils_vrep import *                  # import everything directly from utils_vrep.py
+from utils.utils_training import *              # import everything directly from utils_vrep.py
 from utils.scene_constants import scene_constants 
 from utils.rl_dqn import QAgent
 from utils.experience_replay import SumTree 
@@ -836,14 +836,10 @@ if __name__ == "__main__":
                 print('-----------------------------------------')
                 print("Saving data...") 
                 print('-----------------------------------------')
+
                 # Save Reward Data
                 data_package.save_reward()
                 data_package.save_loss()
-
-                # Save vehicle position
-#                outfile = open( 'result_data/veh_data/veh_pos_data_' + START_TIME_STR, 'wb')  
-#                pickle.dump( veh_pos_data, outfile )
-#                outfile.close()
 
     # stop the simulation & close connection
     vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
@@ -869,31 +865,5 @@ if __name__ == "__main__":
     data_package.plot_reward( options.RUNNING_AVG_STEP )
     data_package.plot_loss()
 
-    # Plot Episode reward
-    #plt.figure(0)
-    #fig, ax1 = plt.subplots()
-    #ax1.plot(epi_reward_data)
 
-    # Plot eps value
-    #ax2 = ax1.twinx()
-    #ax2.plot(eps_tracker,linestyle='--', color='red')
-
-    # Plot sensor data
-#    t = range(0,220)
-    #plt.figure(0)
-#    for i in range(0,scene_const.sensor_count):
-#        plt.plot(sensorData[1:None,i]*sensorDetection[1:None,i], label="Sensor " + str(i) )       # plot sensor0
-    #plt.legend()
-    #plt.title("Sensor Data")
-    #plt.xlabel("Time Step")
-    #plt.ylabel("Distance")
-#    plt.show()
-
-
-
-    # Alert User
-    #mstr='RL Simulation Done!'
-    #os.system('notify-send '+mstr)
-
-    # END
-    sys.exit()
+# END
