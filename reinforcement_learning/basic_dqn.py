@@ -21,6 +21,7 @@ from utils.utils_vrep import *                  # import everything directly fro
 from utils.utils_training import *              # import everything directly from utils_vrep.py
 from utils.scene_constants import scene_constants 
 from utils.rl_dqn import QAgent
+from utils.rl_icm import ICM
 from utils.experience_replay import SumTree 
 from utils.experience_replay import Memory
 from utils.utils_data import data_pack
@@ -395,6 +396,8 @@ if __name__ == "__main__":
     options         = get_options()
     agent_train     = QAgent(options,scene_const, 'Training')
     agent_target    = QAgent(options,scene_const, 'Target')
+    agent_icm       = ICM(options,scene_const,'icm_Training')
+
     sess            = tf.InteractiveSession()
     
 
@@ -429,6 +432,7 @@ if __name__ == "__main__":
 
     # Some initial local variables
     feed = {}
+    feed_icm = {}
     eps = options.INIT_EPS
     global_step = 0
 
@@ -746,8 +750,20 @@ if __name__ == "__main__":
                 feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
                 feed.update({agent_train.ISWeights : ISWeights_mb   })
 
-                #with tf.variable_scope("Training"):            
-                step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+                #with tf.variable_scope("Training"):   
+                # Train RL         
+                step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+
+                # Train forward model
+                feed_icm.clear()
+                #print( [states_mb, next_states_mb, actions_mb_hot] )
+                feed_icm.update({agent_icm.observation  : np.concatenate([states_mb, actions_mb_hot],-1) } )
+                feed_icm.update({agent_icm.actual_state : next_states_mb})
+                #print(feed_icm)
+                icm_loss, _                             = sess.run([agent_icm.loss, agent_icm.optimizer], feed_dict = feed_icm)
+                print('icm_loss:', icm_loss)
+
+
                 #print(rewards_mb)
                 #print(step_loss_per_data)
 

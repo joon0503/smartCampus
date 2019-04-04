@@ -208,7 +208,7 @@ class QAgent:
             action_index = np.argmax(act_values)
 
         action = np.zeros(options.ACTION_DIM)
-        action[action_index] = 1
+        action[action_index] = 1.0
         return action
 
     def getTrainableVarByName(self):
