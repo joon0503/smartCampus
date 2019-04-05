@@ -203,8 +203,9 @@ class QAgent:
         else:
             act_values = self.output.eval(feed_dict=feed)
             if options.TESTING == True or verbose == True:
-                print(np.argmax(act_values))
-                print(act_values)
+                #print(np.argmax(act_values))
+                #print(act_values)
+                pass
             action_index = np.argmax(act_values)
 
         action = np.zeros(options.ACTION_DIM)

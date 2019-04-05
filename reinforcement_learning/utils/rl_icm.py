@@ -93,11 +93,25 @@ class ICM:
             ## END Constructing Neural Network
             ######################################:
 
+            # Loss Scaling Factor. Scale Angle by 100. \sum (w_i x_i)^2
+            loss_scale = np.ones( scene_const.sensor_count+2 )
+            loss_scale[scene_const.sensor_count] = 100
+            loss_scale = np.reshape(loss_scale, [-1, scene_const.sensor_count + 2] )
             # Loss for Optimization
+            self.loss = tf.losses.mean_squared_error(
+                                labels = self.actual_state,
+                                predictions = self.est_combined,
+                                weights = loss_scale
+                            )
             self.loss = tf.reduce_mean(tf.square(self.actual_state - self.est_combined))
 
             # Optimizer
             self.optimizer = tf.train.AdamOptimizer(options.LR).minimize(self.loss)
+
+    # Evalulate the neural network to get the estimate of the next state
+    def getEstimate(self, feed):
+        return self.est_combined.eval(feed_dict = feed)
+
 
     def getTrainableVarByName(self):
         trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)

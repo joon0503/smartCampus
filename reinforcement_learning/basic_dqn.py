@@ -64,7 +64,7 @@ def get_options():
                         help='size of hidden layer 1')
     parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=80,
+    parser.add_argument('--H3_SIZE', type=int, default=40,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
@@ -299,7 +299,7 @@ if __name__ == "__main__":
     tf.set_random_seed(1)
 
     # Set print options
-    np.set_printoptions( precision = 4, linewidth = 75 )
+    np.set_printoptions( precision = 4, linewidth = 100 )
 
 
     ######################################33
@@ -553,13 +553,14 @@ if __name__ == "__main__":
 
             # Get Action. First vehicle always exploit
             if v == 0:
+                #print('curr_state:', observation)
                 action_stack[v] = agent_train.sample_action(
                                                     {
                                                         agent_train.observation : np.reshape(observation, (1, -1))
                                                     },
                                                     eps,
                                                     options,
-                                                    True
+                                                    False
                                                  )
             else:
                 action_stack[v] = agent_train.sample_action(
@@ -567,7 +568,8 @@ if __name__ == "__main__":
                                                         agent_train.observation : np.reshape(observation, (1, -1))
                                                     },
                                                     eps,
-                                                    options
+                                                    options,
+                                                    False
                                                  )
             applySteeringAction( action_stack[v], v, options, steer_handle, scene_const )
 
@@ -598,10 +600,22 @@ if __name__ == "__main__":
             # Get reward for each vehicle
             reward_stack[v] = -options.DIST_MUL*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
 
-            if v == 0:
-                #print(next_dDistance[v])
-                #print(next_gInfo[v])
-                pass
+        #######
+        # Test Estimation
+        #######
+        if options.TESTING == True:
+            v = 0
+
+            # Print curr & next state
+            curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
+            next_state     = getObs( sensor_queue[v], goal_queue[v], old=False)
+            print('curr_state:', curr_state)
+            print('next_state:', next_state)
+            print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
+            print('')
+             
+
+
 
         #print(next_veh_heading)
 
@@ -756,7 +770,6 @@ if __name__ == "__main__":
 
                 # Train forward model
                 feed_icm.clear()
-                #print( [states_mb, next_states_mb, actions_mb_hot] )
                 feed_icm.update({agent_icm.observation  : np.concatenate([states_mb, actions_mb_hot],-1) } )
                 feed_icm.update({agent_icm.actual_state : next_states_mb})
                 #print(feed_icm)
