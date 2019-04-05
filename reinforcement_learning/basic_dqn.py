@@ -301,6 +301,8 @@ if __name__ == "__main__":
     # Set print options
     np.set_printoptions( precision = 4, linewidth = 100 )
 
+    # For interactive plot
+    plt.ion()
 
     ######################################33
     # SET 'GLOBAL' Variables
@@ -613,6 +615,9 @@ if __name__ == "__main__":
             print('next_state:', next_state)
             print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
             print('')
+            
+            agent_icm.plotEstimate( curr_state, scene_const)
+            
              
 
 

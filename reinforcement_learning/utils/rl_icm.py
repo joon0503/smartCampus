@@ -13,10 +13,20 @@ import tensorflow as tf
 import math
 import sys
 import random
+import matplotlib.pyplot as plt
+
 
 # Class for Neural Network
 class ICM:
     def __init__(self, options, scene_const, name):
+        # General Variables for plotting
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+
+
+        ########################
+        # NEURAL NET
+        ########################
         self.scope = name
     
         # Parse input for activation function
@@ -113,6 +123,37 @@ class ICM:
         return self.est_combined.eval(feed_dict = feed)
 
 
+    # Plot current position of the vehicle and the estimation
+    def plotEstimate(self, curr_state, scene_const):
+        # Proccess Data
+        # Break up into raw data
+        raw_sensor = curr_state[0:scene_const.sensor_count]
+        raw_angle  = curr_state[scene_const.sensor_count]
+        raw_dist   = curr_state[scene_const.sensor_count+1]
+
+        # Get position of vehicle from goal point distance and angle from raw data
+        veh_x = scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )
+        veh_y = scene_const.goal_distance - scene_const.goal_distance * raw_dist * np.cos( math.pi * raw_angle )
+
+        # Get obstacle position
+       
+
+ 
+        # Set axis
+        self.ax.set_xlim(-5,5) 
+        self.ax.set_ylim(0,60) 
+
+        # Clear data if restarted
+        #self.ax.clear()
+
+        # Plot
+        self.ax.scatter(veh_x,veh_y, color='red')
+
+        # Draw
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+        return
     def getTrainableVarByName(self):
         trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)
         trainable_vars_by_name = {var.name[len(self.scope):]: var for var in trainable_vars }   # This makes a dictionary with key being the name of varialbe without scope
