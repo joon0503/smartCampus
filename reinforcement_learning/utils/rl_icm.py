@@ -22,7 +22,8 @@ class ICM:
         # General Variables for plotting
         self.fig = plt.figure()
         self.ax = self.fig.add_subplot(111)
-
+        self.data_x = []
+        self.data_y = []
 
         ########################
         # NEURAL NET
@@ -135,6 +136,16 @@ class ICM:
         veh_x = scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )
         veh_y = scene_const.goal_distance - scene_const.goal_distance * raw_dist * np.cos( math.pi * raw_angle )
 
+        # Clear data if close to start line and data is short
+        if len(self.data_y) > 0 and abs(self.data_y[-1] - veh_y) > 30:
+            self.ax.clear()
+            self.data_x = []
+            self.data_y = []
+
+        # Update data array
+        self.data_x.append(veh_x) 
+        self.data_y.append(veh_y) 
+        
         # Get obstacle position
        
 
@@ -143,11 +154,9 @@ class ICM:
         self.ax.set_xlim(-5,5) 
         self.ax.set_ylim(0,60) 
 
-        # Clear data if restarted
-        #self.ax.clear()
 
         # Plot
-        self.ax.scatter(veh_x,veh_y, color='red')
+        self.ax.scatter(self.data_x,self.data_y, color='red')
 
         # Draw
         self.fig.canvas.draw()
