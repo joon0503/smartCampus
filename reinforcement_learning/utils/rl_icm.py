@@ -24,6 +24,8 @@ class ICM:
         self.ax = self.fig.add_subplot(111)
         self.data_x = []
         self.data_y = []
+        self.data_arrow_x = []
+        self.data_arrow_y = []
 
         ########################
         # NEURAL NET
@@ -124,9 +126,82 @@ class ICM:
         return self.est_combined.eval(feed_dict = feed)
 
 
-    # Plot current position of the vehicle and the estimation
-    def plotEstimate(self, curr_state, scene_const):
+    # Plot current position of the vehicle and the estimation   
+    #   curr_state : [sensor_values, goal_angle, goal_distance]
+    #   action     : one hot encoded vector
+    #   scene_const: scene constants as the class
+
+    def plotEstimate(self, curr_state, action, scene_const):
+        ####################
         # Proccess Data
+        ####################
+        veh_x, veh_y, arrow_x, arrow_y = self.getPoints(curr_state,action,scene_const)
+
+        # Clear data if close to start line and data is short. Currently, does not reset if collision occurs immediately
+        self.ax.clear()
+        if len(self.data_y) > 0 and abs(self.data_y[-1] - veh_y) > 5:
+            self.data_x = []
+            self.data_y = []
+            self.data_arrow_x = []
+            self.data_arrow_y = []
+
+        # Update data array
+        self.data_x.append(veh_x) 
+        self.data_y.append(veh_y) 
+        self.data_arrow_x.append(arrow_x) 
+        self.data_arrow_y.append(arrow_y) 
+        
+        # Get obstacle position
+       
+
+        ####################
+        # Get Estimate 
+        ####################
+        max_horizon = 1
+        state_estimate_x = []
+        state_estimate_y = []
+        for i in range(0,max_horizon):
+            temp_state = self.getEstimate( {self.observation : np.reshape(np.concatenate([curr_state, action]), [-1, (scene_const.sensor_count+2) + 5])  }  )
+            temp_x, temp_y, _, _ = self.getPoints(np.reshape(temp_state, -1), action, scene_const)
+            state_estimate_x.append(temp_x)
+            state_estimate_y.append(temp_y)
+
+
+        # Set axis
+        self.ax.set_xlim(-5,5) 
+        self.ax.set_ylim(0,60) 
+
+
+        ####################
+        # Plot
+        ####################
+        self.ax.scatter(0,60, color='blue')
+        if True:
+            # Scatter
+            self.ax.scatter(self.data_x,self.data_y, color='red')
+            self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
+        else:
+            # Also plot input
+            self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
+
+        # Draw
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+        return
+
+    # Compute data required for plotting from state and action values
+    # Input
+    #   curr_state : [sensor_values, goal_angle, goal_distance]
+    #   action     : one hot encoded vector
+    #   scene_const: scene constants as the class
+    #
+    # Output
+    #   veh_x, veh_y: x,y coordinate of vehicle. (FIXME: inverted along y-axis)
+    #   arrow_x, arrow_y: x,y coordinate of arrow computed from input
+
+    def getPoints(self, curr_state, action, scene_const):
+        print(curr_state[9])
         # Break up into raw data
         raw_sensor = curr_state[0:scene_const.sensor_count]
         raw_angle  = curr_state[scene_const.sensor_count]
@@ -136,33 +211,17 @@ class ICM:
         veh_x = scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )
         veh_y = scene_const.goal_distance - scene_const.goal_distance * raw_dist * np.cos( math.pi * raw_angle )
 
-        # Clear data if close to start line and data is short
-        if len(self.data_y) > 0 and abs(self.data_y[-1] - veh_y) > 30:
-            self.ax.clear()
-            self.data_x = []
-            self.data_y = []
+        # Get arrow
+        # Delta of angle between each action
+        action_delta = (scene_const.max_steer - scene_const.min_steer) / (5-1)
 
-        # Update data array
-        self.data_x.append(veh_x) 
-        self.data_y.append(veh_y) 
-        
-        # Get obstacle position
-       
+        # Calculate desired angle
+        desired_angle = scene_const.max_steer - np.argmax(action) * action_delta
+        arrow_x = 0.1*np.sin( math.radians( desired_angle ) )
+        arrow_y = 0.1*np.cos( math.radians( desired_angle ) )
 
- 
-        # Set axis
-        self.ax.set_xlim(-5,5) 
-        self.ax.set_ylim(0,60) 
+        return veh_x, veh_y, arrow_x, arrow_y
 
-
-        # Plot
-        self.ax.scatter(self.data_x,self.data_y, color='red')
-
-        # Draw
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-
-        return
     def getTrainableVarByName(self):
         trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)
         trainable_vars_by_name = {var.name[len(self.scope):]: var for var in trainable_vars }   # This makes a dictionary with key being the name of varialbe without scope
