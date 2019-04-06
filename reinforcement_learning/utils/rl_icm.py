@@ -107,16 +107,17 @@ class ICM:
             ######################################:
 
             # Loss Scaling Factor. Scale Angle by 100. \sum (w_i x_i)^2
-            loss_scale = np.ones( scene_const.sensor_count+2 )
-            loss_scale[scene_const.sensor_count] = 100
+            loss_scale = np.ones( scene_const.sensor_count+2 )*10
+            loss_scale[scene_const.sensor_count] = 10e4                                 # error for angle
             loss_scale = np.reshape(loss_scale, [-1, scene_const.sensor_count + 2] )
+
             # Loss for Optimization
             self.loss = tf.losses.mean_squared_error(
                                 labels = self.actual_state,
                                 predictions = self.est_combined,
                                 weights = loss_scale
                             )
-            self.loss = tf.reduce_mean(tf.square(self.actual_state - self.est_combined))
+            #self.loss = tf.reduce_mean(tf.square(self.actual_state - self.est_combined))
 
             # Optimizer
             self.optimizer = tf.train.AdamOptimizer(options.LR).minimize(self.loss)
