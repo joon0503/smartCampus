@@ -20,7 +20,7 @@ class data_pack:
     def __init__(self, start_time_str):
         # Data
         self.epi_reward         = np.zeros( 0 )       # List of rewards of single episode
-        self.avg_loss           = np.zeros( 0 )       # list of loss. per step(?)
+        self.avg_loss           = np.zeros( 1 )       # list of loss. per step(?)
 
 
         # File Names

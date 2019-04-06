@@ -21,6 +21,7 @@ from utils.utils_vrep import *                  # import everything directly fro
 from utils.utils_training import *              # import everything directly from utils_vrep.py
 from utils.scene_constants import scene_constants 
 from utils.rl_dqn import QAgent
+from utils.rl_icm import ICM
 from utils.experience_replay import SumTree 
 from utils.experience_replay import Memory
 from utils.utils_data import data_pack
@@ -63,7 +64,7 @@ def get_options():
                         help='size of hidden layer 1')
     parser.add_argument('--H2_SIZE', type=int, default=80,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=80,
+    parser.add_argument('--H3_SIZE', type=int, default=40,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
@@ -298,14 +299,17 @@ if __name__ == "__main__":
     tf.set_random_seed(1)
 
     # Set print options
-    np.set_printoptions( precision = 4, linewidth = 75 )
+    np.set_printoptions( precision = 4, linewidth = 100 )
 
+    # For interactive plot
+    plt.ion()
 
     ######################################33
     # SET 'GLOBAL' Variables
     ######################################33
     START_TIME       = datetime.datetime.now() 
     START_TIME_STR   = str(START_TIME).replace(" ","_")
+    START_TIME_STR   = str(START_TIME).replace(":","_")
 
     # Get client ID
     vrep.simxFinish(-1) 
@@ -395,6 +399,8 @@ if __name__ == "__main__":
     options         = get_options()
     agent_train     = QAgent(options,scene_const, 'Training')
     agent_target    = QAgent(options,scene_const, 'Target')
+    agent_icm       = ICM(options,scene_const,'icm_Training')
+
     sess            = tf.InteractiveSession()
     
 
@@ -429,6 +435,7 @@ if __name__ == "__main__":
 
     # Some initial local variables
     feed = {}
+    feed_icm = {}
     eps = options.INIT_EPS
     global_step = 0
 
@@ -454,7 +461,9 @@ if __name__ == "__main__":
         print("Exporting weights...")
         val = tf.trainable_variables(scope='Training')
         for v in val:
-            np.savetxt( './model_weights/' + str(v.name).replace('/','_')+ '.txt', sess.run([v])[0], delimiter=',')
+            fixed_name = str(v.name).replace('/','_')
+            fixed_name = str(v.name).replace(':','_')
+            np.savetxt( './model_weights/' + fixed_name + '.txt', sess.run([v])[0], delimiter=',')
         sys.exit() 
 
 
@@ -549,13 +558,14 @@ if __name__ == "__main__":
 
             # Get Action. First vehicle always exploit
             if v == 0:
+                #print('curr_state:', observation)
                 action_stack[v] = agent_train.sample_action(
                                                     {
                                                         agent_train.observation : np.reshape(observation, (1, -1))
                                                     },
                                                     eps,
                                                     options,
-                                                    True
+                                                    False
                                                  )
             else:
                 action_stack[v] = agent_train.sample_action(
@@ -563,7 +573,8 @@ if __name__ == "__main__":
                                                         agent_train.observation : np.reshape(observation, (1, -1))
                                                     },
                                                     eps,
-                                                    options
+                                                    options,
+                                                    False
                                                  )
             applySteeringAction( action_stack[v], v, options, steer_handle, scene_const )
 
@@ -594,10 +605,25 @@ if __name__ == "__main__":
             # Get reward for each vehicle
             reward_stack[v] = -options.DIST_MUL*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
 
-            if v == 0:
-                #print(next_dDistance[v])
-                #print(next_gInfo[v])
-                pass
+        #######
+        # Test Estimation
+        #######
+        if options.TESTING == True:
+            v = 0
+
+            # Print curr & next state
+            curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
+            next_state     = getObs( sensor_queue[v], goal_queue[v], old=False)
+            print('curr_state:', curr_state)
+            print('next_state:', next_state)
+            print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
+            print('')
+            
+            agent_icm.plotEstimate( curr_state, action_stack[v], scene_const)
+            
+             
+
+
 
         #print(next_veh_heading)
 
@@ -746,8 +772,19 @@ if __name__ == "__main__":
                 feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
                 feed.update({agent_train.ISWeights : ISWeights_mb   })
 
-                #with tf.variable_scope("Training"):            
-                step_loss_per_data, step_loss_value, _ = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+                #with tf.variable_scope("Training"):   
+                # Train RL         
+                step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+
+                # Train forward model
+                feed_icm.clear()
+                feed_icm.update({agent_icm.observation  : np.concatenate([states_mb, actions_mb_hot],-1) } )
+                feed_icm.update({agent_icm.actual_state : next_states_mb})
+                #print(feed_icm)
+                icm_loss, _                             = sess.run([agent_icm.loss, agent_icm.optimizer], feed_dict = feed_icm)
+                print('icm_loss:', icm_loss)
+
+
                 #print(rewards_mb)
                 #print(step_loss_per_data)
 
