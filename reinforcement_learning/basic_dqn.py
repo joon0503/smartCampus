@@ -309,6 +309,7 @@ if __name__ == "__main__":
     ######################################33
     START_TIME       = datetime.datetime.now() 
     START_TIME_STR   = str(START_TIME).replace(" ","_")
+    START_TIME_STR   = str(START_TIME).replace(":","_")
 
     # Get client ID
     vrep.simxFinish(-1) 
