@@ -461,7 +461,9 @@ if __name__ == "__main__":
         print("Exporting weights...")
         val = tf.trainable_variables(scope='Training')
         for v in val:
-            np.savetxt( './model_weights/' + str(v.name).replace('/','_')+ '.txt', sess.run([v])[0], delimiter=',')
+            fixed_name = str(v.name).replace('/','_')
+            fixed_name = str(v.name).replace(':','_')
+            np.savetxt( './model_weights/' + fixed_name + '.txt', sess.run([v])[0], delimiter=',')
         sys.exit() 
 
 
