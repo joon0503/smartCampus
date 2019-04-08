@@ -155,7 +155,7 @@ def getVehicleStateLUA( handle_list, scene_const):
     # Unpack Data
     out_data = np.reshape(retFloats, (-1,18))       # Reshape such that each row is 18 elements. 3 for pos, 3 for ori, 9 for sensor, 3 for goal pos
 
-    return out_data[:,0:2], ((out_data[:,5]-math.pi*0.5)/(math.pi/2)), out_data[:,6:6+scene_const.sensor_count]/scene_const.max_distance, np.transpose( getGoalInfo( out_data[:,0:2], out_data[:,15:17], scene_const ) )
+    return out_data[:,0:2], ((out_data[:,5]-math.pi*0.5)/scene_const.sensor_max_angle), out_data[:,6:6+scene_const.sensor_count]/scene_const.max_distance, np.transpose( getGoalInfo( out_data[:,0:2], out_data[:,15:17], scene_const ) )
 
 
 ##################################

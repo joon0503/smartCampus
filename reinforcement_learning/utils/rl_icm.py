@@ -130,15 +130,17 @@ class ICM:
     # Plot current position of the vehicle and the estimation   
     #   curr_state : [sensor_values, goal_angle, goal_distance]
     #   action     : one hot encoded vector
+    #   veh_heading: headings of vehicle gamma in radians. 
+    #                we use gamma and 0 deg -> front, +90 deg -> right, -90 deg -> left
     #   scene_const: scene constants as the class
 
-    def plotEstimate(self, curr_state, action, scene_const):
+    def plotEstimate(self, curr_state, action, veh_heading, scene_const):
         ####################
         # Proccess Data
         ####################
         veh_x, veh_y, arrow_x, arrow_y = self.getPoints(curr_state,action,scene_const)
 
-        # Clear data if close to start line and data is short. Currently, does not reset if collision occurs immediately
+        # Clear data if close to start line and data is short. FIXME: Currently, does not reset if collision occurs immediately
         self.ax.clear()
         if len(self.data_y) > 0 and abs(self.data_y[-1] - veh_y) > 5:
             self.data_x = []
@@ -151,7 +153,23 @@ class ICM:
         self.data_y.append(veh_y) 
         self.data_arrow_x.append(arrow_x) 
         self.data_arrow_y.append(arrow_y) 
-        
+       
+        # Radar positions
+        radar_x = []
+        radar_y = []
+
+        #print('veh_heading:', veh_heading)
+        #print( 'rdar_dist:', scene_const.sensor_distance*curr_state[i])
+        #print(' radar_angle:', veh_heading*scene_const.sensor_max_angle + scene_const.sensor_min_angle + i*scene_const.sensor_delta )
+        #print('veh_x:', veh_x)
+        #print('veh_y:', veh_y)
+
+        for i in range(0,scene_const.sensor_count):
+            # gamma + sensor_min_angle   is the current angle of the left most sensor
+            radar_x.append( scene_const.sensor_distance*curr_state[i]*np.sin( veh_heading*scene_const.sensor_max_angle + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_x )
+            radar_y.append( scene_const.sensor_distance*curr_state[i]*np.cos( veh_heading*scene_const.sensor_max_angle + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_y )
+
+ 
         # Get obstacle position
        
 
@@ -169,22 +187,37 @@ class ICM:
 
 
         # Set axis
-        self.ax.set_xlim(-5,5) 
+        self.ax.set_xlim(-6,6) 
         self.ax.set_ylim(0,60) 
 
 
         ####################
         # Plot
         ####################
+        
+        # Goal Point
         self.ax.scatter(0,60, color='blue')
+
         if True:
             # Scatter
+
+            # Vehicle Trajectory & Input
             self.ax.scatter(self.data_x,self.data_y, color='red')
+
+            # quiver the vehicle heading
+            #self.ax.quiver(veh_x,veh_y, np.sin(veh_heading*math.pi), np.cos(veh_heading*math.pi), color='red')
+
+            # Estimate
             self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
         else:
             # Also plot input
             self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
 
+        # Radar
+        self.ax.scatter(radar_x,radar_y, color='red', marker = 'x')
+        self.ax.plot(radar_x,radar_y, color='red')
+
+ 
         # Draw
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -198,7 +231,7 @@ class ICM:
     #   scene_const: scene constants as the class
     #
     # Output
-    #   veh_x, veh_y: x,y coordinate of vehicle. (FIXME: inverted along y-axis)
+    #   veh_x, veh_y: x,y coordinate of vehicle. 
     #   arrow_x, arrow_y: x,y coordinate of arrow computed from input
 
     def getPoints(self, curr_state, action, scene_const):
@@ -209,7 +242,7 @@ class ICM:
         raw_dist   = curr_state[scene_const.sensor_count+1]
 
         # Get position of vehicle from goal point distance and angle from raw data
-        veh_x = scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )
+        veh_x = -1*scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )         # -1 since positive distance means goal is right of vehicle. Since goal is at x=0, from goal's view, vehicle is at left of it, meaning negative.
         veh_y = scene_const.goal_distance - scene_const.goal_distance * raw_dist * np.cos( math.pi * raw_angle )
 
         # Get arrow
