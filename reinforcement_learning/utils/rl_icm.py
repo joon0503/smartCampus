@@ -158,16 +158,19 @@ class ICM:
         radar_x = []
         radar_y = []
 
-        #print('veh_heading:', veh_heading)
+        print('veh_heading:', veh_heading)
         #print( 'rdar_dist:', scene_const.sensor_distance*curr_state[i])
+        i=0
+        print('radar_0_angle:', veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta )
         #print(' radar_angle:', veh_heading*scene_const.sensor_max_angle + scene_const.sensor_min_angle + i*scene_const.sensor_delta )
         #print('veh_x:', veh_x)
         #print('veh_y:', veh_y)
 
+
         for i in range(0,scene_const.sensor_count):
             # gamma + sensor_min_angle   is the current angle of the left most sensor
-            radar_x.append( scene_const.sensor_distance*curr_state[i]*np.sin( veh_heading*scene_const.sensor_max_angle + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_x )
-            radar_y.append( scene_const.sensor_distance*curr_state[i]*np.cos( veh_heading*scene_const.sensor_max_angle + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_y )
+            radar_x.append( scene_const.sensor_distance*curr_state[i]*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_x )
+            radar_y.append( scene_const.sensor_distance*curr_state[i]*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_y )
 
  
         # Get obstacle position

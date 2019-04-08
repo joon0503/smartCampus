@@ -24,6 +24,9 @@ class scene_constants:
 
     # Angle (in radians) difference between each radar sensor
     sensor_delta = (sensor_max_angle - sensor_min_angle) / (sensor_count - 1)
+
+    # Contant that scales the angles (i.e., goal point angle)
+    angle_scale = math.pi/2
  
     # client ID
     clientID            = -1

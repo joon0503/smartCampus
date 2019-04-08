@@ -614,12 +614,11 @@ if __name__ == "__main__":
             # Print curr & next state
             curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
             next_state     = getObs( sensor_queue[v], goal_queue[v], old=False)
-            print('curr_state:', curr_state)
-            print('next_state:', next_state)
-            print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
-            print('')
-            
-            agent_icm.plotEstimate( curr_state, action_stack[v], veh_heading[v], scene_const)
+            #print('curr_state:', curr_state)
+            #print('next_state:', next_state)
+            #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
+            #print('')
+            agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const)
             
              
 
