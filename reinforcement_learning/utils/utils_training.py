@@ -70,3 +70,35 @@ def detectReachedGoal(vehPos, gInfo, currHeading, scene_const ):
         return True
     else:
         return False
+
+# Initialize the array of queue
+# Input
+#   options
+#   sensor_queue : empty array
+#   goal_queue   : empty array
+#   dDistance    : array (for each vehicle) of sensor measurements
+#   gInfo        : array (for each vehicle) of goal measurements
+def initQueue(options, sensor_queue, goal_queue, dDistance, gInfo):
+    for i in range(0,options.VEH_COUNT):
+        # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
+        for q_reset in range(0,options.FRAME_COUNT*2):
+            sensor_queue[i].append(dDistance[i])
+            goal_queue[i].append(gInfo[i])
+
+
+# Reset the queue by filling the queue with the given initial data
+def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo):
+    for v in range(0,len(sensor_queue)):
+        for q in range(0,options.FRAME_COUNT*2):
+            # Update queue
+            sensor_queue[v].append(dDistance[v])
+            sensor_queue[v].popleft()
+            goal_queue[v].append(gInfo[v])
+            goal_queue[v].popleft()
+
+    return sensor_queue, goal_queue
+
+    
+
+
+

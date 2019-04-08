@@ -514,11 +514,7 @@ if __name__ == "__main__":
 
     # initilize them with initial data
     veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA( handle_list, scene_const )
-    for i in range(0,options.VEH_COUNT):
-        # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
-        for q in range(0,options.FRAME_COUNT*2):
-            sensor_queue[i].append(dDistance[i])
-            goal_queue[i].append(gInfo[i])
+    initQueue( options, sensor_queue, goal_queue, dDistance, gInfo )
 
     curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
     prev_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
@@ -621,11 +617,6 @@ if __name__ == "__main__":
             agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const)
             
              
-
-
-
-        #print(next_veh_heading)
-
         ###
         # Handle Events
         ###
@@ -698,6 +689,9 @@ if __name__ == "__main__":
         
         # Reset Vehicles    
         initScene( reset_veh_list, sensor_handle, randomize = True)               # initialize
+        # reset data queue
+        _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
+        sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo )
 
         
         ###########
@@ -859,6 +853,9 @@ if __name__ == "__main__":
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
             initScene( list(range(0,options.VEH_COUNT)), sensor_handle, randomize = True)               # initialize
+            # reset data queue
+            _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
+        sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo )
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
