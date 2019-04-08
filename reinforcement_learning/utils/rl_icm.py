@@ -157,41 +157,41 @@ class ICM:
         # Radar positions
         radar_x = []
         radar_y = []
+        radar_x_col = []            # Radius where collision occurs
+        radar_y_col = []
 
-        print('veh_heading:', veh_heading)
-        #print( 'rdar_dist:', scene_const.sensor_distance*curr_state[i])
-        i=0
-        print('radar_0_angle:', veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta )
-        #print(' radar_angle:', veh_heading*scene_const.sensor_max_angle + scene_const.sensor_min_angle + i*scene_const.sensor_delta )
-        #print('veh_x:', veh_x)
-        #print('veh_y:', veh_y)
-
-
+        if True:        
+            # RELATIVE
+            veh_heading = 0
+        
         for i in range(0,scene_const.sensor_count):
             # gamma + sensor_min_angle   is the current angle of the left most sensor
             radar_x.append( scene_const.sensor_distance*curr_state[i]*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_x )
             radar_y.append( scene_const.sensor_distance*curr_state[i]*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_y )
 
- 
-        # Get obstacle position
-       
+            radar_x_col.append( scene_const.collision_distance*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_x )
+            radar_y_col.append( scene_const.collision_distance*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_y )
 
+ 
         ####################
         # Get Estimate 
         ####################
         max_horizon = 1
         state_estimate_x = []
         state_estimate_y = []
+        radar_est_x = []
+        radar_est_y = []
         for i in range(0,max_horizon):
             temp_state = self.getEstimate( {self.observation : np.reshape(np.concatenate([curr_state, action]), [-1, (scene_const.sensor_count+2) + 5])  }  )
-            temp_x, temp_y, _, _ = self.getPoints(np.reshape(temp_state, -1), action, scene_const)
+            temp_state = np.reshape(temp_state, -1)
+            temp_x, temp_y, _, _ = self.getPoints( temp_state, action, scene_const)
             state_estimate_x.append(temp_x)
             state_estimate_y.append(temp_y)
 
+            for k in range(0,scene_const.sensor_count):
+                radar_est_x.append( scene_const.sensor_distance*temp_state[k]*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x )
+                radar_est_y.append( scene_const.sensor_distance*temp_state[k]*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y )
 
-        # Set axis
-        self.ax.set_xlim(-6,6) 
-        self.ax.set_ylim(0,60) 
 
 
         ####################
@@ -218,9 +218,23 @@ class ICM:
 
         # Radar
         self.ax.scatter(radar_x,radar_y, color='red', marker = 'x')
-        self.ax.plot(radar_x,radar_y, color='red')
+        self.ax.plot(radar_x,radar_y, color='red', label = 'True')
 
+        # Collision
+        #self.ax.scatter(radar_x_col,radar_y_col, color='red', marker = 'x')
+        self.ax.plot(radar_x_col,radar_y_col, color='red', label = 'Collision Range', linestyle = '--')
+
+        # Radar Estimate
+        #print('radar_est_x', radar_est_x)
+        #print('radar_est_y', radar_est_y)
+        self.ax.scatter(radar_est_x,radar_est_y, color='green', marker = 'x')
+        self.ax.plot(radar_est_x,radar_est_y, color='green', label = 'Estimate')
  
+        # Figure Properties
+        self.ax.set_xlim(-6,6) 
+        self.ax.set_ylim(0,60) 
+        self.ax.legend()
+
         # Draw
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -238,7 +252,7 @@ class ICM:
     #   arrow_x, arrow_y: x,y coordinate of arrow computed from input
 
     def getPoints(self, curr_state, action, scene_const):
-        print(curr_state[9])
+        #print(curr_state[9])
         # Break up into raw data
         raw_sensor = curr_state[0:scene_const.sensor_count]
         raw_angle  = curr_state[scene_const.sensor_count]
