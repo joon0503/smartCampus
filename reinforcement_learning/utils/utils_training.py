@@ -85,20 +85,18 @@ def initQueue(options, sensor_queue, goal_queue, dDistance, gInfo):
             sensor_queue[i].append(dDistance[i])
             goal_queue[i].append(gInfo[i])
 
-
-# Reset the queue by filling the queue with the given initial data
-def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo):
-    for v in range(0,len(sensor_queue)):
-        for q in range(0,options.FRAME_COUNT*2):
-            # Update queue
-            sensor_queue[v].append(dDistance[v])
-            sensor_queue[v].popleft()
-            goal_queue[v].append(gInfo[v])
-            goal_queue[v].popleft()
-
     return sensor_queue, goal_queue
 
-    
 
+# Reset the queue by filling the queue with the given initial data
+def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_list):
+    for v in range(0,options.VEH_COUNT):
+        if v in reset_veh_list:
+            for q in range(0,options.FRAME_COUNT*2):
+                # Update queue
+                sensor_queue[v].append(dDistance[v])
+                sensor_queue[v].popleft()
+                goal_queue[v].append(gInfo[v])
+                goal_queue[v].popleft()
 
-
+    return sensor_queue, goal_queue
