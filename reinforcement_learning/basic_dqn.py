@@ -687,13 +687,6 @@ if __name__ == "__main__":
         # Detect being stuck
         #   Not coded yet.
         
-        # Reset Vehicles    
-        initScene( reset_veh_list, sensor_handle, randomize = True)               # initialize
-
-        # Reset data queue
-        _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
-        sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo, reset_veh_list )
-
         
         ###########
         # START LEARNING
@@ -790,6 +783,16 @@ if __name__ == "__main__":
         
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
+
+        # Reset Vehicles    
+        initScene( reset_veh_list, sensor_handle, randomize = True)               # initialize
+
+        # Reset data queue
+        _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
+        sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo, reset_veh_list )
+        print('sensor_queue', sensor_queue)
+        print('goal_queue', goal_queue)
+        print(' ')
 
         ###############
         # Miscellaneous
