@@ -176,26 +176,45 @@ class ICM:
         ####################
         # Get Estimate 
         ####################
-        max_horizon = 1
+        max_horizon = 3
+
+        # Array storing x,y position of estimate
         state_estimate_x = []
         state_estimate_y = []
-        radar_est_x = []
-        radar_est_y = []
-        radar_est_x_col = []
-        radar_est_y_col = []
+
+        # Radar estimation
+        radar_est_x = np.zeros((max_horizon,scene_const.sensor_count))
+        radar_est_y = np.zeros((max_horizon,scene_const.sensor_count))
+
+        # Collision range from the estimated point
+        radar_est_x_col = np.zeros((max_horizon,scene_const.sensor_count))
+        radar_est_y_col = np.zeros((max_horizon,scene_const.sensor_count))
+
+        # Curr state concatentated into an array
+        curr_state_concat = np.reshape(np.concatenate([curr_state, action]), [-1, (scene_const.sensor_count+2) + 5])
+
         for i in range(0,max_horizon):
-            temp_state = self.getEstimate( {self.observation : np.reshape(np.concatenate([curr_state, action]), [-1, (scene_const.sensor_count+2) + 5])  }  )
+            # Get estimate and strip into an array
+            temp_state = self.getEstimate( {self.observation : curr_state_concat}  )
             temp_state = np.reshape(temp_state, -1)
+
+            # Compute the x,y coordinate
             temp_x, temp_y, _, _ = self.getPoints( temp_state, action, scene_const)
+
+            # Add to list
             state_estimate_x.append(temp_x)
             state_estimate_y.append(temp_y)
 
+            # Update radar
             for k in range(0,scene_const.sensor_count):
-                radar_est_x.append( scene_const.sensor_distance*temp_state[k]*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x )
-                radar_est_y.append( scene_const.sensor_distance*temp_state[k]*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y )
+                radar_est_x[i][k] = scene_const.sensor_distance*temp_state[k]*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x
+                radar_est_y[i][k] = scene_const.sensor_distance*temp_state[k]*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y
 
-                radar_est_x_col.append( scene_const.collision_distance*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x )
-                radar_est_y_col.append( scene_const.collision_distance*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y )
+                radar_est_x_col[i][k] = scene_const.collision_distance*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x
+                radar_est_y_col[i][k] = scene_const.collision_distance*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y
+
+            # Update curr state for next estimation
+            curr_state_concat = np.reshape(np.concatenate([temp_state, action]), [-1, (scene_const.sensor_count+2) + 5])
 
 
 
@@ -216,25 +235,31 @@ class ICM:
             #self.ax.quiver(veh_x,veh_y, np.sin(veh_heading*math.pi), np.cos(veh_heading*math.pi), color='red')
 
             # Estimate
-            self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
+            self.ax.plot(state_estimate_x,state_estimate_y, color='green', label='Estimate')
+            self.ax.scatter(state_estimate_x[i],state_estimate_y[i], color='green')
         else:
             # Also plot input
             self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
 
-        # Radar
+        # True Radar
+        #   True radar points
         self.ax.scatter(radar_x,radar_y, color='red', marker = 'x')
+        #   True radar lines
         self.ax.plot(radar_x,radar_y, color='red', label = 'True')
-
-        # Collision
-        #self.ax.scatter(radar_x_col,radar_y_col, color='red', marker = 'x')
+        #   True radar Collision
         self.ax.plot(radar_x_col,radar_y_col, color='red', label = 'Collision Range', linestyle = '--')
-        self.ax.plot(radar_est_x_col,radar_est_y_col, color='green', label = 'Collision Range (Est.)', linestyle = '--')
 
         # Radar Estimate
-        #print('radar_est_x', radar_est_x)
-        #print('radar_est_y', radar_est_y)
-        self.ax.scatter(radar_est_x,radar_est_y, color='green', marker = 'x')
-        self.ax.plot(radar_est_x,radar_est_y, color='green', label = 'Estimate')
+        for i in range(0,max_horizon):
+            # color, gets lighter as estimate more into the future
+            radar_est_color = (0,0.5,0,1-0.3*i) 
+
+            # Scatter radar points
+            self.ax.scatter(radar_est_x[i,:],radar_est_y[i,:], color=radar_est_color, marker = 'x')
+            # Line radar points
+            self.ax.plot(radar_est_x[i,:],radar_est_y[i,:], color=radar_est_color)
+            # Dooted line for collision
+            self.ax.plot(radar_est_x_col[i,:],radar_est_y_col[i,:], color=radar_est_color, linestyle = '--')
  
         # Figure Properties
         self.ax.set_xlim(-6,6) 

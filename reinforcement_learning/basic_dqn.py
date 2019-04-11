@@ -790,9 +790,6 @@ if __name__ == "__main__":
         # Reset data queue
         _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
         sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo, reset_veh_list )
-        print('sensor_queue', sensor_queue)
-        print('goal_queue', goal_queue)
-        print(' ')
 
         ###############
         # Miscellaneous
