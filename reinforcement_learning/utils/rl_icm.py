@@ -236,7 +236,7 @@ class ICM:
 
             # Estimate
             self.ax.plot(state_estimate_x,state_estimate_y, color='green', label='Estimate')
-            self.ax.scatter(state_estimate_x[i],state_estimate_y[i], color='green')
+            self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
         else:
             # Also plot input
             self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
