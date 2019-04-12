@@ -41,10 +41,12 @@ def setMotorSpeed( clientID, motorHandles, desiredSpd ):
 #   desiredPos  : single number, position in DEGREES
 #               : positive angle means turns LEFT
 def setMotorPosition( clientID, motorHandles, desiredPos ):
+    emptyBuff = bytearray()
     for mHandle in motorHandles:
-        _ = vrep.simxSetJointTargetPosition(clientID, mHandle, math.radians(desiredPos), vrep.simx_opmode_blocking)
+        #_ = vrep.simxSetJointTargetPosition(clientID, mHandle, math.radians(desiredPos), vrep.simx_opmode_blocking)
+        _, _, _, _, _ = vrep.simxCallScriptFunction(clientID,'remoteApiCommandServer',vrep.sim_scripttype_childscript,'setJointPos_function',[mHandle],[math.radians(desiredPos)],[],emptyBuff,vrep.simx_opmode_blocking)
 
-    return;
+    return
 
 # Get position of motors
 # Input:
