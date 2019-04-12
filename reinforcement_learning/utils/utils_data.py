@@ -22,9 +22,9 @@ def rolling_window(a, window):
 # Class for storing and plotting data
 #   epi_reward : reward of each episode
 #   avg_loss   : loss of every update. Average across the batch 
-
+#   eps        : eps used for each episode 
 class data_pack:
-    def __init__(self, start_time_str, epi_reward_data = None, avg_loss_data = None):
+    def __init__(self, start_time_str, epi_reward_data = None, avg_loss_data = None, eps_data = None):
         # Data
         if epi_reward_data == None:
             self.epi_reward         = np.zeros( 0 )       # List of rewards of single episode
@@ -35,6 +35,11 @@ class data_pack:
             self.avg_loss           = np.zeros( 1 )       # list of loss. per step(?)
         else:
             self.avg_loss           = avg_loss_data
+
+        if avg_loss_data == None:
+            self.eps                = np.zeros( 0 )       # list of loss. per step(?)
+        else:
+            self.eps                = avg_loss_data
 
 
         # File Names
@@ -50,6 +55,10 @@ class data_pack:
         self.avg_loss = np.append( self.avg_loss, new_loss )
         return
 
+    # Update loss
+    def add_eps(self, new_eps):
+        self.eps = np.append( self.eps, new_eps )
+        return
 
     # Save reward data into a pickle
     def save_reward(self, save_path = './result_data/reward_data/'):
@@ -87,8 +96,9 @@ class data_pack:
         fig, ax1 = plt.subplots()
 
         # x coord & rolling window
-        x_coord = range(0,self.epi_reward.size - running_avg + 1)
-        roll    = rolling_window(self.epi_reward,running_avg)
+        x_coord  = range(0,self.epi_reward.size - running_avg + 1)
+        roll     = rolling_window(self.epi_reward,running_avg)
+        roll_eps = rolling_window(self.eps,running_avg)
 
         # Mean
         ax1.plot(x_coord, np.mean(roll,-1))
@@ -98,6 +108,17 @@ class data_pack:
         ax1.set_title("Running Average of Episode Reward (Window:" + str(running_avg) + ')')
         ax1.set_xlabel("Episode")
         ax1.set_ylabel("Reward (Running Average)")
+
+        # Second y-axis for reward
+        ax2 = ax1.twinx()
+        # EPS
+        print(x_coord)
+        print(np.mean(roll_eps,-1))
+        ax2.plot(x_coord, np.mean(roll_eps,-1), color='red', label='eps')
+        ax2.set_ylabel('epsilon')
+        ax2.set_ylim(0,1)
+
+        # Save fig
         fig.savefig( save_path + 'reward_data_' + self.start_time_str + '_' + 'ra' + str(running_avg) + '.png')
  
         return

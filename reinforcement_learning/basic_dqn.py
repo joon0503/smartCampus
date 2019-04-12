@@ -822,7 +822,8 @@ if __name__ == "__main__":
 
         # Reset rewards for finished vehicles
         for v in reset_veh_list:
-            data_package.add_reward( epi_reward_stack[v] )
+            data_package.add_reward( epi_reward_stack[v] )  # Add reward
+            data_package.add_eps( eps )                     # Add epsilon used for this reward
 
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
