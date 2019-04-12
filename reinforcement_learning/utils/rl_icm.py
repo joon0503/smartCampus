@@ -176,7 +176,7 @@ class ICM:
         ####################
         # Get Estimate 
         ####################
-        max_horizon = 3
+        max_horizon = 4
 
         # Array storing x,y position of estimate
         state_estimate_x = []
@@ -225,21 +225,18 @@ class ICM:
         # Goal Point
         self.ax.scatter(0,60, color='blue')
 
-        if True:
-            # Scatter
+        # Scatter
 
-            # Vehicle Trajectory & Input
-            self.ax.scatter(self.data_x,self.data_y, color='red')
+        # Vehicle Trajectory & Input
+        #self.ax.scatter(self.data_x,self.data_y, color='red')
 
-            # quiver the vehicle heading
-            #self.ax.quiver(veh_x,veh_y, np.sin(veh_heading*math.pi), np.cos(veh_heading*math.pi), color='red')
+        # quiver the vehicle heading
+        #self.ax.quiver(veh_x,veh_y, np.sin(veh_heading*math.pi), np.cos(veh_heading*math.pi), color='red')
+        self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
 
-            # Estimate
-            self.ax.plot(state_estimate_x,state_estimate_y, color='green', label='Estimate')
-            self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
-        else:
-            # Also plot input
-            self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
+        # Estimate
+        self.ax.plot(state_estimate_x,state_estimate_y, color='green', label='Estimate')
+        self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
 
         # True Radar
         #   True radar points
@@ -250,9 +247,10 @@ class ICM:
         self.ax.plot(radar_x_col,radar_y_col, color='red', label = 'Collision Range', linestyle = '--')
 
         # Radar Estimate
+        color_delta = 0.9/max_horizon
         for i in range(0,max_horizon):
             # color, gets lighter as estimate more into the future
-            radar_est_color = (0,0.5,0,1-0.3*i) 
+            radar_est_color = (0,0.5,0,1-color_delta*i) 
 
             # Scatter radar points
             self.ax.scatter(radar_est_x[i,:],radar_est_y[i,:], color=radar_est_color, marker = 'x')
@@ -299,7 +297,7 @@ class ICM:
 
         # Calculate desired angle
         desired_angle = scene_const.max_steer - np.argmax(action) * action_delta
-        arrow_x = 0.1*np.sin( math.radians( desired_angle ) )
+        arrow_x = -0.1*np.sin( math.radians( desired_angle ) )
         arrow_y = 0.1*np.cos( math.radians( desired_angle ) )
 
         return veh_x, veh_y, arrow_x, arrow_y
