@@ -25,6 +25,7 @@ from utils.rl_icm import ICM
 from utils.experience_replay import SumTree 
 from utils.experience_replay import Memory
 from utils.utils_data import data_pack
+from utils.scene_2LC import *
 
 def get_options():
     parser = ArgumentParser(
@@ -236,53 +237,6 @@ def printSpdInfo():
 # TRAINING
 #################################33/
 
-# Initialize to original scene
-# Input:
-#   veh_index: list of indicies of vehicles
-def initScene( veh_index_list, sensor_handle, randomize = False):
-    for veh_index in veh_index_list:
-        vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-        # Reset position of vehicle. Randomize x-position if enabled
-        if randomize == False:
-            err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20-3 + 0,0,0.2],vrep.simx_opmode_blocking)
-        else:
-            x_pos = random.uniform(-1,-3)
-            err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20 + x_pos,0,0.2],vrep.simx_opmode_blocking)
-
-        # Reset Orientation of vehicle
-        err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle[veh_index],-1,[0,0,math.radians(90)],vrep.simx_opmode_blocking)
-
-        # Reset position of motors & steering
-        setMotorPosition(clientID, steer_handle[veh_index], 0)
-
-    vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-
-    for veh_index in veh_index_list:
-        vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], 0 , vrep.simx_opmode_blocking   )      # enable dynamics
-
-        # Reset motor speed
-        setMotorSpeed(clientID, motor_handle[veh_index], options.INIT_SPD)
-
-        # Set initial speed of vehicle
-        vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, options.INIT_SPD/3.6, vrep.simx_opmode_blocking)
-       
-        # Read sensor
-        dState, dDistance = readSensor(sensor_handle[veh_index], scene_const, vrep.simx_opmode_buffer)         # try it once for initialization
-
-        # Reset position of obstacle
-        if randomize == True:
-            if random.random() > 0.5:
-                err_code = vrep.simxSetObjectPosition(clientID,obs_handle[veh_index],-1,[veh_index*20 + -3.3,30,1.1],vrep.simx_opmode_blocking)
-            else:
-                err_code = vrep.simxSetObjectPosition(clientID,obs_handle[veh_index],-1,[veh_index*20 + 1.675,30,1.1],vrep.simx_opmode_blocking)
-        
-        # Reset position of dummy    
-        if randomize == False:
-            pass
-        else:
-            pass
-    #        x_pos = random.uniform(-1,-7.25)
-    #        err_code = vrep.simxSetObjectPosition(clientID,dummy_handle,-1,[x_pos,60,0.2],vrep.simx_opmode_blocking)
 
 
 
@@ -382,6 +336,16 @@ if __name__ == "__main__":
     # Make handles into big list
     for v in range(0,options.VEH_COUNT):
         handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
+
+    # Make handle into dict to be passed around functions
+    handle_dict = {
+        'sensor'    : sensor_handle,
+        'motor'     : motor_handle,
+        'steer'     : steer_handle,
+        'vehicle'   : vehicle_handle,
+        'dummy'     : dummy_handle,
+        'obstacle'  : obs_handle
+    }
 
     ########################
     # Initialize Test Scene
@@ -503,7 +467,7 @@ if __name__ == "__main__":
  
     # Initialize Scene
 
-    initScene( list(range(0,options.VEH_COUNT)), sensor_handle, randomize = True)               # initialize
+    initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = True)               # initialize
 
     # List of deque to store data
     sensor_queue = []
@@ -785,7 +749,7 @@ if __name__ == "__main__":
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
 
         # Reset Vehicles    
-        initScene( reset_veh_list, sensor_handle, randomize = True)               # initialize
+        initScene( scene_const, options, reset_veh_list, handle_dict, randomize = True)               # initialize
 
         # Reset data queue
         _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
@@ -854,7 +818,7 @@ if __name__ == "__main__":
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            initScene( list(range(0,options.VEH_COUNT)), sensor_handle, randomize = True)               # initialize
+            initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = True)               # initialize
 
             # reset data queue
             _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
