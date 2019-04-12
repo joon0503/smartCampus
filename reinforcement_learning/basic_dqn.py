@@ -514,11 +514,7 @@ if __name__ == "__main__":
 
     # initilize them with initial data
     veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA( handle_list, scene_const )
-    for i in range(0,options.VEH_COUNT):
-        # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
-        for q in range(0,options.FRAME_COUNT*2):
-            sensor_queue[i].append(dDistance[i])
-            goal_queue[i].append(gInfo[i])
+    sensor_queue, goal_queue = initQueue( options, sensor_queue, goal_queue, dDistance, gInfo )
 
     curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
     prev_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
@@ -614,19 +610,13 @@ if __name__ == "__main__":
             # Print curr & next state
             curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
             next_state     = getObs( sensor_queue[v], goal_queue[v], old=False)
-            print('curr_state:', curr_state)
-            print('next_state:', next_state)
-            print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
-            print('')
-            
-            agent_icm.plotEstimate( curr_state, action_stack[v], scene_const)
+            #print('curr_state:', curr_state)
+            #print('next_state:', next_state)
+            #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
+            #print('')
+            agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const)
             
              
-
-
-
-        #print(next_veh_heading)
-
         ###
         # Handle Events
         ###
@@ -697,9 +687,6 @@ if __name__ == "__main__":
         # Detect being stuck
         #   Not coded yet.
         
-        # Reset Vehicles    
-        initScene( reset_veh_list, sensor_handle, randomize = True)               # initialize
-
         
         ###########
         # START LEARNING
@@ -782,7 +769,7 @@ if __name__ == "__main__":
                 feed_icm.update({agent_icm.actual_state : next_states_mb})
                 #print(feed_icm)
                 icm_loss, _                             = sess.run([agent_icm.loss, agent_icm.optimizer], feed_dict = feed_icm)
-                print('icm_loss:', icm_loss)
+                #print('icm_loss:', icm_loss)
 
 
                 #print(rewards_mb)
@@ -796,6 +783,13 @@ if __name__ == "__main__":
         
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
+
+        # Reset Vehicles    
+        initScene( reset_veh_list, sensor_handle, randomize = True)               # initialize
+
+        # Reset data queue
+        _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
+        sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo, reset_veh_list )
 
         ###############
         # Miscellaneous
@@ -828,7 +822,8 @@ if __name__ == "__main__":
 
         # Reset rewards for finished vehicles
         for v in reset_veh_list:
-            data_package.add_reward( epi_reward_stack[v] )
+            data_package.add_reward( epi_reward_stack[v] )  # Add reward
+            data_package.add_eps( eps )                     # Add epsilon used for this reward
 
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
@@ -860,6 +855,10 @@ if __name__ == "__main__":
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
             initScene( list(range(0,options.VEH_COUNT)), sensor_handle, randomize = True)               # initialize
+
+            # reset data queue
+            _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
+            sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo, list(range(0,options.VEH_COUNT)) )
         
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:

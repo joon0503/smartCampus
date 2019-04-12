@@ -12,15 +12,34 @@ import pickle
 # Calculate the running average
 # x: input 1D numpy array
 # N: Window
-def runningAverage(x, N):
-    cumsum = np.cumsum(np.insert(x, 0, 0)) 
-    return (cumsum[N:] - cumsum[:-N]) / float(N)
+def rolling_window(a, window):
+    shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+    strides = a.strides + (a.strides[-1],)
+    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
+
+
+# Class for storing and plotting data
+#   epi_reward : reward of each episode
+#   avg_loss   : loss of every update. Average across the batch 
+#   eps        : eps used for each episode 
 class data_pack:
-    def __init__(self, start_time_str):
+    def __init__(self, start_time_str, epi_reward_data = None, avg_loss_data = None, eps_data = None):
         # Data
-        self.epi_reward         = np.zeros( 0 )       # List of rewards of single episode
-        self.avg_loss           = np.zeros( 1 )       # list of loss. per step(?)
+        if epi_reward_data == None:
+            self.epi_reward         = np.zeros( 0 )       # List of rewards of single episode
+        else:
+            self.epi_reward         = epi_reward_data
+        
+        if avg_loss_data == None:
+            self.avg_loss           = np.zeros( 1 )       # list of loss. per step(?)
+        else:
+            self.avg_loss           = avg_loss_data
+
+        if avg_loss_data == None:
+            self.eps                = np.zeros( 0 )       # list of loss. per step(?)
+        else:
+            self.eps                = avg_loss_data
 
 
         # File Names
@@ -36,25 +55,29 @@ class data_pack:
         self.avg_loss = np.append( self.avg_loss, new_loss )
         return
 
+    # Update loss
+    def add_eps(self, new_eps):
+        self.eps = np.append( self.eps, new_eps )
+        return
 
     # Save reward data into a pickle
-    def save_reward(self):
+    def save_reward(self, save_path = './result_data/reward_data/'):
         # Save Reward Data
-        outfile = open( './result_data/reward_data/reward_data_' + self.start_time_str, 'wb')  
+        outfile = open( save_path + 'reward_data_' + self.start_time_str, 'wb')  
         pickle.dump( self.epi_reward, outfile )
         outfile.close()
 
         return
 
     # Save loss data
-    def save_loss(self): 
-        outfile = open( 'result_data/loss_data/avg_loss_value_data_' + self.start_time_str, 'wb')  
+    def save_loss(self, save_path = './result_data/loss_data/' ): 
+        outfile = open( save_path + 'avg_loss_value_data_' + self.start_time_str, 'wb')  
         pickle.dump( self.avg_loss , outfile )
         outfile.close()
 
         return
 
-    def plot_loss(self):
+    def plot_loss(self, save_path = './result_data/avg_loss_value_data/' ):
         # Plot Average Step Loss
         plt.figure(0)
         fig, ax2 = plt.subplots()
@@ -63,19 +86,39 @@ class data_pack:
         ax2.set_title("Average Loss per Batch Step")
         ax2.set_xlabel("Global Step")
         ax2.set_ylabel("Avg Loss")
-        fig.savefig('result_data/avg_loss_value_data/avg_loss_value_data_' + self.start_time_str + '.png') 
+        fig.savefig( save_path + 'avg_loss_value_data_' + self.start_time_str + '.png') 
         return
 
 
     # Save a graph of reward
-    def plot_reward(self, running_avg):
+    def plot_reward(self, running_avg, save_path = './result_data/reward_data/'):
         plt.figure(0)
         fig, ax1 = plt.subplots()
-        ax1.plot(runningAverage(self.epi_reward,running_avg))
 
-        ax1.set_title("Running Average of Episode Reward")
+        # x coord & rolling window
+        x_coord  = range(0,self.epi_reward.size - running_avg + 1)
+        roll     = rolling_window(self.epi_reward,running_avg)
+        roll_eps = rolling_window(self.eps,running_avg)
+
+        # Mean
+        ax1.plot(x_coord, np.mean(roll,-1))
+        # Std Dev
+        ax1.fill_between(x_coord, np.mean(roll,-1) + np.std(roll), np.mean(roll,-1) - np.std(roll), alpha = 0.5)
+
+        ax1.set_title("Running Average of Episode Reward (Window:" + str(running_avg) + ')')
         ax1.set_xlabel("Episode")
         ax1.set_ylabel("Reward (Running Average)")
-        fig.savefig('./result_data/reward_data/reward_data_' + self.start_time_str + '_' + 'ra' + str(running_avg) + '.png')
+
+        # Second y-axis for reward
+        ax2 = ax1.twinx()
+        # EPS
+        print(x_coord)
+        print(np.mean(roll_eps,-1))
+        ax2.plot(x_coord, np.mean(roll_eps,-1), color='red', label='eps')
+        ax2.set_ylabel('epsilon')
+        ax2.set_ylim(0,1)
+
+        # Save fig
+        fig.savefig( save_path + 'reward_data_' + self.start_time_str + '_' + 'ra' + str(running_avg) + '.png')
  
         return

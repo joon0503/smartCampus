@@ -130,15 +130,17 @@ class ICM:
     # Plot current position of the vehicle and the estimation   
     #   curr_state : [sensor_values, goal_angle, goal_distance]
     #   action     : one hot encoded vector
+    #   veh_heading: headings of vehicle gamma in radians. 
+    #                we use gamma and 0 deg -> front, +90 deg -> right, -90 deg -> left
     #   scene_const: scene constants as the class
 
-    def plotEstimate(self, curr_state, action, scene_const):
+    def plotEstimate(self, curr_state, action, veh_heading, scene_const):
         ####################
         # Proccess Data
         ####################
         veh_x, veh_y, arrow_x, arrow_y = self.getPoints(curr_state,action,scene_const)
 
-        # Clear data if close to start line and data is short. Currently, does not reset if collision occurs immediately
+        # Clear data if close to start line and data is short. FIXME: Currently, does not reset if collision occurs immediately
         self.ax.clear()
         if len(self.data_y) > 0 and abs(self.data_y[-1] - veh_y) > 5:
             self.data_x = []
@@ -151,39 +153,116 @@ class ICM:
         self.data_y.append(veh_y) 
         self.data_arrow_x.append(arrow_x) 
         self.data_arrow_y.append(arrow_y) 
-        
-        # Get obstacle position
        
+        # Radar positions
+        radar_x = []
+        radar_y = []
+        radar_x_col = []            # Radius where collision occurs
+        radar_y_col = []
 
+        if True:        
+            # RELATIVE
+            veh_heading = 0
+        
+        for i in range(0,scene_const.sensor_count):
+            # gamma + sensor_min_angle   is the current angle of the left most sensor
+            radar_x.append( scene_const.sensor_distance*curr_state[i]*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_x )
+            radar_y.append( scene_const.sensor_distance*curr_state[i]*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_y )
+
+            radar_x_col.append( scene_const.collision_distance*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_x )
+            radar_y_col.append( scene_const.collision_distance*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + i*scene_const.sensor_delta ) + veh_y )
+
+ 
         ####################
         # Get Estimate 
         ####################
-        max_horizon = 1
+        max_horizon = 4
+
+        # Array storing x,y position of estimate
         state_estimate_x = []
         state_estimate_y = []
+
+        # Radar estimation
+        radar_est_x = np.zeros((max_horizon,scene_const.sensor_count))
+        radar_est_y = np.zeros((max_horizon,scene_const.sensor_count))
+
+        # Collision range from the estimated point
+        radar_est_x_col = np.zeros((max_horizon,scene_const.sensor_count))
+        radar_est_y_col = np.zeros((max_horizon,scene_const.sensor_count))
+
+        # Curr state concatentated into an array
+        curr_state_concat = np.reshape(np.concatenate([curr_state, action]), [-1, (scene_const.sensor_count+2) + 5])
+
         for i in range(0,max_horizon):
-            temp_state = self.getEstimate( {self.observation : np.reshape(np.concatenate([curr_state, action]), [-1, (scene_const.sensor_count+2) + 5])  }  )
-            temp_x, temp_y, _, _ = self.getPoints(np.reshape(temp_state, -1), action, scene_const)
+            # Get estimate and strip into an array
+            temp_state = self.getEstimate( {self.observation : curr_state_concat}  )
+            temp_state = np.reshape(temp_state, -1)
+
+            # Compute the x,y coordinate
+            temp_x, temp_y, _, _ = self.getPoints( temp_state, action, scene_const)
+
+            # Add to list
             state_estimate_x.append(temp_x)
             state_estimate_y.append(temp_y)
 
+            # Update radar
+            for k in range(0,scene_const.sensor_count):
+                radar_est_x[i][k] = scene_const.sensor_distance*temp_state[k]*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x
+                radar_est_y[i][k] = scene_const.sensor_distance*temp_state[k]*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y
 
-        # Set axis
-        self.ax.set_xlim(-5,5) 
-        self.ax.set_ylim(0,60) 
+                radar_est_x_col[i][k] = scene_const.collision_distance*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x
+                radar_est_y_col[i][k] = scene_const.collision_distance*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y
+
+            # Update curr state for next estimation
+            curr_state_concat = np.reshape(np.concatenate([temp_state, action]), [-1, (scene_const.sensor_count+2) + 5])
+
 
 
         ####################
         # Plot
         ####################
+        
+        # Goal Point
         self.ax.scatter(0,60, color='blue')
-        if True:
-            # Scatter
-            self.ax.scatter(self.data_x,self.data_y, color='red')
-            self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
-        else:
-            # Also plot input
-            self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
+
+        # Scatter
+
+        # Vehicle Trajectory & Input
+        #self.ax.scatter(self.data_x,self.data_y, color='red')
+
+        # quiver the vehicle heading
+        #self.ax.quiver(veh_x,veh_y, np.sin(veh_heading*math.pi), np.cos(veh_heading*math.pi), color='red')
+        self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
+
+        # Estimate
+        self.ax.plot(state_estimate_x,state_estimate_y, color='green', label='Estimate')
+        self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
+
+        # True Radar
+        #   True radar points
+        self.ax.scatter(radar_x,radar_y, color='red', marker = 'x')
+        #   True radar lines
+        self.ax.plot(radar_x,radar_y, color='red', label = 'True')
+        #   True radar Collision
+        self.ax.plot(radar_x_col,radar_y_col, color='red', label = 'Collision Range', linestyle = '--')
+
+        # Radar Estimate
+        color_delta = 0.9/max_horizon
+        for i in range(0,max_horizon):
+            # color, gets lighter as estimate more into the future
+            radar_est_color = (0,0.5,0,1-color_delta*i) 
+
+            # Scatter radar points
+            self.ax.scatter(radar_est_x[i,:],radar_est_y[i,:], color=radar_est_color, marker = 'x')
+            # Line radar points
+            self.ax.plot(radar_est_x[i,:],radar_est_y[i,:], color=radar_est_color)
+            # Dooted line for collision
+            self.ax.plot(radar_est_x_col[i,:],radar_est_y_col[i,:], color=radar_est_color, linestyle = '--')
+ 
+        # Figure Properties
+        self.ax.set_xlim(-6,6) 
+        self.ax.set_ylim(0,60) 
+        self.ax.legend()
 
         # Draw
         self.fig.canvas.draw()
@@ -198,18 +277,18 @@ class ICM:
     #   scene_const: scene constants as the class
     #
     # Output
-    #   veh_x, veh_y: x,y coordinate of vehicle. (FIXME: inverted along y-axis)
+    #   veh_x, veh_y: x,y coordinate of vehicle. 
     #   arrow_x, arrow_y: x,y coordinate of arrow computed from input
 
     def getPoints(self, curr_state, action, scene_const):
-        print(curr_state[9])
+        #print(curr_state[9])
         # Break up into raw data
         raw_sensor = curr_state[0:scene_const.sensor_count]
         raw_angle  = curr_state[scene_const.sensor_count]
         raw_dist   = curr_state[scene_const.sensor_count+1]
 
         # Get position of vehicle from goal point distance and angle from raw data
-        veh_x = scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )
+        veh_x = -1*scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )         # -1 since positive distance means goal is right of vehicle. Since goal is at x=0, from goal's view, vehicle is at left of it, meaning negative.
         veh_y = scene_const.goal_distance - scene_const.goal_distance * raw_dist * np.cos( math.pi * raw_angle )
 
         # Get arrow
@@ -218,7 +297,7 @@ class ICM:
 
         # Calculate desired angle
         desired_angle = scene_const.max_steer - np.argmax(action) * action_delta
-        arrow_x = 0.1*np.sin( math.radians( desired_angle ) )
+        arrow_x = -0.1*np.sin( math.radians( desired_angle ) )
         arrow_y = 0.1*np.cos( math.radians( desired_angle ) )
 
         return veh_x, veh_y, arrow_x, arrow_y
