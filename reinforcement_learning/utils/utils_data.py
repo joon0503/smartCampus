@@ -112,8 +112,8 @@ class data_pack:
         # Second y-axis for reward
         ax2 = ax1.twinx()
         # EPS
-        print(x_coord)
-        print(np.mean(roll_eps,-1))
+        #print(x_coord)
+        #print(np.mean(roll_eps,-1))
         ax2.plot(x_coord, np.mean(roll_eps,-1), color='red', label='eps')
         ax2.set_ylabel('epsilon')
         ax2.set_ylim(0,1)

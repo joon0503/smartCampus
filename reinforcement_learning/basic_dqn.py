@@ -99,6 +99,8 @@ def get_options():
                         help='Multiplier for rewards based on the distance to the goal')
     parser.add_argument('--EXPORT', action='store_true', default=False,
                         help='Export the weights into a csv file')
+    parser.add_argument('--SEED', type=int, default=1,
+                        help='Set simulation seed')
     options = parser.parse_args()
     return options
 
