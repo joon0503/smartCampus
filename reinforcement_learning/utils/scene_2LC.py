@@ -38,8 +38,8 @@ def initScene( scene_const, options, veh_index_list, handle_dict, randomize = Fa
         # Reset Orientation of vehicle
         err_code = vrep.simxSetObjectOrientation(scene_const.clientID,vehicle_handle[veh_index],-1,[0,0,math.radians(90)],vrep.simx_opmode_blocking)
 
-        # Reset position of motors & steering
-        setMotorPosition(scene_const.clientID, steer_handle[veh_index], 0)
+    # Reset position of motors & steering
+    setMotorPosition(scene_const.clientID, handle_dict['steer'], np.zeros(options.VEH_COUNT))
 
     vrep.simxSynchronousTrigger(scene_const.clientID);                              # Step one simulation while dynamics disabled to move object
 

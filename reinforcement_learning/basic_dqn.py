@@ -512,6 +512,7 @@ if __name__ == "__main__":
         ####
         # Find & Apply Action
         ####
+        # FIXME: This can be made faster by not using loop and just pushing through network all at once
         for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
             observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
@@ -536,7 +537,7 @@ if __name__ == "__main__":
                                                     options,
                                                     False
                                                  )
-            applySteeringAction( action_stack[v], v, options, steer_handle, scene_const )
+        applySteeringAction( action_stack, options, handle_dict, scene_const )
 
         ####
         # Step

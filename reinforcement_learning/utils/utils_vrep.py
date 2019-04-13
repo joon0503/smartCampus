@@ -37,14 +37,21 @@ def setMotorSpeed( clientID, motorHandles, desiredSpd ):
 # Set Position of motors
 # Input:
 #   clientID    : client ID of vrep instance
-#   motorHandles: list of integers, denoting motors that you want to change the speed
-#   desiredPos  : single number, position in DEGREES
-#               : positive angle means turns LEFT
+#   motorHandles: 2D list of integers.
+#                 [veh1 left, veh1 right]
+#                 [veh2 left, veh2 right]...
+#   desiredPos  : list of numbers, position in DEGREES
 def setMotorPosition( clientID, motorHandles, desiredPos ):
+    # Sanity check
+    if motorHandles.size != 2*desiredPos.size:
+        raise ValueError('input to setMotorPosition is not correct! motorHandles must have 2*size of desiredPos.')
+
+    #print(np.reshape( motorHandles, -1) )
+    #print( desiredPos)
+    #print( np.radians(desiredPos))
     emptyBuff = bytearray()
-    for mHandle in motorHandles:
-        #_ = vrep.simxSetJointTargetPosition(clientID, mHandle, math.radians(desiredPos), vrep.simx_opmode_blocking)
-        _, _, _, _, _ = vrep.simxCallScriptFunction(clientID,'remoteApiCommandServer',vrep.sim_scripttype_childscript,'setJointPos_function',[mHandle],[math.radians(desiredPos)],[],emptyBuff,vrep.simx_opmode_blocking)
+    #_ = vrep.simxSetJointTargetPosition(clientID, mHandle, math.radians(desiredPos), vrep.simx_opmode_blocking)
+    _, _, _, _, _ = vrep.simxCallScriptFunction(clientID,'remoteApiCommandServer',vrep.sim_scripttype_childscript,'setJointPos_function',np.reshape( motorHandles, -1 ), np.radians(desiredPos),[],emptyBuff,vrep.simx_opmode_blocking)
 
     return
 
@@ -73,19 +80,37 @@ def getMotorOri( clientID, motorHandles ):
 #   veh_index: index of vehicle
 #   options: options containing various info. For this function, we only use ACTION_DIM
 #   max_steer: max_steering
-def applySteeringAction(action, veh_index, options, steer_handle, scene_const):
+#def applySteeringAction(action, veh_index, options, steer_handle, scene_const):
+    ## Delta of angle between each action
+    #action_delta = (scene_const.max_steer - scene_const.min_steer) / (options.ACTION_DIM-1)
+#
+    ## Calculate desired angle
+    ##action = [0,1,0,0,0]
+    #desired_angle = scene_const.max_steer - np.argmax(action) * action_delta
+#
+    ## Set steering position
+    #setMotorPosition(scene_const.clientID, steer_handle[veh_index], desired_angle)
+    #
+    #return
+
+# Given list of one-hot-encoded action array of steering angle, apply it to the vehicle
+# Input:
+#   action: 2D array. Each row is list of 1/0s. 1 means this action is applied
+#   options: options containing various info. For this function, we only use ACTION_DIM
+def applySteeringAction(action_stack, options, handle_dict, scene_const):
     # Delta of angle between each action
     action_delta = (scene_const.max_steer - scene_const.min_steer) / (options.ACTION_DIM-1)
+    steer_handle = handle_dict['steer']
 
     # Calculate desired angle
-    #action = [0,1,0,0,0]
-    desired_angle = scene_const.max_steer - np.argmax(action) * action_delta
-
+    #  action = [0,1,0,0,0]
+    #  desired_angle is VEH_COUNT x 1 array
+    desired_angle = scene_const.max_steer - np.argmax(action_stack,1) * action_delta
+    
     # Set steering position
-    setMotorPosition(scene_const.clientID, steer_handle[veh_index], desired_angle)
+    setMotorPosition(scene_const.clientID, steer_handle, desired_angle)
     
     return
-
 
 #############################
 # Sensors
