@@ -272,7 +272,7 @@ class ICM:
     
         # Save
         if save == True:
-            self.fig.savefig('./test_dir/plot_' + str(self.plot_counter).zfill(3) + '.png')
+            self.fig.savefig('./image/plot_' + str(self.plot_counter).zfill(3) + '.png')
             self.plot_counter = self.plot_counter + 1
         return
 

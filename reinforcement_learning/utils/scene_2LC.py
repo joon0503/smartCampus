@@ -20,6 +20,11 @@ from utils.utils_vrep import *
 #   handle_dict : dictionary of handle list
 def initScene( scene_const, options, veh_index_list, handle_dict, randomize = False):
 
+    # If reset list is empty, just return
+    if len(veh_index_list) == 0:
+        return
+
+
     vehicle_handle = handle_dict['vehicle']
     steer_handle   = handle_dict['steer']
     motor_handle   = handle_dict['motor']
@@ -69,3 +74,9 @@ def initScene( scene_const, options, veh_index_list, handle_dict, randomize = Fa
             pass
     #        x_pos = random.uniform(-1,-7.25)
     #        err_code = vrep.simxSetObjectPosition(scene_const.clientID,dummy_handle,-1,[x_pos,60,0.2],vrep.simx_opmode_blocking)
+
+    return
+
+
+
+

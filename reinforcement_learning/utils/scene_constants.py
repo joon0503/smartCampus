@@ -41,3 +41,6 @@ class scene_constants:
     # Distance to the goal. Used for normalization
     goal_distance       = 60
 
+
+    # Simulation Parameters
+    dt = 0.025                      # dt of the vrep simulation

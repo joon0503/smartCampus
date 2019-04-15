@@ -55,8 +55,6 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
-                        help='Fix chosen input for this number of steps')
     parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
@@ -101,7 +99,12 @@ def get_options():
                         help='Export the weights into a csv file')
     parser.add_argument('--SEED', type=int, default=1,
                         help='Set simulation seed')
+    parser.add_argument('--CTR_FREQ', type=float, default=0.2,
+                        help='Control frequency in seconds. Upto 0.001 seconds')
+    parser.add_argument('--SIM_STEP', type=float, default=0.025,
+                        help='VREP simulation time step in seconds. Upto 0.001 seconds')
     options = parser.parse_args()
+
     return options
 
 
@@ -149,21 +152,20 @@ def getObs( sensor_queue, goal_queue, old=True):
     return observation
 
 # Calculate Approximate Rewards for variaous cases
-def printRewards( scene_const ):
+def printRewards( scene_const, options ):
     # Some parameters
     veh_speed = options.INIT_SPD/3.6  # 10km/hr in m/s
 
     # Time Steps
-    dt = 0.025
-    dt_code = dt * options.FIX_INPUT_STEP
+    #dt_code = scene_const.dt * options.FIX_INPUT_STEP
 
     # Expected Total Time Steps
-    total_step = (60/veh_speed)*(1/dt_code)
+    total_step = (60/veh_speed)*(1/options.CTR_FREQ)
 
     # Reward at the end
     rew_end = 0
     for i in range(0, int(total_step)):
-        goal_distance = 60 - i*dt_code*veh_speed 
+        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
         if i != total_step-1:
             rew_end = rew_end -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -172,7 +174,7 @@ def printRewards( scene_const ):
     # Reward at Obs
     rew_obs = 0
     for i in range(0, int(total_step*0.5)):
-        goal_distance = 60 - i*dt_code*veh_speed 
+        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.5)-1:
             rew_obs = rew_obs -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -181,7 +183,7 @@ def printRewards( scene_const ):
     # Reward at 75%
     rew_75 = 0
     for i in range(0, int(total_step*0.75)):
-        goal_distance = 60 - i*dt_code*veh_speed 
+        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.75)-1:
             rew_75 = rew_75 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -190,7 +192,7 @@ def printRewards( scene_const ):
     # Reward at 25%
     rew_25 = 0
     for i in range(0, int(total_step*0.25)):
-        goal_distance = 60 - i*dt_code*veh_speed 
+        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.25)-1:
             rew_25 = rew_25 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -208,6 +210,7 @@ def printRewards( scene_const ):
     print("======================================")
     print("        REWARD ESTIMATION")
     print("======================================")
+    print("Control Frequency (s)  : ", options.CTR_FREQ)
     print("Expected Total Step    : ", total_step)
     print("Expected Reward (25)   : ", rew_25)
     print("Expected Reward (Obs)  : ", rew_obs)
@@ -249,6 +252,13 @@ if __name__ == "__main__":
     options = get_options()
     print(str(options).replace(" ",'\n'))
 
+    # Define fix input step
+    FIX_INPUT_STEP = int( (1000*options.CTR_FREQ)/(1000*options.SIM_STEP) )
+    print('FIX_INPUT_STEP : ', FIX_INPUT_STEP)
+     
+    if int(1000*options.CTR_FREQ) % int(1000*options.SIM_STEP) != 0:
+        raise ValueError('CTR_FREQ must be a integer multiple of SIM_STEP! Currently CTR_FREQ % SIM_STEP = ' + str(options.CTR_FREQ % options.SIM_STEP) )
+
     # Set Seed
     np.random.seed(1)
     random.seed(1)
@@ -282,6 +292,7 @@ if __name__ == "__main__":
     scene_const.max_steer           = 15
     scene_const.collision_distance  = 1.3
     scene_const.goal_distance       = 60
+    scene_const.dt                  = options.SIM_STEP         #simulation time step
 
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
@@ -297,7 +308,7 @@ if __name__ == "__main__":
     option_file.close()
 
     # Print Rewards
-    printRewards( scene_const )
+    printRewards( scene_const, options )
 
     # Print Speed Infos
     printSpdInfo()
@@ -305,7 +316,7 @@ if __name__ == "__main__":
 
 
     # Set Sampling time
-    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.025, vrep.simx_opmode_oneshot)
+    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, scene_const.dt , vrep.simx_opmode_oneshot)
 
     # start simulation
     vrep.simxSynchronous(clientID,True)
@@ -545,9 +556,9 @@ if __name__ == "__main__":
         ####
         # Step
         ####
-        for q in range(0,options.FIX_INPUT_STEP):
+
+        for q in range(0,FIX_INPUT_STEP):
             vrep.simxSynchronousTrigger(clientID);
-        #syncTrigger( scene_const, options.FIX_INPUT_STEP )
 
         if options.manual == True:
             input('Press Enter')
@@ -585,7 +596,6 @@ if __name__ == "__main__":
             #print('')
             agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const, save=True)
             
-             
         ###
         # Handle Events
         ###
@@ -655,7 +665,6 @@ if __name__ == "__main__":
 
         # Detect being stuck
         #   Not coded yet.
-        
         
         ###########
         # START LEARNING
