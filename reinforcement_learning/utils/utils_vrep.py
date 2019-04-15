@@ -106,7 +106,7 @@ def applySteeringAction(action_stack, options, handle_dict, scene_const):
     #  action = [0,1,0,0,0]
     #  desired_angle is VEH_COUNT x 1 array
     desired_angle = scene_const.max_steer - np.argmax(action_stack,1) * action_delta
-    
+   
     # Set steering position
     setMotorPosition(scene_const.clientID, steer_handle, desired_angle)
     
@@ -225,3 +225,15 @@ def getSensorHandles( options, scene_const ):
             k = k+1
 
     return sensor_handle
+
+
+##################################
+# Handling Simulation
+##################################
+# Input:
+#   step #
+#def syncTrigger(scene_const, step_num):
+    #emptyBuff = bytearray()
+    #_, _, _, _, _ = vrep.simxCallScriptFunction(scene_const.clientID,'remoteApiCommandServer',vrep.sim_scripttype_childscript,'advanceSim_function',[ step_num ], [],[],emptyBuff,vrep.simx_opmode_blocking)
+    #
+    #return

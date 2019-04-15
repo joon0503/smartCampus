@@ -20,12 +20,13 @@ import matplotlib.pyplot as plt
 class ICM:
     def __init__(self, options, scene_const, name):
         # General Variables for plotting
-        self.fig = plt.figure()
+        self.fig = plt.figure( figsize=(2,16) )
         self.ax = self.fig.add_subplot(111)
         self.data_x = []
         self.data_y = []
         self.data_arrow_x = []
         self.data_arrow_y = []
+        self.plot_counter = 0       # variable for numbering the plot for estimation
 
         ########################
         # NEURAL NET
@@ -134,7 +135,7 @@ class ICM:
     #                we use gamma and 0 deg -> front, +90 deg -> right, -90 deg -> left
     #   scene_const: scene constants as the class
 
-    def plotEstimate(self, curr_state, action, veh_heading, scene_const):
+    def plotEstimate(self, curr_state, action, veh_heading, scene_const, save = False):
         ####################
         # Proccess Data
         ####################
@@ -261,13 +262,18 @@ class ICM:
  
         # Figure Properties
         self.ax.set_xlim(-6,6) 
-        self.ax.set_ylim(0,60) 
+        self.ax.set_ylim(0,80) 
         self.ax.legend()
 
         # Draw
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
+    
+        # Save
+        if save == True:
+            self.fig.savefig('./test_dir/plot_' + str(self.plot_counter).zfill(3) + '.png')
+            self.plot_counter = self.plot_counter + 1
         return
 
     # Compute data required for plotting from state and action values

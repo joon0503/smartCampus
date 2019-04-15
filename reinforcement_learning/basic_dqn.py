@@ -539,6 +539,7 @@ if __name__ == "__main__":
                                                     options,
                                                     False
                                                  )
+
         applySteeringAction( action_stack, options, handle_dict, scene_const )
 
         ####
@@ -546,6 +547,7 @@ if __name__ == "__main__":
         ####
         for q in range(0,options.FIX_INPUT_STEP):
             vrep.simxSynchronousTrigger(clientID);
+        #syncTrigger( scene_const, options.FIX_INPUT_STEP )
 
         if options.manual == True:
             input('Press Enter')
@@ -581,7 +583,7 @@ if __name__ == "__main__":
             #print('next_state:', next_state)
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
             #print('')
-            agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const)
+            agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const, save=True)
             
              
         ###
