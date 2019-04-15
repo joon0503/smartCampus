@@ -147,4 +147,16 @@ getVehicleState_function=function(inInts,inFloats,inStrings,inBuffer)
     return {},data,{},'' -- return a string that contains the return value of the code execution
 end
 
+--inInts:
+--  inInts : [ veh1 left1, veh1 right, veh2 left, veh2 right... ]
+--  inFloats: [veh1 angle, veh2 angle, ...]
+-- Output
+setJointPos_function=function(inInts,inFloats,inStrings,inBuffer)
+    -- loop through desired angle
+    for k=1, #inFloats do
+        sim.setJointTargetPosition( inInts[2*k], inFloats[k] )        -- left
+        sim.setJointTargetPosition( inInts[2*k-1], inFloats[k] )      -- right
+    end
+    return {},{},{},'' -- return a string that contains the return value of the code execution
+end
 
