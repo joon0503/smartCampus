@@ -103,7 +103,7 @@ class data_pack:
         # Mean
         ax1.plot(x_coord, np.mean(roll,-1))
         # Std Dev
-        ax1.fill_between(x_coord, np.mean(roll,-1) + np.std(roll), np.mean(roll,-1) - np.std(roll), alpha = 0.5)
+        ax1.fill_between(x_coord, np.mean(roll,-1) + np.std(roll,-1), np.mean(roll,-1) - np.std(roll,-1), alpha = 0.5)
 
         ax1.set_title("Running Average of Episode Reward (Window:" + str(running_avg) + ')')
         ax1.set_xlabel("Episode")
