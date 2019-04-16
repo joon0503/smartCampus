@@ -277,6 +277,9 @@ if __name__ == "__main__":
     START_TIME_STR   = str(START_TIME).replace(" ","_")
     START_TIME_STR   = str(START_TIME).replace(":","_")
 
+    # Randomize obstacle position at initScene
+    RANDOMIZE = False
+
     # Get client ID
     vrep.simxFinish(-1) 
     clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
@@ -480,7 +483,7 @@ if __name__ == "__main__":
  
     # Initialize Scene
 
-    initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = True)               # initialize
+    initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
 
     # List of deque to store data
     sensor_queue = []
@@ -763,7 +766,7 @@ if __name__ == "__main__":
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
 
         # Reset Vehicles    
-        initScene( scene_const, options, reset_veh_list, handle_dict, randomize = True)               # initialize
+        initScene( scene_const, options, reset_veh_list, handle_dict, randomize = RANDOMIZE)               # initialize
 
         # Reset data queue
         _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
@@ -832,7 +835,7 @@ if __name__ == "__main__":
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = True)               # initialize
+            initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
 
             # reset data queue
             _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
