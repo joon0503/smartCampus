@@ -173,7 +173,7 @@ def getVehicleState( veh_index, scene_const ):
 #   veh_pos (options.VEH_COUNT x 2)
 #   veh_heading (options.VEH_COUNT x 1) [-1,1] -1 if right, 0 if front, 1 if left
 #   dDistance (options.VEH_COUNT x SENSOR_COUNT)
-#   gInfo (options.VEH_COUNT x 2)
+#   gInfo (options.VEH_COUNT x 2) [goal angle, goal distance]
 def getVehicleStateLUA( handle_list, scene_const):
     emptyBuff = bytearray()
 

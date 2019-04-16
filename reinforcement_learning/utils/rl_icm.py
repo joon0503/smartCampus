@@ -107,9 +107,10 @@ class ICM:
             ## END Constructing Neural Network
             ######################################:
 
-            # Loss Scaling Factor. Scale Angle by 100. \sum (w_i x_i)^2
+            # Loss Scaling Factor. \sum (w_i x_i)^2
             loss_scale = np.ones( scene_const.sensor_count+2 )*10
-            loss_scale[scene_const.sensor_count] = 10e4                                 # error for angle
+            loss_scale[scene_const.sensor_count] = 2000                                   # error for angle
+            loss_scale[scene_const.sensor_count+1] = 100                                 # error for distance
             loss_scale = np.reshape(loss_scale, [-1, scene_const.sensor_count + 2] )
 
             # Loss for Optimization
@@ -177,7 +178,7 @@ class ICM:
         ####################
         # Get Estimate 
         ####################
-        max_horizon = 4
+        max_horizon = 2
 
         # Array storing x,y position of estimate
         state_estimate_x = []

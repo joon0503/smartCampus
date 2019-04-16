@@ -42,6 +42,8 @@ def getGoalPoint( veh_index, scene_const ):
     return goal_angle, goal_distance / scene_const.goal_distance
 
 # veh_pos_info: (options.VEH_COUNT x 2)
+#   output
+#       [goal_angle, goal_distance]
 def getGoalInfo( veh_pos_info, goal_pos_info, scene_const ):
     # Calculate the distance
     delta_distance = goal_pos_info - veh_pos_info              # delta x, delta y

@@ -100,6 +100,9 @@ class data_pack:
         roll     = rolling_window(self.epi_reward,running_avg)
         roll_eps = rolling_window(self.eps,running_avg)
 
+        print('roll:', roll)
+        print('mean:', np.mean(roll,-1))
+        print('std:', np.std(roll,-1))
         # Mean
         ax1.plot(x_coord, np.mean(roll,-1))
         # Std Dev
