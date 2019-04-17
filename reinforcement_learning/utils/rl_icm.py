@@ -136,7 +136,7 @@ class ICM:
     #                we use gamma and 0 deg -> front, +90 deg -> right, -90 deg -> left
     #   scene_const: scene constants as the class
 
-    def plotEstimate(self, curr_state, action, veh_heading, scene_const, save = False):
+    def plotEstimate(self, curr_state, action, veh_heading, scene_const, agent_train, options, save = False):
         ####################
         # Proccess Data
         ####################
@@ -215,8 +215,18 @@ class ICM:
                 radar_est_x_col[i][k] = scene_const.collision_distance*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x
                 radar_est_y_col[i][k] = scene_const.collision_distance*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y
 
+            # Get new optimal action from estimated state
+            new_action = agent_train.sample_action(
+                                                {
+                                                    agent_train.observation : np.reshape(temp_state, (1,-1))
+                                                },
+                                                0,      # Get optimal action
+                                                options,
+                                                False
+                                             )
+
             # Update curr state for next estimation
-            curr_state_concat = np.reshape(np.concatenate([temp_state, action]), [-1, (scene_const.sensor_count+2) + 5])
+            curr_state_concat = np.reshape(np.concatenate([temp_state, new_action]), [-1, (scene_const.sensor_count+2) + 5])
 
 
 
