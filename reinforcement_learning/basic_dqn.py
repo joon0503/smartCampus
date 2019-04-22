@@ -105,7 +105,7 @@ def get_options():
                         help='VREP simulation time step in seconds. Upto 0.001 seconds')
     options = parser.parse_args()
 
-    return options
+    return parser, options
 
 
 ##################################
@@ -249,7 +249,8 @@ def printSpdInfo():
 # MAIN
 ########################
 if __name__ == "__main__":
-    options = get_options()
+    # Print Options
+    parser, options = get_options()
     print(str(options).replace(" ",'\n'))
 
     # Define fix input step
@@ -301,13 +302,13 @@ if __name__ == "__main__":
     if not os.path.exists("./checkpoints-vehicle"):
         os.makedirs("./checkpoints-vehicle")
     option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
-    option_file.write(
-        re.sub(
-            r', ',
-            r'\n',
-            str(options)
-        )
-    )
+
+    # For each option
+    for x in sorted(vars(options).keys()):
+        option_file.write( str(x).ljust(20) + ": " + str(vars(options)[x]).ljust(10) )   # write option
+        if vars(options)[x] == parser.get_default(x):       # if default value
+            option_file.write( '(DEFAULT)' )                # say it is default
+        option_file.write('\n')
     option_file.close()
 
     # Print Rewards
@@ -704,6 +705,9 @@ if __name__ == "__main__":
                 actions_mb_hot = np.zeros((options.BATCH_SIZE,options.ACTION_DIM))
                 actions_mb_hot[np.arange(options.BATCH_SIZE),actions_mb] = 1
 
+                # actions converted to value array
+                actions_mb_val = oneHot2Angle( actions_mb_hot, scene_const, options, radians = False, scale = True )
+
                 # Get Target Q-Value
                 feed.clear()
                 feed.update({agent_train.observation : next_states_mb})
@@ -743,6 +747,7 @@ if __name__ == "__main__":
                 #with tf.variable_scope("Training"):   
                 # Train RL         
                 step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+
 
                 # Train forward model
                 feed_icm.clear()

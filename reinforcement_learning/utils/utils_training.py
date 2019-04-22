@@ -102,3 +102,33 @@ def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_li
                 goal_queue[v].popleft()
 
     return sensor_queue, goal_queue
+
+##################################
+# Miscellaneous Functions
+##################################
+# Input 
+#   action_hot : One hot encoded input
+#                2-d array with [?, ACTION_DIM]
+#   scene_const
+#   radians : if true output in radians with 0 being front
+#   scale   : scale action to [-1,1]
+# Output
+#   - outputs angle in degrees (or radians) with 0 being front, negative on left, positive on right
+#   - size [1,?]
+def oneHot2Angle( action_hot, scene_const, options, radians = False, scale = False ):
+    action_delta = (scene_const.max_steer - scene_const.min_steer) / (options.ACTION_DIM-1)
+
+    # Calculate desired angle
+    #  action = [0,1,0,0,0]
+    desired_angle = scene_const.min_steer + np.argmax(action_hot,1) * action_delta
+ 
+    if scale == True: 
+        # Return scaled vvalue
+        return np.divide(desired_angle, scene_const.max_steer )        
+    elif radians == True:
+        # Return radian
+        return np.radians(desired_angle) 
+    else:
+        # Return degree
+        return desired_angle 
+
