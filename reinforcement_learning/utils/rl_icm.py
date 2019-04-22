@@ -49,11 +49,12 @@ class ICM:
             ######################################:
 
             # Inputs
-            # Input is [s_{t}, a_{t}]
+            # Input is [s_{t}, a_{t}] where s_t is the lidar measurements + goal and action is single number converetd to value from one hot encoding
             
             # Outputs
             # [\hat{s}_{t+1}]
 
+            #self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2) + 1], name='icm_input')
             self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2) + options.ACTION_DIM], name='icm_input')
             self.actual_state   = tf.placeholder(tf.float32, [None, (scene_const.sensor_count)+2], name='icm_target')
 
@@ -101,15 +102,23 @@ class ICM:
                                               kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                               name="est_g_angle"
                                          )
+            # Scaled version of the next position
+            #self.est_veh_xy = tf.layers.dense( inputs=self.h_s3,
+                                              #units=2,
+                                              #activation = None,
+                                              #kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                              #name="est_veh_xy"
+                                         #)
 
             self.est_combined = tf.concat([self.est_sensor, self.est_goal_dist, self.est_goal_angle], -1)
+            #self.est_combined = tf.concat([self.est_sensor, self.est_veh_xy], -1)
             ######################################:
             ## END Constructing Neural Network
             ######################################:
 
             # Loss Scaling Factor. \sum (w_i x_i)^2
             loss_scale = np.ones( scene_const.sensor_count+2 )*10
-            loss_scale[scene_const.sensor_count] = 2000                                   # error for angle
+            loss_scale[scene_const.sensor_count] = 3000                                   # error for angle
             loss_scale[scene_const.sensor_count+1] = 100                                 # error for distance
             loss_scale = np.reshape(loss_scale, [-1, scene_const.sensor_count + 2] )
 
