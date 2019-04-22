@@ -290,12 +290,12 @@ if __name__ == "__main__":
 
     # Set scene_constants
     scene_const = scene_constants()
-    scene_const.max_distance        = 20
-    scene_const.sensor_count        = 9
+    #scene_const.max_distance        = 20
+    #scene_const.sensor_count        = 9
     scene_const.clientID            = clientID
-    scene_const.max_steer           = 15
-    scene_const.collision_distance  = 1.3
-    scene_const.goal_distance       = 60
+    #scene_const.max_steer           = 15
+    #scene_const.collision_distance  = 1.3
+    #scene_const.goal_distance       = 60
     scene_const.dt                  = options.SIM_STEP         #simulation time step
 
     # Save options
@@ -377,7 +377,6 @@ if __name__ == "__main__":
     # TF Setup
     ##############
     # Define placeholders to catch inputs and add options
-    options         = get_options()
     agent_train     = QAgent(options,scene_const, 'Training')
     agent_target    = QAgent(options,scene_const, 'Target')
     agent_icm       = ICM(options,scene_const,'icm_Training')

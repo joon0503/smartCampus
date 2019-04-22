@@ -180,9 +180,9 @@ def getVehicleStateLUA( handle_list, scene_const):
     res,retInts,retFloats,retStrings,retBuffer=vrep.simxCallScriptFunction(scene_const.clientID,'remoteApiCommandServer',vrep.sim_scripttype_childscript,'getVehicleState_function',handle_list,[],[],emptyBuff,vrep.simx_opmode_blocking)
 
     # Unpack Data
-    out_data = np.reshape(retFloats, (-1,18))       # Reshape such that each row is 18 elements. 3 for pos, 3 for ori, 9 for sensor, 3 for goal pos
+    out_data = np.reshape(retFloats, (-1,3 + 3 + scene_const.sensor_count + 3))       # Reshape such that each row is 18 elements. 3 for pos, 3 for ori, 9 for sensor, 3 for goal pos
 
-    return out_data[:,0:2], ((out_data[:,5]-math.pi*0.5)/scene_const.angle_scale), out_data[:,6:6+scene_const.sensor_count]/scene_const.max_distance, np.transpose( getGoalInfo( out_data[:,0:2], out_data[:,15:17], scene_const ) )
+    return out_data[:,0:2], ((out_data[:,5]-math.pi*0.5)/scene_const.angle_scale), out_data[:,6:6+scene_const.sensor_count]/scene_const.max_distance, np.transpose( getGoalInfo( out_data[:,0:2], out_data[:,-3:-1], scene_const ) )
 
 
 ##################################
