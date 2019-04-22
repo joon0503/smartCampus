@@ -706,7 +706,7 @@ if __name__ == "__main__":
                 actions_mb_hot[np.arange(options.BATCH_SIZE),actions_mb] = 1
 
                 # actions converted to value array
-                actions_mb_val = oneHot2Angle( actions_mb_hot, scene_const, options, radians = False, scale = True )
+                #actions_mb_val = oneHot2Angle( actions_mb_hot, scene_const, options, radians = False, scale = True )
 
                 # Get Target Q-Value
                 feed.clear()
