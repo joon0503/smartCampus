@@ -85,7 +85,7 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=0,
+    parser.add_argument('--GOAL_REW', type=int, default=500,
                         help='Activation function')
     parser.add_argument('--FAIL_REW', type=int, default=-2000,
                         help='Activation function')
@@ -103,6 +103,8 @@ def get_options():
                         help='Control frequency in seconds. Upto 0.001 seconds')
     parser.add_argument('--SIM_STEP', type=float, default=0.025,
                         help='VREP simulation time step in seconds. Upto 0.001 seconds')
+    parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.2,
+                        help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     options = parser.parse_args()
 
     return parser, options
@@ -582,8 +584,8 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            reward_stack[v] = -options.DIST_MUL*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
-
+            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2
+            # cost is the distance squared + inverse of minimum LIDAR distance
         #######
         # Test Estimation
         #######
