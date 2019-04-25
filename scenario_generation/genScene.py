@@ -102,7 +102,7 @@ else:
     sys.exit()
   
 
-COPY_NUM = 20
+COPY_NUM = 1
 SENSOR_COUNT = 9
 
 err_code,dyros_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
@@ -129,7 +129,7 @@ for i in range(0,COPY_NUM):
         print(str(s))
         err_code1, sensor_handle = vrep.simxCopyPasteObjects(clientID,[sensor_handle_array[0]], vrep.simx_opmode_blocking)
         vrep.simxSetObjectParent(clientID,sensor_handle[0],vehicle_handle,False,vrep.simx_opmode_blocking)
-        ret_code = vrep.simxSetObjectPosition(clientID,sensor_handle[0],vehicle_handle,[1.5,0,0.7],vrep.simx_opmode_blocking)
+        ret_code = vrep.simxSetObjectPosition(clientID,sensor_handle[0],vehicle_handle,[1.5,0,0.1],vrep.simx_opmode_blocking)
         vrep.simxSetObjectOrientation(clientID,sensor_handle[0],vehicle_handle,[-math.pi/2,RAD_DT*s,0],vrep.simx_opmode_oneshot)
         sensor_handle_array = np.append(sensor_handle_array,sensor_handle)   
 
