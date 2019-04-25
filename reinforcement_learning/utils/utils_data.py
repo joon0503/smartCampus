@@ -100,10 +100,13 @@ class data_pack:
         roll     = rolling_window(self.epi_reward,running_avg)
         roll_eps = rolling_window(self.eps,running_avg)
 
+        print('roll:', roll)
+        print('mean:', np.mean(roll,-1))
+        print('std:', np.std(roll,-1))
         # Mean
         ax1.plot(x_coord, np.mean(roll,-1))
         # Std Dev
-        ax1.fill_between(x_coord, np.mean(roll,-1) + np.std(roll), np.mean(roll,-1) - np.std(roll), alpha = 0.5)
+        ax1.fill_between(x_coord, np.mean(roll,-1) + np.std(roll,-1), np.mean(roll,-1) - np.std(roll,-1), alpha = 0.5)
 
         ax1.set_title("Running Average of Episode Reward (Window:" + str(running_avg) + ')')
         ax1.set_xlabel("Episode")
@@ -112,8 +115,8 @@ class data_pack:
         # Second y-axis for reward
         ax2 = ax1.twinx()
         # EPS
-        print(x_coord)
-        print(np.mean(roll_eps,-1))
+        #print(x_coord)
+        #print(np.mean(roll_eps,-1))
         ax2.plot(x_coord, np.mean(roll_eps,-1), color='red', label='eps')
         ax2.set_ylabel('epsilon')
         ax2.set_ylim(0,1)

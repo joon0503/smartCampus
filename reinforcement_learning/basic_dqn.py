@@ -25,6 +25,7 @@ from utils.rl_icm import ICM
 from utils.experience_replay import SumTree 
 from utils.experience_replay import Memory
 from utils.utils_data import data_pack
+from utils.scene_2LC import *
 
 def get_options():
     parser = ArgumentParser(
@@ -54,8 +55,6 @@ def get_options():
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=20000,
                         help='Save network after this number of episodes')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=8,
-                        help='Fix chosen input for this number of steps')
     parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
@@ -86,7 +85,7 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=0,
+    parser.add_argument('--GOAL_REW', type=int, default=500,
                         help='Activation function')
     parser.add_argument('--FAIL_REW', type=int, default=-2000,
                         help='Activation function')
@@ -98,8 +97,17 @@ def get_options():
                         help='Multiplier for rewards based on the distance to the goal')
     parser.add_argument('--EXPORT', action='store_true', default=False,
                         help='Export the weights into a csv file')
+    parser.add_argument('--SEED', type=int, default=1,
+                        help='Set simulation seed')
+    parser.add_argument('--CTR_FREQ', type=float, default=0.2,
+                        help='Control frequency in seconds. Upto 0.001 seconds')
+    parser.add_argument('--SIM_STEP', type=float, default=0.025,
+                        help='VREP simulation time step in seconds. Upto 0.001 seconds')
+    parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.2,
+                        help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     options = parser.parse_args()
-    return options
+
+    return parser, options
 
 
 ##################################
@@ -146,21 +154,20 @@ def getObs( sensor_queue, goal_queue, old=True):
     return observation
 
 # Calculate Approximate Rewards for variaous cases
-def printRewards( scene_const ):
+def printRewards( scene_const, options ):
     # Some parameters
     veh_speed = options.INIT_SPD/3.6  # 10km/hr in m/s
 
     # Time Steps
-    dt = 0.025
-    dt_code = dt * options.FIX_INPUT_STEP
+    #dt_code = scene_const.dt * options.FIX_INPUT_STEP
 
     # Expected Total Time Steps
-    total_step = (60/veh_speed)*(1/dt_code)
+    total_step = (60/veh_speed)*(1/options.CTR_FREQ)
 
     # Reward at the end
     rew_end = 0
     for i in range(0, int(total_step)):
-        goal_distance = 60 - i*dt_code*veh_speed 
+        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
         if i != total_step-1:
             rew_end = rew_end -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -169,7 +176,7 @@ def printRewards( scene_const ):
     # Reward at Obs
     rew_obs = 0
     for i in range(0, int(total_step*0.5)):
-        goal_distance = 60 - i*dt_code*veh_speed 
+        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.5)-1:
             rew_obs = rew_obs -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -178,7 +185,7 @@ def printRewards( scene_const ):
     # Reward at 75%
     rew_75 = 0
     for i in range(0, int(total_step*0.75)):
-        goal_distance = 60 - i*dt_code*veh_speed 
+        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.75)-1:
             rew_75 = rew_75 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -187,7 +194,7 @@ def printRewards( scene_const ):
     # Reward at 25%
     rew_25 = 0
     for i in range(0, int(total_step*0.25)):
-        goal_distance = 60 - i*dt_code*veh_speed 
+        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.25)-1:
             rew_25 = rew_25 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -205,6 +212,7 @@ def printRewards( scene_const ):
     print("======================================")
     print("        REWARD ESTIMATION")
     print("======================================")
+    print("Control Frequency (s)  : ", options.CTR_FREQ)
     print("Expected Total Step    : ", total_step)
     print("Expected Reward (25)   : ", rew_25)
     print("Expected Reward (Obs)  : ", rew_obs)
@@ -236,53 +244,6 @@ def printSpdInfo():
 # TRAINING
 #################################33/
 
-# Initialize to original scene
-# Input:
-#   veh_index: list of indicies of vehicles
-def initScene( veh_index_list, sensor_handle, randomize = False):
-    for veh_index in veh_index_list:
-        vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], vrep.sim_modelproperty_not_dynamic , vrep.simx_opmode_blocking   )         # Disable dynamic
-        # Reset position of vehicle. Randomize x-position if enabled
-        if randomize == False:
-            err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20-3 + 0,0,0.2],vrep.simx_opmode_blocking)
-        else:
-            x_pos = random.uniform(-1,-3)
-            err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle[veh_index],-1,[veh_index*20 + x_pos,0,0.2],vrep.simx_opmode_blocking)
-
-        # Reset Orientation of vehicle
-        err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle[veh_index],-1,[0,0,math.radians(90)],vrep.simx_opmode_blocking)
-
-        # Reset position of motors & steering
-        setMotorPosition(clientID, steer_handle[veh_index], 0)
-
-    vrep.simxSynchronousTrigger(clientID);                              # Step one simulation while dynamics disabled to move object
-
-    for veh_index in veh_index_list:
-        vrep.simxSetModelProperty( clientID, vehicle_handle[veh_index], 0 , vrep.simx_opmode_blocking   )      # enable dynamics
-
-        # Reset motor speed
-        setMotorSpeed(clientID, motor_handle[veh_index], options.INIT_SPD)
-
-        # Set initial speed of vehicle
-        vrep.simxSetObjectFloatParameter(clientID, vehicle_handle[veh_index], vrep.sim_shapefloatparam_init_velocity_y, options.INIT_SPD/3.6, vrep.simx_opmode_blocking)
-       
-        # Read sensor
-        dState, dDistance = readSensor(sensor_handle[veh_index], scene_const, vrep.simx_opmode_buffer)         # try it once for initialization
-
-        # Reset position of obstacle
-        if randomize == True:
-            if random.random() > 0.5:
-                err_code = vrep.simxSetObjectPosition(clientID,obs_handle[veh_index],-1,[veh_index*20 + -3.3,30,1.1],vrep.simx_opmode_blocking)
-            else:
-                err_code = vrep.simxSetObjectPosition(clientID,obs_handle[veh_index],-1,[veh_index*20 + 1.675,30,1.1],vrep.simx_opmode_blocking)
-        
-        # Reset position of dummy    
-        if randomize == False:
-            pass
-        else:
-            pass
-    #        x_pos = random.uniform(-1,-7.25)
-    #        err_code = vrep.simxSetObjectPosition(clientID,dummy_handle,-1,[x_pos,60,0.2],vrep.simx_opmode_blocking)
 
 
 
@@ -290,8 +251,16 @@ def initScene( veh_index_list, sensor_handle, randomize = False):
 # MAIN
 ########################
 if __name__ == "__main__":
-    options = get_options()
+    # Print Options
+    parser, options = get_options()
     print(str(options).replace(" ",'\n'))
+
+    # Define fix input step
+    FIX_INPUT_STEP = int( (1000*options.CTR_FREQ)/(1000*options.SIM_STEP) )
+    print('FIX_INPUT_STEP : ', FIX_INPUT_STEP)
+     
+    if int(1000*options.CTR_FREQ) % int(1000*options.SIM_STEP) != 0:
+        raise ValueError('CTR_FREQ must be a integer multiple of SIM_STEP! Currently CTR_FREQ % SIM_STEP = ' + str(options.CTR_FREQ % options.SIM_STEP) )
 
     # Set Seed
     np.random.seed(1)
@@ -311,6 +280,9 @@ if __name__ == "__main__":
     START_TIME_STR   = str(START_TIME).replace(" ","_")
     START_TIME_STR   = str(START_TIME).replace(":","_")
 
+    # Randomize obstacle position at initScene
+    RANDOMIZE = False
+
     # Get client ID
     vrep.simxFinish(-1) 
     clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
@@ -320,28 +292,29 @@ if __name__ == "__main__":
 
     # Set scene_constants
     scene_const = scene_constants()
-    scene_const.max_distance        = 20
-    scene_const.sensor_count        = 9
+    #scene_const.max_distance        = 20
+    #scene_const.sensor_count        = 9
     scene_const.clientID            = clientID
-    scene_const.max_steer           = 15
-    scene_const.collision_distance  = 1.3
-    scene_const.goal_distance       = 60
+    #scene_const.max_steer           = 15
+    #scene_const.collision_distance  = 1.3
+    #scene_const.goal_distance       = 60
+    scene_const.dt                  = options.SIM_STEP         #simulation time step
 
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
         os.makedirs("./checkpoints-vehicle")
     option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
-    option_file.write(
-        re.sub(
-            r', ',
-            r'\n',
-            str(options)
-        )
-    )
+
+    # For each option
+    for x in sorted(vars(options).keys()):
+        option_file.write( str(x).ljust(20) + ": " + str(vars(options)[x]).ljust(10) )   # write option
+        if vars(options)[x] == parser.get_default(x):       # if default value
+            option_file.write( '(DEFAULT)' )                # say it is default
+        option_file.write('\n')
     option_file.close()
 
     # Print Rewards
-    printRewards( scene_const )
+    printRewards( scene_const, options )
 
     # Print Speed Infos
     printSpdInfo()
@@ -349,7 +322,7 @@ if __name__ == "__main__":
 
 
     # Set Sampling time
-    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, 0.025, vrep.simx_opmode_oneshot)
+    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, scene_const.dt , vrep.simx_opmode_oneshot)
 
     # start simulation
     vrep.simxSynchronous(clientID,True)
@@ -383,6 +356,16 @@ if __name__ == "__main__":
     for v in range(0,options.VEH_COUNT):
         handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
 
+    # Make handle into dict to be passed around functions
+    handle_dict = {
+        'sensor'    : sensor_handle,
+        'motor'     : motor_handle,
+        'steer'     : steer_handle,
+        'vehicle'   : vehicle_handle,
+        'dummy'     : dummy_handle,
+        'obstacle'  : obs_handle
+    }
+
     ########################
     # Initialize Test Scene
     ########################
@@ -396,7 +379,6 @@ if __name__ == "__main__":
     # TF Setup
     ##############
     # Define placeholders to catch inputs and add options
-    options         = get_options()
     agent_train     = QAgent(options,scene_const, 'Training')
     agent_target    = QAgent(options,scene_const, 'Target')
     agent_icm       = ICM(options,scene_const,'icm_Training')
@@ -503,7 +485,7 @@ if __name__ == "__main__":
  
     # Initialize Scene
 
-    initScene( list(range(0,options.VEH_COUNT)), sensor_handle, randomize = True)               # initialize
+    initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
 
     # List of deque to store data
     sensor_queue = []
@@ -548,6 +530,7 @@ if __name__ == "__main__":
         ####
         # Find & Apply Action
         ####
+        # FIXME: This can be made faster by not using loop and just pushing through network all at once
         for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
             observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
@@ -572,12 +555,14 @@ if __name__ == "__main__":
                                                     options,
                                                     False
                                                  )
-            applySteeringAction( action_stack[v], v, options, steer_handle, scene_const )
+
+        applySteeringAction( action_stack, options, handle_dict, scene_const )
 
         ####
         # Step
         ####
-        for q in range(0,options.FIX_INPUT_STEP):
+
+        for q in range(0,FIX_INPUT_STEP):
             vrep.simxSynchronousTrigger(clientID);
 
         if options.manual == True:
@@ -599,8 +584,8 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            reward_stack[v] = -options.DIST_MUL*next_gInfo[v][1]**2        # cost is the distance squared + time it survived
-
+            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2
+            # cost is the distance squared + inverse of minimum LIDAR distance
         #######
         # Test Estimation
         #######
@@ -614,9 +599,8 @@ if __name__ == "__main__":
             #print('next_state:', next_state)
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
             #print('')
-            agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const)
+            agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const, agent_train, options, save=True)
             
-             
         ###
         # Handle Events
         ###
@@ -687,7 +671,6 @@ if __name__ == "__main__":
         # Detect being stuck
         #   Not coded yet.
         
-        
         ###########
         # START LEARNING
         ###########
@@ -722,6 +705,9 @@ if __name__ == "__main__":
                 # actions mb is list of numbers. Need to change it into one hot encoding
                 actions_mb_hot = np.zeros((options.BATCH_SIZE,options.ACTION_DIM))
                 actions_mb_hot[np.arange(options.BATCH_SIZE),actions_mb] = 1
+
+                # actions converted to value array
+                #actions_mb_val = oneHot2Angle( actions_mb_hot, scene_const, options, radians = False, scale = True )
 
                 # Get Target Q-Value
                 feed.clear()
@@ -763,6 +749,7 @@ if __name__ == "__main__":
                 # Train RL         
                 step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
 
+
                 # Train forward model
                 feed_icm.clear()
                 feed_icm.update({agent_icm.observation  : np.concatenate([states_mb, actions_mb_hot],-1) } )
@@ -785,7 +772,7 @@ if __name__ == "__main__":
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
 
         # Reset Vehicles    
-        initScene( reset_veh_list, sensor_handle, randomize = True)               # initialize
+        initScene( scene_const, options, reset_veh_list, handle_dict, randomize = RANDOMIZE)               # initialize
 
         # Reset data queue
         _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
@@ -854,7 +841,7 @@ if __name__ == "__main__":
             vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
             vrep.simxSynchronous(clientID,True)
             time.sleep(1.0)
-            initScene( list(range(0,options.VEH_COUNT)), sensor_handle, randomize = True)               # initialize
+            initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
 
             # reset data queue
             _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )

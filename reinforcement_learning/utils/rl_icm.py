@@ -20,12 +20,13 @@ import matplotlib.pyplot as plt
 class ICM:
     def __init__(self, options, scene_const, name):
         # General Variables for plotting
-        self.fig = plt.figure()
+        self.fig = plt.figure( figsize=(2,16) )
         self.ax = self.fig.add_subplot(111)
         self.data_x = []
         self.data_y = []
         self.data_arrow_x = []
         self.data_arrow_y = []
+        self.plot_counter = 0       # variable for numbering the plot for estimation
 
         ########################
         # NEURAL NET
@@ -48,11 +49,12 @@ class ICM:
             ######################################:
 
             # Inputs
-            # Input is [s_{t}, a_{t}]
+            # Input is [s_{t}, a_{t}] where s_t is the lidar measurements + goal and action is single number converetd to value from one hot encoding
             
             # Outputs
             # [\hat{s}_{t+1}]
 
+            #self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2) + 1], name='icm_input')
             self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2) + options.ACTION_DIM], name='icm_input')
             self.actual_state   = tf.placeholder(tf.float32, [None, (scene_const.sensor_count)+2], name='icm_target')
 
@@ -100,15 +102,24 @@ class ICM:
                                               kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                               name="est_g_angle"
                                          )
+            # Scaled version of the next position
+            #self.est_veh_xy = tf.layers.dense( inputs=self.h_s3,
+                                              #units=2,
+                                              #activation = None,
+                                              #kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                              #name="est_veh_xy"
+                                         #)
 
             self.est_combined = tf.concat([self.est_sensor, self.est_goal_dist, self.est_goal_angle], -1)
+            #self.est_combined = tf.concat([self.est_sensor, self.est_veh_xy], -1)
             ######################################:
             ## END Constructing Neural Network
             ######################################:
 
-            # Loss Scaling Factor. Scale Angle by 100. \sum (w_i x_i)^2
+            # Loss Scaling Factor. \sum (w_i x_i)^2
             loss_scale = np.ones( scene_const.sensor_count+2 )*10
-            loss_scale[scene_const.sensor_count] = 10e4                                 # error for angle
+            loss_scale[scene_const.sensor_count] = 4000                                   # error for angle
+            loss_scale[scene_const.sensor_count+1] = 100                                 # error for distance
             loss_scale = np.reshape(loss_scale, [-1, scene_const.sensor_count + 2] )
 
             # Loss for Optimization
@@ -134,7 +145,7 @@ class ICM:
     #                we use gamma and 0 deg -> front, +90 deg -> right, -90 deg -> left
     #   scene_const: scene constants as the class
 
-    def plotEstimate(self, curr_state, action, veh_heading, scene_const):
+    def plotEstimate(self, curr_state, action, veh_heading, scene_const, agent_train, options, save = False):
         ####################
         # Proccess Data
         ####################
@@ -176,7 +187,7 @@ class ICM:
         ####################
         # Get Estimate 
         ####################
-        max_horizon = 4
+        max_horizon = 5
 
         # Array storing x,y position of estimate
         state_estimate_x = []
@@ -213,8 +224,18 @@ class ICM:
                 radar_est_x_col[i][k] = scene_const.collision_distance*np.sin( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_x
                 radar_est_y_col[i][k] = scene_const.collision_distance*np.cos( -1*veh_heading*scene_const.angle_scale + scene_const.sensor_min_angle + k*scene_const.sensor_delta ) + temp_y
 
+            # Get new optimal action from estimated state
+            new_action = agent_train.sample_action(
+                                                {
+                                                    agent_train.observation : np.reshape(temp_state, (1,-1))
+                                                },
+                                                0,      # Get optimal action
+                                                options,
+                                                False
+                                             )
+
             # Update curr state for next estimation
-            curr_state_concat = np.reshape(np.concatenate([temp_state, action]), [-1, (scene_const.sensor_count+2) + 5])
+            curr_state_concat = np.reshape(np.concatenate([temp_state, new_action]), [-1, (scene_const.sensor_count+2) + 5])
 
 
 
@@ -261,13 +282,18 @@ class ICM:
  
         # Figure Properties
         self.ax.set_xlim(-6,6) 
-        self.ax.set_ylim(0,60) 
+        self.ax.set_ylim(0,80) 
         self.ax.legend()
 
         # Draw
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
+    
+        # Save
+        if save == True:
+            self.fig.savefig('./image_dir/plot_' + str(self.plot_counter).zfill(3) + '.png')
+            self.plot_counter = self.plot_counter + 1
         return
 
     # Compute data required for plotting from state and action values

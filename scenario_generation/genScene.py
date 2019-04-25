@@ -102,7 +102,9 @@ else:
     sys.exit()
   
 
-COPY_NUM = 10
+COPY_NUM = 1
+SENSOR_COUNT = 9
+
 err_code,dyros_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
 
 for i in range(0,COPY_NUM):
@@ -115,7 +117,6 @@ for i in range(0,COPY_NUM):
     print(i*20)
 
     # Create Sensors
-    SENSOR_COUNT = 9
     RAD_DT = math.pi/(SENSOR_COUNT-1)
 
     sensor_handle_array = [0]
@@ -128,7 +129,7 @@ for i in range(0,COPY_NUM):
         print(str(s))
         err_code1, sensor_handle = vrep.simxCopyPasteObjects(clientID,[sensor_handle_array[0]], vrep.simx_opmode_blocking)
         vrep.simxSetObjectParent(clientID,sensor_handle[0],vehicle_handle,False,vrep.simx_opmode_blocking)
-        ret_code = vrep.simxSetObjectPosition(clientID,sensor_handle[0],vehicle_handle,[1.5,0,0.7],vrep.simx_opmode_blocking)
+        ret_code = vrep.simxSetObjectPosition(clientID,sensor_handle[0],vehicle_handle,[1.5,0,0.1],vrep.simx_opmode_blocking)
         vrep.simxSetObjectOrientation(clientID,sensor_handle[0],vehicle_handle,[-math.pi/2,RAD_DT*s,0],vrep.simx_opmode_oneshot)
         sensor_handle_array = np.append(sensor_handle_array,sensor_handle)   
 
@@ -155,7 +156,11 @@ for i in range(0,COPY_NUM):
     createObject([lane_width, 150, 0.1],[-1.25 + i*20,0,-0.1],'floor' + str(i), scene_handle)                  # create floor
     createObject([0.1, 150, 2.5],[-5 + i*20,0,1.25],'wallLeft' + str(i), scene_handle)             # create wall left
     createObject([0.1, 150, 2.5],[3 + i*20,0,1.25],'wallRight' + str(i), scene_handle)             # create wall right
-    createObject([3, 5 , 2],[1.5 + i*20,30, 1.1],'obstacle' + str(i), scene_handle)                 # create obstacle
+    if i % 2 == 0:
+        createObject([3, 5 , 2],[1.5 + i*20,30, 1.1],'obstacle' + str(i), scene_handle)                 # create obstacle on the right
+    else:
+        createObject([3, 5 , 2],[1.5 + i*20 - 5.0,30, 1.1],'obstacle' + str(i), scene_handle)                 # create obstacle on the left
+        
     createObject([lane_width, 0.2 , 2.5],[-1.25 + i*20,70, 1.25],'wallEnd' + str(i), scene_handle)                 # create end wall
     createObject([lane_width, 0.2 , 2.5],[-1.25 + i*20,-10, 1.25],'wallBack' + str(i), scene_handle)                 # create end wall
 
