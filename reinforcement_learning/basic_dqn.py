@@ -281,7 +281,7 @@ if __name__ == "__main__":
     START_TIME_STR   = str(START_TIME).replace(":","_")
 
     # Randomize obstacle position at initScene
-    RANDOMIZE = False
+    RANDOMIZE = True
 
     # Get client ID
     vrep.simxFinish(-1) 
