@@ -102,7 +102,7 @@ else:
     sys.exit()
   
 
-COPY_NUM = 1
+COPY_NUM = 20
 SENSOR_COUNT = 9
 
 err_code,dyros_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
