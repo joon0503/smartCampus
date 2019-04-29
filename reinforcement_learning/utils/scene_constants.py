@@ -39,7 +39,7 @@ class scene_constants:
     collision_distance  = 1.3
 
     # Distance to the goal. Used for normalization
-    goal_distance       = 60
+    goal_distance       = 160
 
 
     # Simulation Parameters
