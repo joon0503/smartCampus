@@ -68,7 +68,8 @@ def getGoalInfo( veh_pos_info, goal_pos_info, scene_const ):
 #   True/False
 def detectReachedGoal(vehPos, gInfo, currHeading, scene_const ):
     # Distance less than 0.5m, angle less than 10 degrees
-    if abs(gInfo[1]*scene_const.goal_distance - 2.075) < 1.0 and abs(currHeading*90)<5: 
+    #if abs(gInfo[1]*scene_const.goal_distance - 2.075) < 1.0 and abs(currHeading*90)<5: 
+    if abs(gInfo[1]*scene_const.goal_distance - 2.075) < 1.0: 
         return True
     else:
         return False

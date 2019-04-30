@@ -162,12 +162,12 @@ def printRewards( scene_const, options ):
     #dt_code = scene_const.dt * options.FIX_INPUT_STEP
 
     # Expected Total Time Steps
-    total_step = (60/veh_speed)*(1/options.CTR_FREQ)
+    total_step = (scene_const.goal_distance/veh_speed)*(1/options.CTR_FREQ)
 
     # Reward at the end
     rew_end = 0
     for i in range(0, int(total_step)):
-        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
+        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
         if i != total_step-1:
             rew_end = rew_end -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -176,7 +176,7 @@ def printRewards( scene_const, options ):
     # Reward at Obs
     rew_obs = 0
     for i in range(0, int(total_step*0.5)):
-        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
+        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.5)-1:
             rew_obs = rew_obs -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -185,7 +185,7 @@ def printRewards( scene_const, options ):
     # Reward at 75%
     rew_75 = 0
     for i in range(0, int(total_step*0.75)):
-        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
+        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.75)-1:
             rew_75 = rew_75 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -194,7 +194,7 @@ def printRewards( scene_const, options ):
     # Reward at 25%
     rew_25 = 0
     for i in range(0, int(total_step*0.25)):
-        goal_distance = 60 - i*options.CTR_FREQ*veh_speed 
+        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
         if i != int(total_step*0.25)-1:
             rew_25 = rew_25 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -590,7 +590,7 @@ if __name__ == "__main__":
         # Test Estimation
         #######
         if options.TESTING == True:
-            v = 0
+            v = 4
 
             # Print curr & next state
             curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
