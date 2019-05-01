@@ -303,7 +303,11 @@ if __name__ == "__main__":
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
         os.makedirs("./checkpoints-vehicle")
-    option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
+
+    if options.TESTING == True:
+        option_file = open("./checkpoints-vehicle/options_TESTING_"+START_TIME_STR+'.txt', "w")
+    else:
+        option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
 
     # For each option
     for x in sorted(vars(options).keys()):
@@ -584,7 +588,7 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2
+            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + ( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
             # cost is the distance squared + inverse of minimum LIDAR distance
         #######
         # Test Estimation

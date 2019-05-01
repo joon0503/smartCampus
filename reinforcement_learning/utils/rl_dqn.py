@@ -195,6 +195,8 @@ class QAgent:
 
 
     # Sample action with random rate eps
+    # output:
+    #   one-hot encoded array
     def sample_action(self, feed, eps, options, verbose = False):
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
