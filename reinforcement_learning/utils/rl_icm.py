@@ -202,7 +202,7 @@ class ICM:
         radar_est_y_col = np.zeros((max_horizon,scene_const.sensor_count))
 
         # Curr state concatentated into an array
-        curr_state_concat = np.reshape(np.concatenate([curr_state, action]), [-1, (scene_const.sensor_count+2) + 5])
+        curr_state_concat = np.reshape(np.concatenate([curr_state, action]), [-1, (scene_const.sensor_count+2) + options.ACTION_DIM])
 
         for i in range(0,max_horizon):
             # Get estimate and strip into an array
@@ -235,7 +235,7 @@ class ICM:
                                              )
 
             # Update curr state for next estimation
-            curr_state_concat = np.reshape(np.concatenate([temp_state, new_action]), [-1, (scene_const.sensor_count+2) + 5])
+            curr_state_concat = np.reshape(np.concatenate([temp_state, new_action]), [-1, (scene_const.sensor_count+2) + options.ACTION_DIM])
 
 
 
