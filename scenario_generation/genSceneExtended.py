@@ -115,7 +115,7 @@ for i in range(0,COPY_NUM):
     print(i*20)
 
     # Create Sensors
-    SENSOR_COUNT = 9
+    SENSOR_COUNT = 19
     RAD_DT = math.pi/(SENSOR_COUNT-1)
 
     sensor_handle_array = [0]

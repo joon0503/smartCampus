@@ -8,8 +8,20 @@
 #######
 
 import time
+from argparse import ArgumentParser
 
 
+def get_options():
+    parser = ArgumentParser(
+        description='File for learning'
+    )
+    parser.add_argument('--COPY', type=int, default=10,
+                        help='# of copy')
+    parser.add_argument('--SENSOR', type=int, default=9,
+                        help='# of sensor')
+    options = parser.parse_args()
+
+    return parser, options
 
 ###############
 # Helper
@@ -93,6 +105,9 @@ import numpy as np
 #MAIN
 #################
 print ('Program started')
+parser, options = get_options()
+
+
 vrep.simxFinish(-1) # just in case, close all opened connections
 clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5) # Connect to V-REP
 if clientID!=-1:
@@ -102,8 +117,8 @@ else:
     sys.exit()
   
 
-COPY_NUM = 20
-SENSOR_COUNT = 9
+COPY_NUM        = options.COPY
+SENSOR_COUNT    = options.SENSOR
 
 err_code,dyros_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
 
