@@ -25,7 +25,7 @@ from utils.rl_icm import ICM
 from utils.experience_replay import SumTree 
 from utils.experience_replay import Memory
 from utils.utils_data import data_pack
-from utils.scene_2LC import *
+from utils.scene_ParkingLot import *
 
 def get_options():
     parser = ArgumentParser(
@@ -105,6 +105,8 @@ def get_options():
                         help='VREP simulation time step in seconds. Upto 0.001 seconds')
     parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.2,
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
+    parser.add_argument('--POINT_CNT', type=int, default=5,
+                        help='# of way point')
     options = parser.parse_args()
 
     return parser, options
@@ -303,11 +305,7 @@ if __name__ == "__main__":
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
         os.makedirs("./checkpoints-vehicle")
-
-    if options.TESTING == True:
-        option_file = open("./checkpoints-vehicle/options_TESTING_"+START_TIME_STR+'.txt', "w")
-    else:
-        option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
+    option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
 
     # For each option
     for x in sorted(vars(options).keys()):
@@ -345,17 +343,13 @@ if __name__ == "__main__":
         err_code, vehicle_handle[i] = vrep.simxGetObjectHandle(clientID, "dyros_vehicle" + str(i), vrep.simx_opmode_blocking)
 
     # Get goal point handle
-    dummy_handle = np.zeros(options.VEH_COUNT, dtype=int)
-    for i in range(0,options.VEH_COUNT):
+    dummy_handle = np.zeros(options.POINT_CNT, dtype=int)
+    for i in range(0,options.POINT_CNT):
         err_code, dummy_handle[i] = vrep.simxGetObjectHandle(clientID, "GoalPoint" + str(i), vrep.simx_opmode_blocking)
-
-    # Get obstacle handle
-    obs_handle = np.zeros(options.VEH_COUNT, dtype=int)
-    for i in range(0,options.VEH_COUNT):
-        err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
 
     # Make Large handle list for communication
     handle_list = [options.VEH_COUNT, scene_const.sensor_count] 
+
     # Make handles into big list
     for v in range(0,options.VEH_COUNT):
         handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
@@ -367,7 +361,6 @@ if __name__ == "__main__":
         'steer'     : steer_handle,
         'vehicle'   : vehicle_handle,
         'dummy'     : dummy_handle,
-        'obstacle'  : obs_handle
     }
 
     ########################
@@ -502,33 +495,18 @@ if __name__ == "__main__":
     veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA( handle_list, scene_const )
     sensor_queue, goal_queue = initQueue( options, sensor_queue, goal_queue, dDistance, gInfo )
 
-    curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
-    prev_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
-    #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
-    #prev_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
+    # Current Waypoint Target
+    curr_pnt = 0
+
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
-        prev_weight = curr_weight
-        curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
-        #print('Training Kernel 0 Diff:', np.linalg.norm(curr_weight - prev_weight))
-        #print('WEIGHT:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval() )
-        #print('BIAS:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/bias:0').eval() )
-
-
-        #prev_weight_target = curr_weight_target
-        #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
-        #print('Target Kenel 0 Diff:', np.linalg.norm(curr_weight_target - prev_weight_target))
-
         #GS_START_TIME_STR   = datetime.datetime.now()
         # Decay epsilon
         global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
             eps = eps * options.EPS_DECAY
-            # Save eps for plotting
-            #track_eps.append((epi_counter+1,eps)) 
 
-        #print("=====================================")
-        #print("Global Step: " + str(global_step) + 'EPS: ' + str(eps) + ' Finished Episodes:' + str(epi_counter) )
+        print('Current Target : ' + str(curr_pnt) )
 
 
         ####
@@ -575,7 +553,12 @@ if __name__ == "__main__":
         ####
         # Get Next State
         ####
-        next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA( handle_list, scene_const )
+        next_veh_pos, next_veh_heading, next_dDistance, _ = getVehicleStateLUA( handle_list, scene_const )
+
+        retCode, goal_pos = vrep.simxGetObjectPosition(clientID, dummy_handle[curr_pnt], -1, vrep.simx_opmode_blocking)
+
+        next_gInfo = np.zeros((1,2))
+        next_gInfo[0,:] = getGoalInfo( next_veh_pos, goal_pos[0:2], scene_const )
 
         for v in range(0,options.VEH_COUNT):
             # Get new Data
@@ -588,13 +571,13 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + ( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
+            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2
             # cost is the distance squared + inverse of minimum LIDAR distance
         #######
         # Test Estimation
         #######
         if options.TESTING == True:
-            v = 4
+            v = 0
 
             # Print curr & next state
             curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
@@ -639,25 +622,30 @@ if __name__ == "__main__":
 
                 # Set done
                 epi_done[v] = 1
+                curr_pnt = 0
+
                 # If collided, skip checking for goal point
                 continue
 
             # If vehicle is at the goal point, give large positive reward
             if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v], scene_const):
                 print('-----------------------------------------')
-                print('Vehicle #' + str(v) + ' reached goal point')
+                print('Vehicle #' + str(v) + ' reached goal point' + str(curr_pnt))
                 print('-----------------------------------------')
-                
+
+                # Increment goal point. If over 5, start over               
+                curr_pnt = ( curr_pnt + 1 ) % options.POINT_CNT
+
                 # Reset Simulation
-                reset_veh_list.append(v)
+                #reset_veh_list.append(v)
 
                 # Set flag and reward
-                reward_stack[v] = options.GOAL_REW
-                eps_tracker[epi_counter] = eps
-                epi_counter += 1
+                #reward_stack[v] = options.GOAL_REW
+                #eps_tracker[epi_counter] = eps
+                #epi_counter += 1
 
                 # Set done
-                epi_done[v] = 1
+                #epi_done[v] = 1
 
             # If over MAXSTEP
             if epi_step_stack[v] > options.MAX_TIMESTEP:
@@ -692,88 +680,6 @@ if __name__ == "__main__":
            
             # Save new memory 
             replay_memory.store(experience)
-
-        # Start training
-        if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
-            for tf_train_counter in range(0,options.VEH_COUNT):
-                # Obtain the mini batch. (Batch Memory is '2D array' with BATCH_SIZE X size(experience)
-                tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
-
-                # Get state/action/next state from obtained memory. Size same as queues
-                states_mb       = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x STATE_DIM 
-                actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
-                rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
-                next_states_mb  = np.array([each[0][3] for each in batch_memory])   
-                done_mb         = np.array([each[0][4] for each in batch_memory])   
-
-                # actions mb is list of numbers. Need to change it into one hot encoding
-                actions_mb_hot = np.zeros((options.BATCH_SIZE,options.ACTION_DIM))
-                actions_mb_hot[np.arange(options.BATCH_SIZE),actions_mb] = 1
-
-                # actions converted to value array
-                #actions_mb_val = oneHot2Angle( actions_mb_hot, scene_const, options, radians = False, scale = True )
-
-                # Get Target Q-Value
-                feed.clear()
-                feed.update({agent_train.observation : next_states_mb})
-
-                # Calculate Target Q-value. Uses double network. First, get action from training network
-                action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
-
-                if options.disable_DN == False:
-                    feed.clear()
-                    feed.update({agent_target.observation : next_states_mb})
-
-                    # Using Target + Double network
-                    q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
-                else:
-                    feed.clear()
-                    feed.update({agent_target.observation : next_states_mb})
-
-                    # Just using Target Network.
-                    q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
-           
-                # set q_target to reward if episode is done
-                for v_mb in range(0,options.BATCH_SIZE):
-                    if done_mb[v_mb] == 1:
-                        q_target_val[v_mb] = rewards_mb[v_mb]
-
-                #print('q_target_val', q_target_val) 
-                #print("\n\n")
-
-
-                # Gradient Descent
-                feed.clear()
-                feed.update({agent_train.observation : states_mb})
-                feed.update({agent_train.act : actions_mb_hot})
-                feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
-                feed.update({agent_train.ISWeights : ISWeights_mb   })
-
-                #with tf.variable_scope("Training"):   
-                # Train RL         
-                step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
-
-
-                # Train forward model
-                feed_icm.clear()
-                feed_icm.update({agent_icm.observation  : np.concatenate([states_mb, actions_mb_hot],-1) } )
-                feed_icm.update({agent_icm.actual_state : next_states_mb})
-                #print(feed_icm)
-                icm_loss, _                             = sess.run([agent_icm.loss, agent_icm.optimizer], feed_dict = feed_icm)
-                #print('icm_loss:', icm_loss)
-
-
-                #print(rewards_mb)
-                #print(step_loss_per_data)
-
-                # Use sum to calculate average loss of this episode.
-                data_package.add_loss( np.mean(step_loss_per_data) )
-
-                #if tf_train_counter == 0:
-                    #print(step_loss_per_data)
-        
-                # Update priority
-                replay_memory.batch_update(tree_idx, step_loss_per_data)
 
         # Reset Vehicles    
         initScene( scene_const, options, reset_veh_list, handle_dict, randomize = RANDOMIZE)               # initialize

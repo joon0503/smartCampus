@@ -13,7 +13,7 @@ class scene_constants:
     max_distance        = sensor_distance        # DEPRECATED
 
     # Number of sensors
-    sensor_count        = 9
+    sensor_count        = 19
 
     # Sensor Range in Radians
     #   0 -> front
