@@ -20,6 +20,7 @@ class QAgent:
 
         with tf.variable_scope(self.scope):      # Set variable scope
 
+            loss_scale = 1.0
             ######################################:
             ## CONSTRUCTING NEURAL NETWORK
             ######################################:
@@ -116,13 +117,14 @@ class QAgent:
                                              units=options.H1_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             #kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=0.1)
+                                             kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
                                              name="h_s1"
                                            )
                 self.h_s2 = tf.layers.dense( inputs=self.h_s1,
                                              units=options.H2_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                             kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
                                              name="h_s2"
                                            )
 
@@ -152,12 +154,14 @@ class QAgent:
                                                  units=options.H3_SIZE,
                                                  activation = act_function,
                                                  kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
                                                  name="h_layer_val"
                                                )
                     self.h_layer_adv = tf.layers.dense( inputs=self.h_s2,
                                                  units=options.H3_SIZE,
                                                  activation = act_function,
                                                  kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
                                                  name="h_layer_adv"
                                                )
 
@@ -166,6 +170,7 @@ class QAgent:
                                                  units=1,
                                                  activation = None,
                                                  kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
                                                  name="val_est"
                                                )
 
@@ -173,6 +178,7 @@ class QAgent:
                                                  units=options.ACTION_DIM,
                                                  activation = None,
                                                  kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                                 kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
                                                  name="adv_est"
                                                )
                  
@@ -188,7 +194,7 @@ class QAgent:
             self.loss_per_data = tf.abs(self.target_Q - self.Q, name='loss_per_data')    
             
             # Loss for Optimization
-            self.loss = tf.reduce_mean(self.ISWeights * tf.square(self.target_Q - self.Q))
+            self.loss = tf.reduce_mean(self.ISWeights * tf.square(self.target_Q - self.Q)) + tf.losses.get_regularization_loss()
 
             # Optimizer
             self.optimizer = tf.train.AdamOptimizer(options.LR).minimize(self.loss)
@@ -201,7 +207,7 @@ class QAgent:
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = random.randrange(options.ACTION_DIM)
-#            action = random.uniform(0,1)
+#            action = random.uniform( 0.1 )
         else:
             act_values = self.output.eval(feed_dict=feed)
             if options.TESTING == True or verbose == True:
