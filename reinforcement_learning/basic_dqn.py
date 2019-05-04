@@ -635,7 +635,8 @@ if __name__ == "__main__":
                 # Set flag and reward, and save eps
                 reward_stack[v] = options.FAIL_REW
                 eps_tracker[epi_counter] = eps
-                epi_counter += 1
+                if global_step >= options.MAX_EXPERIENCE:
+                    epi_counter += 1
 
                 # Set done
                 epi_done[v] = 1
@@ -654,7 +655,8 @@ if __name__ == "__main__":
                 # Set flag and reward
                 reward_stack[v] = options.GOAL_REW
                 eps_tracker[epi_counter] = eps
-                epi_counter += 1
+                if global_step >= options.MAX_EXPERIENCE:
+                    epi_counter += 1
 
                 # Set done
                 epi_done[v] = 1
@@ -669,7 +671,8 @@ if __name__ == "__main__":
                 reset_veh_list.append(v)
 
                 eps_tracker[epi_counter] = eps
-                epi_counter += 1
+                if global_step >= options.MAX_EXPERIENCE:
+                    epi_counter += 1
                 
 
         # Detect being stuck
