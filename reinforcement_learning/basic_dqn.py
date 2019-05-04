@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 # From other files
 from utils.utils_vrep import *                  # import everything directly from utils_vrep.py
 from utils.utils_training import *              # import everything directly from utils_vrep.py
-from utils.scene_constants import scene_constants 
+from utils.scene_constants_2LC import scene_constants 
 from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.experience_replay import SumTree 
@@ -407,7 +407,7 @@ if __name__ == "__main__":
 
     # saving and loading networks
     if options.NO_SAVE == False:
-        saver = tf.train.Saver( max_to_keep = 20 )
+        saver = tf.train.Saver( max_to_keep = 100 )
         checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
         if checkpoint and checkpoint.model_checkpoint_path:
             saver.restore(sess, checkpoint.model_checkpoint_path)
@@ -594,7 +594,7 @@ if __name__ == "__main__":
         # Test Estimation
         #######
         if options.TESTING == True:
-            v = 4
+            v = 0
 
             # Print curr & next state
             curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)

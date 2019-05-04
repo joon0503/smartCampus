@@ -39,8 +39,16 @@ class scene_constants:
     collision_distance  = 1.3
 
     # Distance to the goal. Used for normalization
-    goal_distance       = 160
+    goal_distance       = 100
 
 
     # Simulation Parameters
     dt = 0.025                      # dt of the vrep simulation
+
+
+    # Test Case related
+    obs_w           = 0.5
+    lane_width      = 8
+    lane_len        = 100
+    case_width      = 100
+    veh_init_y      = -45 
