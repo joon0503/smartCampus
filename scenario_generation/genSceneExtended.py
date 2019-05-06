@@ -7,7 +7,27 @@
 # This particular script generates lane-change scenario with obstacle.
 #######
 
+try:
+    import vrep
+except:
+    print ('--------------------------------------------------------------')
+    print ('"vrep.py" could not be imported. This means very probably that')
+    print ('either "vrep.py" or the remoteApi library could not be found.')
+    print ('Make sure both are in the same folder as this file,')
+    print ('or appropriately adjust the file "vrep.py"')
+    print ('--------------------------------------------------------------')
+    print ('')
+
 import time
+import sys
+import ctypes
+import math
+import numpy as np
+
+# Importing utils
+sys.path.insert(0,'../reinforcement_learning/utils')
+
+from scene_constants_2LC import *
 
 
 
@@ -174,6 +194,8 @@ def genTee( lane_width, turn_len, lane_len, obs_w, x_pos, i, getInit = False, di
     createObject([ rest_len, 0.2 , wall_h],[x_pos - lane_width*0.5 - rest_len*0.5, lane_len*0.5 - lane_width, wall_h*0.5],'wallRest' + str(i) + str(1), scene_handle)                   
     createObject([ rest_len, 0.2 , wall_h],[x_pos + lane_width*0.5 + rest_len*0.5, lane_len*0.5 - lane_width, wall_h*0.5],'wallRest' + str(i) + str(2), scene_handle)                   
 
+    # Wall at the back
+    createObject([lane_width, 0.2 , wall_h],[x_pos,-1*lane_len*0.5, wall_h*0.5],'wallBack' + str(i), scene_handle)                        
 
     # Walls at the end
     #createObject([lane_width, 0.2 , wall_h],[x_pos,-1*lane_len*0.5, wall_h*0.5],'wallEnd_left' + str(i), scene_handle)                        
@@ -199,21 +221,8 @@ def genTee( lane_width, turn_len, lane_len, obs_w, x_pos, i, getInit = False, di
 
     return
 
-try:
-    import vrep
-except:
-    print ('--------------------------------------------------------------')
-    print ('"vrep.py" could not be imported. This means very probably that')
-    print ('either "vrep.py" or the remoteApi library could not be found.')
-    print ('Make sure both are in the same folder as this file,')
-    print ('or appropriately adjust the file "vrep.py"')
-    print ('--------------------------------------------------------------')
-    print ('')
 
-import sys
-import ctypes
-import math
-import numpy as np
+
 
 #################
 #MAIN
@@ -228,9 +237,24 @@ else:
     sys.exit()
 
 
+#######################
+# Paremters
+#######################
+
 # Parameters 
-COPY_NUM = 12
-case_width = 100                 # distance between each test case
+COPY_NUM        = 12
+
+# Scene Parameters
+scene_const = scene_constants()
+
+# Reset vars
+SENSOR_COUNT    = scene_const.sensor_count
+lane_width      = scene_const.lane_width
+lane_len        = scene_const.lane_len
+obs_w           = scene_const.obs_w
+turn_len        = scene_const.turn_len
+case_width      = scene_const.case_width              
+
 
 # Handle
 err_code,dyros_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
@@ -243,7 +267,6 @@ for i in range(0,COPY_NUM):
     #######################
     # Create Sensors
     #######################
-    SENSOR_COUNT = 19
     RAD_DT = math.pi/(SENSOR_COUNT-1)
 
     sensor_handle_array = [0]
@@ -260,13 +283,6 @@ for i in range(0,COPY_NUM):
         vrep.simxSetObjectOrientation(clientID,sensor_handle[0],vehicle_handle,[-math.pi/2,RAD_DT*s,0],vrep.simx_opmode_oneshot)
         sensor_handle_array = np.append(sensor_handle_array,sensor_handle)   
 
-    #######################
-    # Paremters
-    #######################
-    lane_width = 8
-    lane_len   = 100
-    obs_w      = 0.5
-    turn_len   = 80
 
     #######################
     # Start Simulation in Synchronous mode
@@ -285,7 +301,7 @@ for i in range(0,COPY_NUM):
     #######################
     # Create Dummy for organizing each lane
     #######################
-    createDummy([0,0,10], 'Scene' + str(i), parentHandle=-1)
+    createDummy([i*case_width,0,1], 'Scene' + str(i), parentHandle=-1)
     err_code, scene_handle = vrep.simxGetObjectHandle( clientID, "Scene" + str(i), vrep.simx_opmode_blocking) 
 
     #######################

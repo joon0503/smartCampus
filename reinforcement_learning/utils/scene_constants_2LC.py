@@ -47,8 +47,9 @@ class scene_constants:
 
 
     # Test Case related
-    obs_w           = 0.5
-    lane_width      = 8
-    lane_len        = 100
-    case_width      = 100
-    veh_init_y      = -45 
+    obs_w           = 0.4           # obstacle width ratio
+    lane_width      = 8             # lane width
+    lane_len        = 100           # total len
+    turn_len        = 50            # total len after tun
+    case_width      = 60           # distance between each case
+    veh_init_y      = -45           # initial vehicle y position
