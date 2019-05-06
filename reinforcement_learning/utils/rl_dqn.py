@@ -20,7 +20,8 @@ class QAgent:
 
         with tf.variable_scope(self.scope):      # Set variable scope
 
-            loss_scale = 1.0
+            loss_scale = options.L2_LOSS
+
             ######################################:
             ## CONSTRUCTING NEURAL NETWORK
             ######################################:

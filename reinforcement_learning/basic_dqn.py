@@ -105,6 +105,8 @@ def get_options():
                         help='VREP simulation time step in seconds. Upto 0.001 seconds')
     parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.2,
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
+    parser.add_argument('--L2_LOSS', type=float, default=0.0,
+                        help='Scale of L2 loss')
     options = parser.parse_args()
 
     return parser, options
@@ -635,8 +637,8 @@ if __name__ == "__main__":
                 # Set flag and reward, and save eps
                 reward_stack[v] = options.FAIL_REW
                 eps_tracker[epi_counter] = eps
-                if global_step >= options.MAX_EXPERIENCE:
-                    epi_counter += 1
+                #if global_step >= options.MAX_EXPERIENCE:
+                epi_counter += 1
 
                 # Set done
                 epi_done[v] = 1
@@ -655,8 +657,8 @@ if __name__ == "__main__":
                 # Set flag and reward
                 reward_stack[v] = options.GOAL_REW
                 eps_tracker[epi_counter] = eps
-                if global_step >= options.MAX_EXPERIENCE:
-                    epi_counter += 1
+                #if global_step >= options.MAX_EXPERIENCE:
+                epi_counter += 1
 
                 # Set done
                 epi_done[v] = 1
@@ -671,8 +673,8 @@ if __name__ == "__main__":
                 reset_veh_list.append(v)
 
                 eps_tracker[epi_counter] = eps
-                if global_step >= options.MAX_EXPERIENCE:
-                    epi_counter += 1
+                #if global_step >= options.MAX_EXPERIENCE:
+                epi_counter += 1
                 
 
         # Detect being stuck
