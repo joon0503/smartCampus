@@ -47,8 +47,8 @@ class scene_constants:
 
 
     # Test Case related
-    obs_w           = 0.4           # obstacle width ratio
-    lane_width      = 8             # lane width
+    obs_w           = (1/3)           # obstacle width ratio
+    lane_width      = 12             # lane width
     lane_len        = 100           # total len
     turn_len        = 50            # total len after tun
     case_width      = 60           # distance between each case

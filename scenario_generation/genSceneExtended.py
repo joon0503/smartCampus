@@ -140,9 +140,10 @@ def genStraight( lane_width, lane_len, obs_w, x_pos, i, getInit = False ):
 #       T : does not block
 #       F : block opposite direction
 #   getInit : True - return initial vehicle position / False - actually generate case
+#   obs_pat : array with 3 eleemnts, 1 means obs, 0 means no obs
 # output
 #   veh_y : if true, just returns the initial y position of the test case
-def genTee( lane_width, turn_len, lane_len, obs_w, x_pos, i, getInit = False, direction = -1, openWall = True):
+def genTee( lane_width, turn_len, lane_len, obs_w, obs_pat, x_pos, i, getInit = False, direction = -1, openWall = True):
     ##############################
     # Case Parameters
     ##############################
@@ -217,7 +218,12 @@ def genTee( lane_width, turn_len, lane_len, obs_w, x_pos, i, getInit = False, di
     ##############################
     # Obstacles
     ##############################
-    createObject([lane_width*obs_w, 5, 2], [x_pos + 0.5*(1-obs_w)*lane_width, 0, 1.1], 'obstacle' + str(i) + str(1), scene_handle)                # create obstacle
+    if obs_pat[0] == 1: # left
+        createObject([lane_width*obs_w, 5, 2], [x_pos - 0.5*(1-obs_w)*lane_width, 0, 1.1], 'obstacle' + str(i) + str('_0'), scene_handle)                # create obstacle
+    if obs_pat[1] == 1: # middle
+        createObject([lane_width*obs_w, 5, 2], [x_pos, 0, 1.1], 'obstacle' + str(i) + str('_1'), scene_handle)                                           # create obstacle
+    if obs_pat[2] == 1: # right
+        createObject([lane_width*obs_w, 5, 2], [x_pos + 0.5*(1-obs_w)*lane_width, 0, 1.1], 'obstacle' + str(i) + str('_2'), scene_handle)                # create obstacle
 
     return
 
@@ -255,6 +261,15 @@ obs_w           = scene_const.obs_w
 turn_len        = scene_const.turn_len
 case_width      = scene_const.case_width              
 
+# Obstacle parameters
+obs_pattern = [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 1, 0],
+    [0, 1, 1],
+    [1, 0, 1]
+]
 
 # Handle
 err_code,dyros_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
@@ -307,7 +322,7 @@ for i in range(0,COPY_NUM):
     #######################
     # Gen Case
     #######################
-    genTee( lane_width, turn_len, lane_len, obs_w, i*case_width, i, direction = i % 3, openWall = i % 2)
+    genTee( lane_width, turn_len, lane_len, obs_w, obs_pattern[i%6], i*case_width, i, direction = i % 3, openWall = i % 2)
 
     # Set parent of vehicle
     vrep.simxSetObjectParent(clientID,vehicle_handle, scene_handle, True, vrep.simx_opmode_blocking)
