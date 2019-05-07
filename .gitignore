@@ -3,4 +3,4 @@ __pycache__/
 result_data/
 trash/
 .idea
-.png
+image_dir/
