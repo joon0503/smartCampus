@@ -37,7 +37,7 @@ def initScene( scene_const, options, veh_index_list, handle_dict, randomize = Fa
         if randomize == False:
             err_code = vrep.simxSetObjectPosition(scene_const.clientID,vehicle_handle[veh_index],-1,[veh_index*scene_const.case_width, scene_const.veh_init_y, 0.2],vrep.simx_opmode_blocking)
         else:
-            x_pos = random.uniform(0,scene_const.lane_width*0.5 - 1.5)
+            x_pos = random.uniform(-1*scene_const.lane_width*0.5 + 1.5,scene_const.lane_width*0.5 - 1.5)
             err_code = vrep.simxSetObjectPosition(scene_const.clientID,vehicle_handle[veh_index],-1,[veh_index*scene_const.case_width + x_pos, scene_const.veh_init_y, 0.2],vrep.simx_opmode_blocking)
 
         # Reset Orientation of vehicle
