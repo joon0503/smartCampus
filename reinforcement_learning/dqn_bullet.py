@@ -357,8 +357,9 @@ if __name__ == "__main__":
 
     # Load plane
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"))
-    for i in range(options.VEH_COUNT):
-        createTee( i*scene_const.case_width, i % 3, scene_const )
+    for j in range(options.VEH_COUNT):
+        for i in range(options.VEH_COUNT):
+            createTee( i*scene_const.case_x, j*scene_const.case_y, i % 3, scene_const )
 
     while ( True ):
         cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  

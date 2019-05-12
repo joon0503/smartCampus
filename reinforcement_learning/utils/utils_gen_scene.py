@@ -25,36 +25,36 @@ def createGoal( size, pos ):
 #   direction : 0/1/2, left/mid,right
 #   scene_const
 #   openWall : T/F
-def createTee( x_pos, direction, scene_const, openWall = True ): 
+def createTee( x_pos, y_pos, direction, scene_const, openWall = True ): 
     wall_h = 2
 
     # Walls left & right
-    createWall( [0.02, 0.5*scene_const.lane_len, wall_h], [x_pos - scene_const.lane_width*0.5,0,0] )       # left
-    createWall( [0.02, 0.5*scene_const.lane_len, wall_h], [x_pos + scene_const.lane_width*0.5,0,0] )       # right
+    createWall( [0.02, 0.5*scene_const.lane_len, wall_h], [x_pos - scene_const.lane_width*0.5, y_pos, 0] )       # left
+    createWall( [0.02, 0.5*scene_const.lane_len, wall_h], [x_pos + scene_const.lane_width*0.5, y_pos, 0] )       # right
 
     # Walls front & back
-    createWall( [0.5*scene_const.turn_len, 0.02, wall_h], [x_pos,scene_const.lane_len*0.5 + scene_const.lane_width,0] )                # front
-    createWall( [0.5*scene_const.lane_width, 0.02, wall_h], [x_pos,-1*scene_const.lane_len*0.5,0] )              # back
+    createWall( [0.5*scene_const.turn_len, 0.02, wall_h], [x_pos, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width,0] )                # front
+    createWall( [0.5*scene_const.lane_width, 0.02, wall_h], [x_pos, y_pos -1*scene_const.lane_len*0.5,0] )              # back
 
     # Walls at intersection
     wall_len = 0.5*( scene_const.turn_len - scene_const.lane_width ) 
-    createWall( [0.5*wall_len, 0.02, wall_h], [x_pos + 0.5*scene_const.lane_width + 0.5*wall_len, scene_const.lane_len*0.5,0] )
-    createWall( [0.5*wall_len, 0.02, wall_h], [x_pos - 0.5*scene_const.lane_width - 0.5*wall_len, scene_const.lane_len*0.5,0] )
+    createWall( [0.5*wall_len, 0.02, wall_h], [x_pos + 0.5*scene_const.lane_width + 0.5*wall_len, y_pos + scene_const.lane_len*0.5,0] )
+    createWall( [0.5*wall_len, 0.02, wall_h], [x_pos - 0.5*scene_const.lane_width - 0.5*wall_len, y_pos + scene_const.lane_len*0.5,0] )
 
     # Walls at the end
-    createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos - 0.5*scene_const.turn_len, scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] )
-    createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos + 0.5*scene_const.turn_len, scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] )
+    createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos - 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] )
+    createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos + 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] )
 
 
 
 
     # Create Goal point
     if direction == 0:
-        goal_id = createGoal( 0.1, [x_pos - scene_const.turn_len*0.5 + 0.5, scene_const.lane_len*0.5 + scene_const.lane_width*0.5,2] )
+        goal_id = createGoal( 0.1, [x_pos - scene_const.turn_len*0.5 + 0.5, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5,2] )
     elif direction == 1:
-        goal_id = createGoal( 0.1, [x_pos, scene_const.lane_len*0.5 + scene_const.lane_width*0.5,2] )
+        goal_id = createGoal( 0.1, [x_pos, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5,2] )
     elif direction == 2:
-        goal_id = createGoal( 0.1, [x_pos + scene_const.turn_len*0.5 - 0.5, scene_const.lane_len*0.5 + scene_const.lane_width*0.5,2] )
+        goal_id = createGoal( 0.1, [x_pos + scene_const.turn_len*0.5 - 0.5, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5,2] )
     else:
         raise ValueError('Undefined direction')
 
