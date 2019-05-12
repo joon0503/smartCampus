@@ -15,11 +15,13 @@ import re
 from icecream import ic
 from collections import deque
 from argparse import ArgumentParser
+import pybullet_data
 
 # From other files
-from utils.utils_vrep import *                  # import everything directly from utils_vrep.py
-from utils.utils_training import *              # import everything directly from utils_vrep.py
-from utils.scene_constants_2LC import scene_constants 
+# from utils.utils_vrep import *                  # import everything directly from utils_vrep.py
+# from utils.utils_training import *              # import everything directly from utils_vrep.py
+from utils.utils_gen_scene import *
+from utils.scene_constants_bullet import scene_constants 
 from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.experience_replay import SumTree 
@@ -79,6 +81,8 @@ def get_options():
                         help='Disable the usage of double network.')
     parser.add_argument('--enable_PER', action='store_true', default = False,
                         help='Enable the usage of PER.')
+    parser.add_argument('--enable_GUI', action='store_true', default = False,
+                        help='Enable the GUI.')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
     parser.add_argument('--FRAME_COUNT', type=int, default=1,
@@ -101,12 +105,12 @@ def get_options():
                         help='Set simulation seed')
     parser.add_argument('--CTR_FREQ', type=float, default=0.2,
                         help='Control frequency in seconds. Upto 0.001 seconds')
-    parser.add_argument('--SIM_STEP', type=float, default=0.025,
-                        help='VREP simulation time step in seconds. Upto 0.001 seconds')
     parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.2,
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     parser.add_argument('--L2_LOSS', type=float, default=0.0,
                         help='Scale of L2 loss')
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
+                        help='Fix input steps')
     options = parser.parse_args()
 
     return parser, options
@@ -242,9 +246,37 @@ def printSpdInfo():
 
     return
 
-###############################33
-# TRAINING
-#################################33/
+
+# Update Camera
+# Input
+#   cam_pos  :  [x,y,z], camera target position
+#   cam_dist :  camera distance
+# Output
+#   cam_pos : new camera position
+#   cam_dist : new camerad distance
+def controlCamera(cam_pos, cam_dist):
+    # get keys
+    keys = p.getKeyboardEvents()
+
+    if keys.get(49):  #1
+      cam_pos[0] = cam_pos[0] - 0.1
+    if keys.get(50):  #2
+      cam_pos[0] = cam_pos[0] + 0.1
+    if keys.get(51):  #3
+      cam_pos[1] = cam_pos[1] + 0.1
+    if keys.get(52):  #4
+      cam_pos[1] = cam_pos[1] - 0.1
+    if keys.get(53):  #5
+      cam_pos = [0,0,0]
+      cam_dist = 5
+    if keys.get(54):  #6
+      cam_dist = cam_dist + 0.1 
+    if keys.get(55):  #7
+      cam_dist = cam_dist - 0.1 
+    p.resetDebugVisualizerCamera( cameraDistance = cam_dist, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = cam_pos )
+
+
+    return cam_pos, cam_dist
 
 
 
@@ -256,13 +288,6 @@ if __name__ == "__main__":
     # Print Options
     parser, options = get_options()
     print(str(options).replace(" ",'\n'))
-
-    # Define fix input step
-    FIX_INPUT_STEP = int( (1000*options.CTR_FREQ)/(1000*options.SIM_STEP) )
-    print('FIX_INPUT_STEP : ', FIX_INPUT_STEP)
-     
-    if int(1000*options.CTR_FREQ) % int(1000*options.SIM_STEP) != 0:
-        raise ValueError('CTR_FREQ must be a integer multiple of SIM_STEP! Currently CTR_FREQ % SIM_STEP = ' + str(options.CTR_FREQ % options.SIM_STEP) )
 
     # Set Seed
     np.random.seed(1)
@@ -285,22 +310,26 @@ if __name__ == "__main__":
     # Randomize obstacle position at initScene
     RANDOMIZE = True
 
+    # Simulation Setup
     # Get client ID
-    vrep.simxFinish(-1) 
-    clientID=vrep.simxStart('127.0.0.1',19997,True,True,5000,5)
-    if clientID == -1:
-        print("ERROR: Cannot establish connection to vrep.")
+    if options.enable_GUI == True:
+        clientID = p.connect(p.GUI)
+        p.resetDebugVisualizerCamera( cameraDistance = 5, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = [0,0,0] )
+        cam_pos = [0,0,0]
+        cam_dist = 15
+    else:
+        clientID = p.connect(p.DIRECT)
+
+    if clientID < 0:
+        print("ERROR: Cannot establish connection to PyBullet.")
         sys.exit()
 
+    p.resetSimulation()
+    p.setRealTimeSimulation( 0 )        # Don't use real time simulation
+
     # Set scene_constants
-    scene_const = scene_constants()
-    #scene_const.max_distance        = 20
-    #scene_const.sensor_count        = 9
+    scene_const                     = scene_constants()
     scene_const.clientID            = clientID
-    #scene_const.max_steer           = 15
-    #scene_const.collision_distance  = 1.3
-    #scene_const.goal_distance       = 60
-    scene_const.dt                  = options.SIM_STEP         #simulation time step
 
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
@@ -326,12 +355,15 @@ if __name__ == "__main__":
     printSpdInfo()
 
 
+    # Load plane
+    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"))
+    for i in range(options.VEH_COUNT):
+        createTee( i*scene_const.case_width, i % 3, scene_const )
 
-    # Set Sampling time
-    vrep.simxSetFloatingParameter(clientID, vrep.sim_floatparam_simulation_time_step, scene_const.dt , vrep.simx_opmode_oneshot)
-
-    # start simulation
-    vrep.simxSynchronous(clientID,True)
+    while ( True ):
+        cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
+        time.sleep(0.01)
+        pass
 
     #####################
     # GET HANDLES
@@ -568,7 +600,7 @@ if __name__ == "__main__":
         # Step
         ####
 
-        for q in range(0,FIX_INPUT_STEP):
+        for q in range(0,options.FIX_INPUT_STEP):
             vrep.simxSynchronousTrigger(clientID);
 
         if options.manual == True:
