@@ -14,13 +14,13 @@ import math
 import sys
 import random
 import matplotlib.pyplot as plt
-
+from icecream import ic
 
 # Class for Neural Network
 class ICM:
     def __init__(self, options, scene_const, name):
         # General Variables for plotting
-        self.fig = plt.figure( figsize=(2,16) )
+        self.fig = plt.figure( figsize=(0.1*scene_const.sensor_distance*2,0.1*scene_const.goal_distance) )
         self.ax = self.fig.add_subplot(111)
         self.data_x = []
         self.data_y = []
@@ -144,12 +144,22 @@ class ICM:
     #   veh_heading: headings of vehicle gamma in radians. 
     #                we use gamma and 0 deg -> front, +90 deg -> right, -90 deg -> left
     #   scene_const: scene constants as the class
+    #   ref        : plot reference. If 'vehicle', then viewpoint from vehicle (DEFAULT). If 'ground', then view point from the ground.
 
-    def plotEstimate(self, curr_state, action, veh_heading, scene_const, agent_train, options, save = False):
+    def plotEstimate(self, curr_state, action, veh_heading, scene_const, agent_train, options, ref = 'ground', save = False):
+        ic.enable()
+
         ####################
         # Proccess Data
         ####################
-        veh_x, veh_y, arrow_x, arrow_y = self.getPoints(curr_state,action,scene_const)
+        veh_x, veh_y, arrow_x, arrow_y, goal_x, goal_y = self.getPoints(curr_state,action,scene_const)
+
+        ic( veh_x, veh_y )
+        ic( goal_x, goal_y )
+        # Resets pos of veh to origin if viewpoint is w.r.t. the vehicle
+        if ref == 'vehicle':
+            veh_x = 0
+            veh_y = 0
 
         # Clear data if close to start line and data is short. FIXME: Currently, does not reset if collision occurs immediately
         self.ax.clear()
@@ -174,6 +184,7 @@ class ICM:
         if True:        
             # RELATIVE
             veh_heading = 0
+            pass
         
         for i in range(0,scene_const.sensor_count):
             # gamma + sensor_min_angle   is the current angle of the left most sensor
@@ -187,7 +198,8 @@ class ICM:
         ####################
         # Get Estimate 
         ####################
-        max_horizon = 5
+        max_horizon     = 3
+        horizon_step    = 1
 
         # Array storing x,y position of estimate
         state_estimate_x = []
@@ -210,7 +222,13 @@ class ICM:
             temp_state = np.reshape(temp_state, -1)
 
             # Compute the x,y coordinate
-            temp_x, temp_y, _, _ = self.getPoints( temp_state, action, scene_const)
+            temp_x, temp_y, _, _, _ , _ = self.getPoints( temp_state, action, scene_const)
+
+            # resets to origin if viewpoint is w.r.t. vehicle
+            if ref == 'vehicle':
+                temp_x = 0
+                temp_y = 0
+
 
             # Add to list
             state_estimate_x.append(temp_x)
@@ -244,20 +262,25 @@ class ICM:
         ####################
         
         # Goal Point
-        self.ax.scatter(0,60, color='blue')
+        if ref == 'vehicle':
+            pass
+            self.ax.scatter(goal_x,goal_y, color='blue')
+        elif ref == 'ground':
+            self.ax.scatter(0,scene_const.lane_len*0.5, color='blue')  # straight
+            #self.ax.scatter(scene_const.turn_len*0.5 - 3,0.5*(scene_const.lane_len - scene_const.lane_width), color='blue')   # left
 
         # Scatter
 
         # Vehicle Trajectory & Input
-        #self.ax.scatter(self.data_x,self.data_y, color='red')
+        self.ax.scatter(self.data_x,self.data_y, color='red')
 
         # quiver the vehicle heading
         #self.ax.quiver(veh_x,veh_y, np.sin(veh_heading*math.pi), np.cos(veh_heading*math.pi), color='red')
-        self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
+        #self.ax.quiver(self.data_x,self.data_y,self.data_arrow_x,self.data_arrow_y, color='red')
 
         # Estimate
-        self.ax.plot(state_estimate_x,state_estimate_y, color='green', label='Estimate')
-        self.ax.scatter(state_estimate_x,state_estimate_y, color='green')
+        self.ax.plot(state_estimate_x[0:max_horizon:horizon_step],state_estimate_y[0:max_horizon:horizon_step], color='green', label='Estimate')
+        self.ax.scatter(state_estimate_x[0:max_horizon:horizon_step],state_estimate_y[0:max_horizon:horizon_step], color='green')
 
         # True Radar
         #   True radar points
@@ -269,7 +292,7 @@ class ICM:
 
         # Radar Estimate
         color_delta = 0.9/max_horizon
-        for i in range(0,max_horizon):
+        for i in range(0,max_horizon,horizon_step):
             # color, gets lighter as estimate more into the future
             radar_est_color = (0,0.5,0,1-color_delta*i) 
 
@@ -281,8 +304,12 @@ class ICM:
             self.ax.plot(radar_est_x_col[i,:],radar_est_y_col[i,:], color=radar_est_color, linestyle = '--')
  
         # Figure Properties
-        self.ax.set_xlim(-6,6) 
-        self.ax.set_ylim(0,80) 
+        if ref == 'vehicle':
+            self.ax.set_xlim(-scene_const.sensor_distance,scene_const.sensor_distance) 
+            self.ax.set_ylim(-1,scene_const.goal_distance+5) 
+        elif ref == 'ground':
+            self.ax.set_xlim(-1.2*scene_const.lane_width,1.2*scene_const.lane_width) 
+            self.ax.set_ylim(-0.5*scene_const.lane_len,scene_const.lane_len*0.5 + 15) 
         self.ax.legend()
 
         # Draw
@@ -301,21 +328,24 @@ class ICM:
     #   curr_state : [sensor_values, goal_angle, goal_distance]
     #   action     : one hot encoded vector
     #   scene_const: scene constants as the class
+    #   ref        : string 
+    #              'vehicle' - viewpoint from vehicle (DEFAULT)
+    #              'ground'  - viewpoint from the ground
     #
     # Output
     #   veh_x, veh_y: x,y coordinate of vehicle. 
     #   arrow_x, arrow_y: x,y coordinate of arrow computed from input
+    #   goal_x, goal_y : x,y coordinate of the goal point
 
     def getPoints(self, curr_state, action, scene_const):
-        #print(curr_state[9])
         # Break up into raw data
         raw_sensor = curr_state[0:scene_const.sensor_count]
         raw_angle  = curr_state[scene_const.sensor_count]
         raw_dist   = curr_state[scene_const.sensor_count+1]
 
         # Get position of vehicle from goal point distance and angle from raw data
-        veh_x = -1*scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )         # -1 since positive distance means goal is right of vehicle. Since goal is at x=0, from goal's view, vehicle is at left of it, meaning negative.
-        veh_y = scene_const.goal_distance - scene_const.goal_distance * raw_dist * np.cos( math.pi * raw_angle )
+        veh_x = -1*scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )        # -1 since positive distance means goal is right of vehicle. Since goal is at x=0, from goal's view, vehicle is at left of it, meaning negative.
+        veh_y = scene_const.goal_distance - scene_const.goal_distance * raw_dist * np.cos( math.pi * raw_angle ) - 0.5*scene_const.lane_len     # -0.5*lane_len since veh_y think vehicle starts at origin
 
         # Get arrow
         # Delta of angle between each action
@@ -326,7 +356,11 @@ class ICM:
         arrow_x = -0.1*np.sin( math.radians( desired_angle ) )
         arrow_y = 0.1*np.cos( math.radians( desired_angle ) )
 
-        return veh_x, veh_y, arrow_x, arrow_y
+        # Get goal point assuming vehicle is the reference
+        goal_y = raw_dist*scene_const.goal_distance*np.cos( raw_angle * math.pi )
+        goal_x = raw_dist*scene_const.goal_distance*np.sin( raw_angle * math.pi )
+
+        return veh_x, veh_y, arrow_x, arrow_y, goal_x, goal_y
 
     def getTrainableVarByName(self):
         trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)
