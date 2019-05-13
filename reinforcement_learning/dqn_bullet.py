@@ -278,8 +278,58 @@ def controlCamera(cam_pos, cam_dist):
 
     return cam_pos, cam_dist
 
+# Draw Debug Lines
+# Input
+#   ray_batch_result: result from raytest batch 
+#   sensor_data
+#   createInit : create initial debug lines
+# Output
+#   rayIds : 2d array for ray id. each row is ray ids for a single vehicle
+def drawDebugLines( options, scene_const, vehicle_handle, sensor_data = -1, ray_id = -1, createInit = False):
+    # Paremters?
+    rayIds=[]                   # 2d array for ray id
+    rayHitColor = [1,0,0]
+    rayMissColor = [0,1,0]
+    hokuyo_joint = 8
+
+    # for each vehicle
+    for k in range (options.VEH_COUNT):
+        rayIds.append([])
+        # for each sensor
+        for i in range (scene_const.sensor_count):
+            # Reference is : y-axis for horizontal, +ve is left.   x-axis for vertical, +ve is up
+            curr_angle = scene_const.sensor_max_angle - i*scene_const.sensor_delta
+
+            # No result just draw
+            if createInit == True:
+                rayIds[k].append(p.addUserDebugLine(rayFrom[i], rayTo[i], rayMissColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint ))
+            else:
+                # Draw
+                hit_fraction = sensor_data[k][i]
+                if hit_fraction == 1:      # If hit nothing
+                    ray_id[k][i] = p.addUserDebugLine(rayFrom[i], rayTo[i], rayMissColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
+                else:
+                    local_hit = np.asarray(rayFrom[i]) + hit_fraction*(np.asarray(rayTo[i]) - np.asarray(rayFrom[i]) )
+                    ray_id[k][i] = p.addUserDebugLine(rayFrom[i], local_hit, rayHitColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
 
 
+    if ray_id == -1: 
+        return rayIds
+    else:
+        return ray_id
+
+def getSensorData( options, scene_const, vehicle_handle ):
+    results = []
+    for k in range(0, options.VEH_COUNT):
+        results.append(p.rayTestBatch(rayFrom,rayTo, 1, parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=8) )
+
+    # Extract hit fraction
+    out = np.zeros((options.VEH_COUNT, scene_const.sensor_count)) - 1
+    for i in range(0,options.VEH_COUNT):
+        for j in range(0,scene_const.sensor_count):
+            out[i][j] = results[i][j][2]
+
+    return out 
 
 ########################
 # MAIN
@@ -326,6 +376,7 @@ if __name__ == "__main__":
 
     p.resetSimulation()
     p.setRealTimeSimulation( 0 )        # Don't use real time simulation
+    p.setGravity(0, 0, -9.8)
 
     # Set scene_constants
     scene_const                     = scene_constants()
@@ -354,17 +405,68 @@ if __name__ == "__main__":
     # Print Speed Infos
     printSpdInfo()
 
+    # Handles
+    vehicle_handle      = np.zeros(options.VEH_COUNT, dtype=int)
+    dummy_handle        = np.zeros(options.VEH_COUNT)
+    case_wall_handle    = np.zeros((options.VEH_COUNT,scene_const.wall_cnt)) 
+
+    ###########################
+    # Scene Generation
+    ###########################
 
     # Load plane
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"))
-    for j in range(options.VEH_COUNT):
-        for i in range(options.VEH_COUNT):
-            createTee( i*scene_const.case_x, j*scene_const.case_y, i % 3, scene_const )
+
+    case_x_count = 5
+    if options.VEH_COUNT % case_x_count != 0:
+        raise ValueError('VEH_COUNT=' + str(options.VEH_COUNT) + ' must be multiple of case_x_count=' + str(case_x_count))
+
+    # Generate test cases & vehicles
+    for j in range(int(options.VEH_COUNT/case_x_count)):
+        for i in range( case_x_count ):
+            print("Creating x:",i," y:", j)
+
+            # Unrolled index
+            u_index = case_x_count*j + i
+
+            # Generate T-intersection for now
+            dummy_handle[ u_index ], case_wall_handle[ u_index ]  = createTee( i*scene_const.case_x, j*scene_const.case_y, i % 3, scene_const )
+
+            # Save vehicle handle
+            temp = p.loadURDF(os.path.join(pybullet_data.getDataPath(), "racecar/racecar.urdf"), basePosition = [i*scene_const.case_x,j*scene_const.case_y + scene_const.veh_init_y,0], globalScaling = 2.0, useFixedBase = False, baseOrientation = [0,0,0.707,0.707])
+            vehicle_handle[ u_index ] = temp
+
+    # Print Handles
+    ic(dummy_handle, case_wall_handle, vehicle_handle)
+
+
+    # Define rayTo and rayFrom
+    rayTo = []
+    rayFrom = []
+    for i in range (scene_const.sensor_count):
+        # Reference is : y-axis for horizontal, +ve is left.   x-axis for vertical, +ve is up
+        curr_angle = scene_const.sensor_max_angle - i*scene_const.sensor_delta
+        rayFrom.append([0,0,0])
+        rayTo.append([scene_const.sensor_distance*np.cos( curr_angle ), scene_const.sensor_distance * np.sin( curr_angle ), 0])
+
+    # Draw initial lines
+    ray_ids = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
 
     while ( True ):
         cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
+        p.stepSimulation()
+
+        # Get Lidar Info. TODO: Paralleize this to while vehicle
+        sensor_data = getSensorData( options, scene_const, vehicle_handle)
+        # ic(sensor_data)
+
+        # Draw Debug Lines
+        if options.enable_GUI == True:
+            ray_ids = drawDebugLines(options, scene_const, vehicle_handle, sensor_data, ray_ids )
+
+        # Sleep
         time.sleep(0.01)
-        pass
+        # pass
 
     #####################
     # GET HANDLES
@@ -374,23 +476,14 @@ if __name__ == "__main__":
     motor_handle, steer_handle = getMotorHandles( options, scene_const )
     sensor_handle = getSensorHandles( options, scene_const )
 
-    # Get vehicle handle
-    vehicle_handle = np.zeros(options.VEH_COUNT, dtype=int)
-    for i in range(0,options.VEH_COUNT):
-        err_code, vehicle_handle[i] = vrep.simxGetObjectHandle(clientID, "dyros_vehicle" + str(i), vrep.simx_opmode_blocking)
-
-    # Get goal point handle
-    dummy_handle = np.zeros(options.VEH_COUNT, dtype=int)
-    for i in range(0,options.VEH_COUNT):
-        err_code, dummy_handle[i] = vrep.simxGetObjectHandle(clientID, "GoalPoint" + str(i), vrep.simx_opmode_blocking)
-
     # Get obstacle handle
-    obs_handle = np.zeros(options.VEH_COUNT, dtype=int)
-    for i in range(0,options.VEH_COUNT):
-        err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
+    # obs_handle = np.zeros(options.VEH_COUNT, dtype=int)
+    # for i in range(0,options.VEH_COUNT):
+        # err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
 
     # Make Large handle list for communication
     handle_list = [options.VEH_COUNT, scene_const.sensor_count] 
+
     # Make handles into big list
     for v in range(0,options.VEH_COUNT):
         handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]

@@ -9,7 +9,7 @@ class scene_constants:
     # List of constants
 
     # Maximum distance for sensor readings
-    sensor_distance     = 20
+    sensor_distance     = 5
     max_distance        = sensor_distance        # DEPRECATED
 
     # Number of sensors
@@ -53,4 +53,5 @@ class scene_constants:
     turn_len        = 10            # total len after tun
     case_x          = 15           # distance between each case
     case_y          = 15           # distance between each case
-    veh_init_y      = -45           # initial vehicle y position
+    veh_init_y      = -3           # initial vehicle y position
+    wall_cnt        = 8             # number of walls

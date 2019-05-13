@@ -9,7 +9,11 @@ import pybullet as p
 #   size : [x,y,z]
 #   pos  : [x,y,z]
 def createWall( size, pos ):
-    return p.createMultiBody( baseMass = 0, baseCollisionShapeIndex = p.createCollisionShape( p.GEOM_BOX, halfExtents = size ), baseVisualShapeIndex = p.createVisualShape( shapeType = p.GEOM_BOX, rgbaColor = [1,1,1,1], halfExtents = size), basePosition = pos )
+    temp = p.createMultiBody( baseMass = 0, baseCollisionShapeIndex = p.createCollisionShape( p.GEOM_BOX, halfExtents = size ), baseVisualShapeIndex = p.createVisualShape( shapeType = p.GEOM_BOX, rgbaColor = [1,1,1,1], halfExtents = size), basePosition = pos )
+    if temp < 0:
+        raise ValueError("Failed to create multibody at createWall")
+    else: 
+        return temp
 
 # Create Goal Point
 # Input
@@ -17,7 +21,11 @@ def createWall( size, pos ):
 # Output
 #  goal_point id
 def createGoal( size, pos ):
-    return p.createMultiBody( baseMass = 0, baseCollisionShapeIndex = p.createCollisionShape( p.GEOM_SPHERE, radius = size ), baseVisualShapeIndex = p.createVisualShape( shapeType = p.GEOM_SPHERE, rgbaColor = [1,0,0,1], radius = size), basePosition = pos )
+    temp = p.createMultiBody( baseMass = 0, baseCollisionShapeIndex = p.createCollisionShape( p.GEOM_SPHERE, radius = size ), baseVisualShapeIndex = p.createVisualShape( shapeType = p.GEOM_SPHERE, rgbaColor = [1,0,0,1], radius = size), basePosition = pos )
+    if temp < 0:
+        raise ValueError("Failed to create multibody at createGoal")
+    else: 
+        return temp
 
 # Create T-Intersection
 # Input
@@ -25,25 +33,30 @@ def createGoal( size, pos ):
 #   direction : 0/1/2, left/mid,right
 #   scene_const
 #   openWall : T/F
+# Output
+#   goal_id : id of the goal point
+#   wall_handle_list : array of wall's handle
 def createTee( x_pos, y_pos, direction, scene_const, openWall = True ): 
-    wall_h = 2
+    wall_h = 0.5
+
+    wall_handle_list = []
 
     # Walls left & right
-    createWall( [0.02, 0.5*scene_const.lane_len, wall_h], [x_pos - scene_const.lane_width*0.5, y_pos, 0] )       # left
-    createWall( [0.02, 0.5*scene_const.lane_len, wall_h], [x_pos + scene_const.lane_width*0.5, y_pos, 0] )       # right
+    wall_handle_list.append( createWall( [0.02, 0.5*scene_const.lane_len, wall_h], [x_pos - scene_const.lane_width*0.5, y_pos, 0] ) )      # left
+    wall_handle_list.append( createWall( [0.02, 0.5*scene_const.lane_len, wall_h], [x_pos + scene_const.lane_width*0.5, y_pos, 0] ) )      # right
 
     # Walls front & back
-    createWall( [0.5*scene_const.turn_len, 0.02, wall_h], [x_pos, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width,0] )                # front
-    createWall( [0.5*scene_const.lane_width, 0.02, wall_h], [x_pos, y_pos -1*scene_const.lane_len*0.5,0] )              # back
+    wall_handle_list.append( createWall( [0.5*scene_const.turn_len, 0.02, wall_h], [x_pos, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width,0] ) )               # front
+    wall_handle_list.append( createWall( [0.5*scene_const.lane_width, 0.02, wall_h], [x_pos, y_pos -1*scene_const.lane_len*0.5,0] ) )              # back
 
     # Walls at intersection
     wall_len = 0.5*( scene_const.turn_len - scene_const.lane_width ) 
-    createWall( [0.5*wall_len, 0.02, wall_h], [x_pos + 0.5*scene_const.lane_width + 0.5*wall_len, y_pos + scene_const.lane_len*0.5,0] )
-    createWall( [0.5*wall_len, 0.02, wall_h], [x_pos - 0.5*scene_const.lane_width - 0.5*wall_len, y_pos + scene_const.lane_len*0.5,0] )
+    wall_handle_list.append( createWall( [0.5*wall_len, 0.02, wall_h], [x_pos + 0.5*scene_const.lane_width + 0.5*wall_len, y_pos + scene_const.lane_len*0.5,0] ) )
+    wall_handle_list.append( createWall( [0.5*wall_len, 0.02, wall_h], [x_pos - 0.5*scene_const.lane_width - 0.5*wall_len, y_pos + scene_const.lane_len*0.5,0] ) )
 
     # Walls at the end
-    createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos - 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] )
-    createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos + 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] )
+    wall_handle_list.append( createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos - 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] ) )
+    wall_handle_list.append( createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos + 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] ) )
 
 
 
@@ -58,4 +71,4 @@ def createTee( x_pos, y_pos, direction, scene_const, openWall = True ):
     else:
         raise ValueError('Undefined direction')
 
-    return goal_id
+    return goal_id, wall_handle_list
