@@ -20,14 +20,14 @@ import pybullet_data
 # From other files
 # from utils.utils_vrep import *                  # import everything directly from utils_vrep.py
 # from utils.utils_training import *              # import everything directly from utils_vrep.py
-from utils.utils_gen_scene import *
-from utils.scene_constants_bullet import scene_constants 
+from utils.utils_pb import *
+from utils.utils_pb_scene_2LC import *
+from utils.scene_constants_pb import scene_constants 
 from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.experience_replay import SumTree 
 from utils.experience_replay import Memory
 from utils.utils_data import data_pack
-from utils.scene_2LC import *
 
 def get_options():
     parser = ArgumentParser(
@@ -95,7 +95,7 @@ def get_options():
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=10,
                         help='Number of vehicles to use for simulation')
-    parser.add_argument('--INIT_SPD', type=int, default=10,
+    parser.add_argument('--INIT_SPD', type=int, default=2,
                         help='Initial speed of vehicle in  km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=20,
                         help='Multiplier for rewards based on the distance to the goal')
@@ -111,6 +111,8 @@ def get_options():
                         help='Scale of L2 loss')
     parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
                         help='Fix input steps')
+    parser.add_argument('--X_COUNT', type=int, default=6,
+                        help='Width of the grid for vehicles. Default of 5 means we lay down 5 vehicles as the width of the grid')
     options = parser.parse_args()
 
     return parser, options
@@ -302,15 +304,15 @@ def drawDebugLines( options, scene_const, vehicle_handle, sensor_data = -1, ray_
 
             # No result just draw
             if createInit == True:
-                rayIds[k].append(p.addUserDebugLine(rayFrom[i], rayTo[i], rayMissColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint ))
+                rayIds[k].append(p.addUserDebugLine(scene_const.rayFrom[i], scene_const.rayTo[i], rayMissColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint ))
             else:
                 # Draw
                 hit_fraction = sensor_data[k][i]
                 if hit_fraction == 1:      # If hit nothing
-                    ray_id[k][i] = p.addUserDebugLine(rayFrom[i], rayTo[i], rayMissColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
+                    ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], scene_const.rayTo[i], rayMissColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
                 else:
-                    local_hit = np.asarray(rayFrom[i]) + hit_fraction*(np.asarray(rayTo[i]) - np.asarray(rayFrom[i]) )
-                    ray_id[k][i] = p.addUserDebugLine(rayFrom[i], local_hit, rayHitColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
+                    local_hit = np.asarray(scene_const.rayFrom[i]) + hit_fraction*(np.asarray(scene_const.rayTo[i]) - np.asarray(scene_const.rayFrom[i]) )
+                    ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], local_hit, rayHitColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
 
 
     if ray_id == -1: 
@@ -318,18 +320,6 @@ def drawDebugLines( options, scene_const, vehicle_handle, sensor_data = -1, ray_
     else:
         return ray_id
 
-def getSensorData( options, scene_const, vehicle_handle ):
-    results = []
-    for k in range(0, options.VEH_COUNT):
-        results.append(p.rayTestBatch(rayFrom,rayTo, 1, parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=8) )
-
-    # Extract hit fraction
-    out = np.zeros((options.VEH_COUNT, scene_const.sensor_count)) - 1
-    for i in range(0,options.VEH_COUNT):
-        for j in range(0,scene_const.sensor_count):
-            out[i][j] = results[i][j][2]
-
-    return out 
 
 ########################
 # MAIN
@@ -366,7 +356,7 @@ if __name__ == "__main__":
         clientID = p.connect(p.GUI)
         p.resetDebugVisualizerCamera( cameraDistance = 5, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = [0,0,0] )
         cam_pos = [0,0,0]
-        cam_dist = 15
+        cam_dist = 5
     else:
         clientID = p.connect(p.DIRECT)
 
@@ -377,6 +367,7 @@ if __name__ == "__main__":
     p.resetSimulation()
     p.setRealTimeSimulation( 0 )        # Don't use real time simulation
     p.setGravity(0, 0, -9.8)
+    p.setTimeStep( 1/60 )
 
     # Set scene_constants
     scene_const                     = scene_constants()
@@ -405,88 +396,35 @@ if __name__ == "__main__":
     # Print Speed Infos
     printSpdInfo()
 
-    # Handles
-    vehicle_handle      = np.zeros(options.VEH_COUNT, dtype=int)
-    dummy_handle        = np.zeros(options.VEH_COUNT)
-    case_wall_handle    = np.zeros((options.VEH_COUNT,scene_const.wall_cnt)) 
-
     ###########################
     # Scene Generation
     ###########################
 
-    # Load plane
-    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"))
+    # Generate Scene and get handles
+    vehicle_handle, dummy_handle, case_wall_handle = genScene( scene_const, options )
 
-    case_x_count = 5
-    if options.VEH_COUNT % case_x_count != 0:
-        raise ValueError('VEH_COUNT=' + str(options.VEH_COUNT) + ' must be multiple of case_x_count=' + str(case_x_count))
-
-    # Generate test cases & vehicles
-    for j in range(int(options.VEH_COUNT/case_x_count)):
-        for i in range( case_x_count ):
-            print("Creating x:",i," y:", j)
-
-            # Unrolled index
-            u_index = case_x_count*j + i
-
-            # Generate T-intersection for now
-            dummy_handle[ u_index ], case_wall_handle[ u_index ]  = createTee( i*scene_const.case_x, j*scene_const.case_y, i % 3, scene_const )
-
-            # Save vehicle handle
-            temp = p.loadURDF(os.path.join(pybullet_data.getDataPath(), "racecar/racecar.urdf"), basePosition = [i*scene_const.case_x,j*scene_const.case_y + scene_const.veh_init_y,0], globalScaling = 2.0, useFixedBase = False, baseOrientation = [0,0,0.707,0.707])
-            vehicle_handle[ u_index ] = temp
+    # Draw initial lines
+    sensor_handle = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
 
     # Print Handles
     ic(dummy_handle, case_wall_handle, vehicle_handle)
-
-
-    # Define rayTo and rayFrom
-    rayTo = []
-    rayFrom = []
-    for i in range (scene_const.sensor_count):
-        # Reference is : y-axis for horizontal, +ve is left.   x-axis for vertical, +ve is up
-        curr_angle = scene_const.sensor_max_angle - i*scene_const.sensor_delta
-        rayFrom.append([0,0,0])
-        rayTo.append([scene_const.sensor_distance*np.cos( curr_angle ), scene_const.sensor_distance * np.sin( curr_angle ), 0])
-
-    # Draw initial lines
-    ray_ids = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
-
-    while ( True ):
-        cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
-        p.stepSimulation()
-
-        # Get Lidar Info. TODO: Paralleize this to while vehicle
-        sensor_data = getSensorData( options, scene_const, vehicle_handle)
-        # ic(sensor_data)
-
-        # Draw Debug Lines
-        if options.enable_GUI == True:
-            ray_ids = drawDebugLines(options, scene_const, vehicle_handle, sensor_data, ray_ids )
-
-        # Sleep
-        time.sleep(0.01)
-        # pass
 
     #####################
     # GET HANDLES
     #####################
 
     print("Getting handles...")
-    motor_handle, steer_handle = getMotorHandles( options, scene_const )
-    sensor_handle = getSensorHandles( options, scene_const )
-
-    # Get obstacle handle
-    # obs_handle = np.zeros(options.VEH_COUNT, dtype=int)
-    # for i in range(0,options.VEH_COUNT):
-        # err_code, obs_handle[i] = vrep.simxGetObjectHandle(clientID, "obstacle" + str(i), vrep.simx_opmode_blocking)
+    motor_handle = [2, 3]
+    steer_handle = [4, 6]
+    # motor_handle, steer_handle = getMotorHandles( options, scene_const )
+    # sensor_handle = getSensorHandles( options, scene_const )
 
     # Make Large handle list for communication
     handle_list = [options.VEH_COUNT, scene_const.sensor_count] 
 
     # Make handles into big list
-    for v in range(0,options.VEH_COUNT):
-        handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
+    # for v in range(0,options.VEH_COUNT):
+        # handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
 
     # Make handle into dict to be passed around functions
     handle_dict = {
@@ -495,7 +433,7 @@ if __name__ == "__main__":
         'steer'     : steer_handle,
         'vehicle'   : vehicle_handle,
         'dummy'     : dummy_handle,
-        'obstacle'  : obs_handle
+        # 'obstacle'  : obs_handle
     }
 
     ########################
@@ -503,9 +441,7 @@ if __name__ == "__main__":
     ########################
 
     # Data
-    sensorData = np.zeros(scene_const.sensor_count)   
-    sensorDetection = np.zeros(scene_const.sensor_count)   
-    #vehPosData = []
+    sensorData      = np.zeros(scene_const.sensor_count)   
 
     ##############
     # TF Setup
@@ -516,12 +452,7 @@ if __name__ == "__main__":
     agent_icm       = ICM(options,scene_const,'icm_Training')
 
     sess            = tf.InteractiveSession()
-    
-
-#    sess = tf.InteractiveSession(config=tf.ConfigProto(log_device_placement=True))
-#    sess = tf.Session()
-   
-    rwd                  = tf.placeholder(tf.float32, [None, ], name='reward')
+    rwd             = tf.placeholder(tf.float32, [None, ], name='reward')
 
     # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
     target_vars = agent_target.getTrainableVarByName()
@@ -568,6 +499,7 @@ if __name__ == "__main__":
         replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = False, absolute_error_upperbound = 2000)
         
 
+    # Print trainable variables
     printTFvars()
 
     # Export weights
@@ -592,31 +524,24 @@ if __name__ == "__main__":
 
     reward_data         = np.empty(0)
     avg_loss_value_data = np.empty(1)
-#    veh_pos_data        = np.empty([options.MAX_EPISODE, options.MAX_TIMESTEP, 2])
     avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
-    #epi_reward_data = np.zeros(0)
     track_eps           = []
     track_eps.append((0,eps))
-
-    vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-
-
 
     ###########################        
     # Initialize Variables
     ###########################        
    
     # Some variables
-    reward_stack = np.zeros(options.VEH_COUNT)                              # Holds rewards of current step
-    action_stack = np.zeros((options.VEH_COUNT, options.ACTION_DIM))        # action_stack[k] is the array of optinos.ACTION_DIM with one hot encoding
-    epi_step_stack = np.zeros(options.VEH_COUNT)      # Count number of step for each vehicle in each episode
-    epi_reward_stack = np.zeros(options.VEH_COUNT)                          # Holds reward of current episode
-    epi_counter  = 0                                                # Counts # of finished episodes
-    epi_done = np.zeros(options.VEH_COUNT) 
-    eps_tracker = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
+    reward_stack        = np.zeros(options.VEH_COUNT)                              # Holds rewards of current step
+    action_stack        = np.zeros(options.VEH_COUNT)                              # action_stack[k] is the array of optinos.ACTION_DIM with each element representing the index
+    epi_step_stack      = np.zeros(options.VEH_COUNT)                              # Count number of step for each vehicle in each episode
+    epi_reward_stack    = np.zeros(options.VEH_COUNT)                              # Holds reward of current episode
+    epi_counter         = 0                                                        # Counts # of finished episodes
+    epi_done            = np.zeros(options.VEH_COUNT) 
+    eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
  
     # Initialize Scene
-
     initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
 
     # List of deque to store data
@@ -627,27 +552,39 @@ if __name__ == "__main__":
         goal_queue.append( deque() )
 
     # initilize them with initial data
-    veh_pos, veh_heading, dDistance, gInfo = getVehicleStateLUA( handle_list, scene_const )
+    veh_pos, veh_heading, dDistance, gInfo = getVehicleState( scene_const, options, handle_dict )
     sensor_queue, goal_queue = initQueue( options, sensor_queue, goal_queue, dDistance, gInfo )
 
-    curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
-    prev_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
-    #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
-    #prev_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
+    ##############################
+    # MAIN SIMULATION LOOP
+    ##############################
+    # while ( True ):
+    #     GS_START_TIME_STR   = datetime.datetime.now()
+    #     if options.enable_GUI == True:
+    #         cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
+    #     p.stepSimulation()
+
+    #     # Draw Debug Lines
+    #     if options.enable_GUI == True:
+    #         sensor_handle = drawDebugLines(options, scene_const, vehicle_handle, dDistance, sensor_handle )
+
+    #     veh_pos, veh_heading, dDistance, gInfo = getVehicleState( scene_const, options, handle_dict )
+
+    #     # Sleep
+    #     time.sleep(0.01)
+    #     GS_END_TIME_STR   = datetime.datetime.now()
+    #     print('Time : ' + str(GS_END_TIME_STR - GS_START_TIME_STR))
+    #     # pass
+
+
+
+
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
-        prev_weight = curr_weight
-        curr_weight = tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval()
-        #print('Training Kernel 0 Diff:', np.linalg.norm(curr_weight - prev_weight))
-        #print('WEIGHT:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/kernel:0').eval() )
-        #print('BIAS:',tf.get_default_graph().get_tensor_by_name('Training/h_s1/bias:0').eval() )
+        # GS_START_TIME_STR   = datetime.datetime.now()
+        if options.enable_GUI == True and options.manual == False:
+            cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
 
-
-        #prev_weight_target = curr_weight_target
-        #curr_weight_target = tf.get_default_graph().get_tensor_by_name('Target/h_s1/kernel:0').eval()
-        #print('Target Kenel 0 Diff:', np.linalg.norm(curr_weight_target - prev_weight_target))
-
-        #GS_START_TIME_STR   = datetime.datetime.now()
         # Decay epsilon
         global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
@@ -667,35 +604,30 @@ if __name__ == "__main__":
             # Get current info to generate input
             observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
 
-            # Get Action. First vehicle always exploit
-            if v == 0:
-                #print('curr_state:', observation)
-                action_stack[v] = agent_train.sample_action(
-                                                    {
-                                                        agent_train.observation : np.reshape(observation, (1, -1))
-                                                    },
-                                                    eps,
-                                                    options,
-                                                    False
-                                                 )
-            else:
-                action_stack[v] = agent_train.sample_action(
-                                                    {
-                                                        agent_train.observation : np.reshape(observation, (1, -1))
-                                                    },
-                                                    eps,
-                                                    options,
-                                                    False
-                                                 )
+            # Get optimal action
+            action_stack[v] = agent_train.sample_action(
+                                                {
+                                                    agent_train.observation : np.reshape(observation, (1, -1))
+                                                },
+                                                eps,
+                                                options,
+                                                False
+                                                )
 
-        applySteeringAction( action_stack, options, handle_dict, scene_const )
+        # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
+        targetSteer = scene_const.max_steer - action_stack * abs(scene_const.max_steer - scene_const.min_steer)/(options.ACTION_DIM-1)
+        # ic(action_stack)
+        # ic(targetSteer)
+        for veh_index in range(options.VEH_COUNT):
+            p.setJointMotorControlArray( vehicle_handle[veh_index], steer_handle, p.POSITION_CONTROL, targetPositions = np.repeat(targetSteer[veh_index],len(steer_handle)) )
+            p.setJointMotorControlArray( vehicle_handle[veh_index], motor_handle, p.VELOCITY_CONTROL, targetVelocities = np.repeat(options.INIT_SPD,len(motor_handle)) )
 
         ####
         # Step
         ####
 
         for q in range(0,options.FIX_INPUT_STEP):
-            vrep.simxSynchronousTrigger(clientID);
+            p.stepSimulation()
 
         if options.manual == True:
             input('Press Enter')
@@ -703,7 +635,7 @@ if __name__ == "__main__":
         ####
         # Get Next State
         ####
-        next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleStateLUA( handle_list, scene_const )
+        next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleState( scene_const, options, handle_dict )
 
         for v in range(0,options.VEH_COUNT):
             # Get new Data
@@ -716,13 +648,14 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
+            # reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
+            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2
             # cost is the distance squared + inverse of minimum LIDAR distance
         #######
         # Test Estimation
         #######
         if options.TESTING == True:
-            v = 4
+            v = 0
 
             # Print curr & next state
             curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
@@ -731,7 +664,7 @@ if __name__ == "__main__":
             #print('next_state:', next_state)
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
             #print('')
-            agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const, agent_train, options, save=True)
+            # agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const, agent_train, options, save=True)
             
         ###
         # Handle Events
@@ -818,7 +751,7 @@ if __name__ == "__main__":
 
             # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
             #experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
-            experience = observation, np.argmax(action_stack[v]), reward_stack[v], next_observation, epi_done[v]
+            experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
             #print('experience', experience)
            
             # Save new memory 
@@ -839,7 +772,7 @@ if __name__ == "__main__":
 
                 # actions mb is list of numbers. Need to change it into one hot encoding
                 actions_mb_hot = np.zeros((options.BATCH_SIZE,options.ACTION_DIM))
-                actions_mb_hot[np.arange(options.BATCH_SIZE),actions_mb] = 1
+                actions_mb_hot[np.arange(options.BATCH_SIZE),np.asarray(actions_mb, dtype=int)] = 1
 
                 # actions converted to value array
                 #actions_mb_val = oneHot2Angle( actions_mb_hot, scene_const, options, radians = False, scale = True )
@@ -910,7 +843,7 @@ if __name__ == "__main__":
         initScene( scene_const, options, reset_veh_list, handle_dict, randomize = RANDOMIZE)               # initialize
 
         # Reset data queue
-        _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
+        _, _, reset_dDistance, reset_gInfo = getVehicleState( scene_const, options, handle_dict)
         sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo, reset_veh_list )
 
         ###############
@@ -925,6 +858,7 @@ if __name__ == "__main__":
 
         # Update rewards
         for v in range(0,options.VEH_COUNT):
+            # print('Vehicle ' + str(v) + ' reward_stack[v]' + str(reward_stack[v]))
             epi_reward_stack[v] = epi_reward_stack[v] + reward_stack[v]*(options.GAMMA**epi_step_stack[v])
 
         # Print Rewards
@@ -950,38 +884,6 @@ if __name__ == "__main__":
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
 
-        #GS_END_TIME   = datetime.datetime.now()
-        #print(GS_END_TIME - GS_START_TIME_STR)
-
-        # Stop and Restart Simulation Every X episodes
-        if global_step % options.RESET_STEP == 0:
-            print('-----------------------------------------')
-            print("Resetting...")
-            print('-----------------------------------------')
-            vrep.simxStopSimulation(clientID, vrep.simx_opmode_blocking)
-            
-            # Wait until simulation is stopped.
-            simulation_status = 1
-            bit_mask = 1
-            #while bit_mask & simulation_status != 0:       # Get right-most bit and check if it is 1
-                #ret, simulation_status = vrep.simxGetInMessageInfo(clientID, vrep.simx_headeroffset_server_state)
-                #print(simulation_status)
-                #print('Ret:' + str(ret))
-                #print(bit_mask & simulation_status)
-                #print("{0:b}".format(simulation_status))
-                #time.sleep(0.1)
-            time.sleep(9)
-
-            # Start simulation and initilize scene
-            vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-            vrep.simxSynchronous(clientID,True)
-            time.sleep(1.0)
-            initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
-
-            # reset data queue
-            _, _, reset_dDistance, reset_gInfo = getVehicleStateLUA( handle_list, scene_const )
-            sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo, list(range(0,options.VEH_COUNT)) )
-        
         # save progress every 1000 episodes AND testing is disabled
         if options.TESTING == False:
             if global_step // options.SAVER_RATE >= 1 and global_step % options.SAVER_RATE == 0 and options.NO_SAVE == False:
@@ -999,9 +901,12 @@ if __name__ == "__main__":
                 data_package.save_reward()
                 data_package.save_loss()
 
+
+        # GS_END_TIME_STR   = datetime.datetime.now()
+        # print('Time : ' + str(GS_END_TIME_STR - GS_START_TIME_STR))
+
     # stop the simulation & close connection
-    vrep.simxStopSimulation(clientID,vrep.simx_opmode_blocking)
-    vrep.simxFinish(clientID)
+    p.disconnect()
 
     ######################################################
     # Post Processing
