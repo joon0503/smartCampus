@@ -7,21 +7,7 @@ from icecream import ic
 import math
 # import pybullet_data
 # import random
-# import os
-
-def getGoalPoint( veh_index, scene_const ):
-    _, vehPos = vrep.simxGetObjectPosition( scene_const.clientID, vehicle_handle[veh_index], -1, vrep.simx_opmode_blocking)            
-    _, dummyPos = vrep.simxGetObjectPosition( scene_const.clientID, dummy_handle[veh_index], -1, vrep.simx_opmode_blocking)            
-
-    # Calculate the distance
-    delta_distance = np.array(dummyPos) - np.array(vehPos)              # delta x, delta y
-    goal_distance = np.linalg.norm(delta_distance)
-
-    # calculate angle
-    goal_angle = math.atan( delta_distance[0]/delta_distance[1] )       # delta x / delta y
-    goal_angle = goal_angle / math.pi                               # result in -1 to 1
-
-    return goal_angle, goal_distance / scene_const.goal_distance
+# import0os
 
 # Get sensor data
 # Output
@@ -51,7 +37,7 @@ def getSensorData( scene_const, options, vehicle_handle ):
 #   gInfo : VEH_COUNT x 2, [goal_angle, goal_distance]
 def getVehicleState( scene_const, options, handle_dict ):
     veh_pos     = np.zeros((options.VEH_COUNT,2))
-    veh_heading = np.zeros((options.VEH_COUNT,4))
+    veh_heading = np.zeros((options.VEH_COUNT,3))
     gInfo       = np.zeros((options.VEH_COUNT,2))
 
     # Get Handles
@@ -61,8 +47,9 @@ def getVehicleState( scene_const, options, handle_dict ):
 
     for k in range(options.VEH_COUNT):
         # Get vehicle position & orientation
-        temp, veh_heading[k] = p.getBasePositionAndOrientation( vehicle_handle[k] )
+        temp, temp_heading = p.getBasePositionAndOrientation( vehicle_handle[k] )
         veh_pos[k] = temp[0:2]
+        veh_heading[k] = p.getEulerFromQuaternion( temp_heading )       # It seems like veh_heading[k][2] is the heading of vehicle in radians with 0 being heading to east, and heading north is pi/2.
 
         # To compute gInfo, get goal position
         g_pos, _ = p.getBasePositionAndOrientation( goal_handle[k] )
@@ -72,12 +59,14 @@ def getVehicleState( scene_const, options, handle_dict ):
         delta_distance = np.array(g_pos[0:2]) - np.array(veh_pos[k])              # delta x, delta y
         gInfo[k][1]  = np.linalg.norm(delta_distance) / scene_const.goal_distance
 
-        # calculate angle
-        gInfo[k][0] = math.atan( abs(delta_distance[0])/abs(delta_distance[1]) ) / (math.pi*0.5)       # delta x / delta y, and scale by pi 1(left) to -1 (right)
+        # calculate angle. 90deg + angle (assuming heading north) - veh_heading
+        gInfo[k][0] = math.atan( abs(delta_distance[0])/abs(delta_distance[1]) )      # delta x / delta y, and scale by pi 1(left) to -1 (right)
         if delta_distance[0] < 0 :
             # Goal is left of the vehicle, then -1
             gInfo[k][0] = gInfo[k][0]*-1
 
+        # Scale with heading
+        gInfo[k][0] = -1*(math.pi*0.5 - gInfo[k][0] - veh_heading[k][2] ) / (math.pi/2)
     return veh_pos, veh_heading, getSensorData( scene_const, options, vehicle_handle ), gInfo
 
 # Initialize the array of queue
@@ -107,7 +96,7 @@ def initQueue(options, sensor_queue, goal_queue, dDistance, gInfo):
 #   sensor # : Which sensor triggered collision. -1 if no collision
 def detectCollision(dDistance, scene_const ):
     for i in range(scene_const.sensor_count):
-        if dDistance[i]*scene_const.max_distance < scene_const.collision_distance:
+        if dDistance[i]*scene_const.sensor_distance < scene_const.collision_distance:
             return True, i
     
     return False, -1    

@@ -47,7 +47,7 @@ class scene_constants:
     min_steer           = -1*max_steer
 
     # Collision occurs if readings are less than this number. in meters
-    collision_distance  = 0.5
+    collision_distance  = 0.4
 
     # Distance to the goal. Used for normalization
     goal_distance       = 10
@@ -57,11 +57,12 @@ class scene_constants:
     dt = 0.025                      # dt of the vrep simulation
 
     # Test Case related
-    obs_w           = (1/3)           # obstacle width ratio
-    lane_width      = 2             # lane width
-    lane_len        = 10           # total len
+    obs_w           = (1/3)         # obstacle width ratio
+    lane_width      = 3             # lane width
+    lane_len        = 10            # total len
     turn_len        = 10            # total len after tun
-    case_x          = 15           # distance between each case
-    case_y          = 15           # distance between each case
-    veh_init_y      = -3           # initial vehicle y position
-    wall_cnt        = 8             # number of walls
+    case_x          = 15            # distance between each case
+    case_y          = 15            # distance between each case
+    veh_init_y      = -3            # initial vehicle y position
+    wall_cnt        = 9             # number of walls
+    wall_h          = 0.5           # height of walls

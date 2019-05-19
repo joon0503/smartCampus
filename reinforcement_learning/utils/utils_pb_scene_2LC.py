@@ -9,7 +9,7 @@ import os
 #########################################
 # Create Wall
 # Input
-#   size : [x,y,z]
+#   size : [x,y,z]. Note: Size is halved during the creation. So if you want to create box with 1m, then input should be 2
 #   pos  : [x,y,z]
 def createWall( size, pos ):
     temp = p.createMultiBody( baseMass = 0, baseCollisionShapeIndex = p.createCollisionShape( p.GEOM_BOX, halfExtents = size ), baseVisualShapeIndex = p.createVisualShape( shapeType = p.GEOM_BOX, rgbaColor = [1,1,1,1], halfExtents = size), basePosition = pos )
@@ -61,17 +61,20 @@ def createTee( x_pos, y_pos, direction, scene_const, openWall = True ):
     wall_handle_list.append( createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos - 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] ) )
     wall_handle_list.append( createWall( [0.02, 0.5*scene_const.lane_width, wall_h], [x_pos + 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0] ) )
 
+    # Create Obstacle
+    obs_width = scene_const.obs_w * scene_const.lane_width
+    wall_handle_list.append( createWall( [ 0.5*obs_width, 0.5*obs_width, wall_h], [x_pos + 0.5*(1-scene_const.obs_w)*scene_const.lane_width, scene_const.lane_len*0.3, 0] ) )      # right
 
 
 
     # Create Goal point
     goal_z = 1.0
     if direction == 0:
-        goal_id = createGoal( 0.1, [x_pos - scene_const.turn_len*0.5 + 0.5, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z] )
+        goal_id = createGoal( 0.1, [x_pos - scene_const.turn_len*0.5 + 1.0, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z] )
     elif direction == 1:
         goal_id = createGoal( 0.1, [x_pos, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z] )
     elif direction == 2:
-        goal_id = createGoal( 0.1, [x_pos + scene_const.turn_len*0.5 - 0.5, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z] )
+        goal_id = createGoal( 0.1, [x_pos + scene_const.turn_len*0.5 - 1.0, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z] )
     else:
         raise ValueError('Undefined direction')
 
@@ -122,7 +125,7 @@ def genScene( scene_const, options ):
 
 # Initialize test cases
 # Input
-def initScene( scene_const, options, veh_index_list, handle_dict, randomize = False):
+def initScene( scene_const, options, veh_index_list, case_wall_handle, handle_dict, randomize = False):
     # If reset list is empty, just return
     if len(veh_index_list) == 0:
         return
@@ -141,40 +144,31 @@ def initScene( scene_const, options, veh_index_list, handle_dict, randomize = Fa
         if randomize == False:
             p.resetBasePositionAndOrientation( vehicle_handle[veh_index],[ scene_const.case_x * x_index, scene_const.case_y * y_index + scene_const.veh_init_y,0], [0,0,0.707,0.707]  )
         else:
-            x_pos = random.uniform(-1*scene_const.lane_width*0.5 + 1.5,scene_const.lane_width*0.5 - 1.5)
+            x_pos = random.uniform(-1*scene_const.lane_width*0.5 + 0.6,scene_const.lane_width*0.5 - 0.6)
             p.resetBasePositionAndOrientation( vehicle_handle[veh_index],[ scene_const.case_x * x_index + x_pos, scene_const.case_y * y_index + scene_const.veh_init_y,0], [0,0,0.707,0.707]  )
 
         # Reset steering & motor speed. TODO: Perhaps do this with setMotorArray to do it in a single line?
         for s in steer_handle:
             p.resetJointState( vehicle_handle[veh_index], s, targetValue = 0)
+
         for m in motor_handle:
             p.resetJointState( vehicle_handle[veh_index], m, targetValue = 0, targetVelocity = options.INIT_SPD)
-        # setMotorPosition(scene_const.clientID, handle_dict['steer'], np.zeros(options.VEH_COUNT))
 
-        # Reset motor speed
-        # setMotorSpeed(scene_const.clientID, motor_handle[veh_index], options.INIT_SPD)
-
-        # Set initial speed of vehicle
-        # p.resetBaseVelocity( vehicle_handle[veh_index], linearVelocity = [0, options.INIT_SPD, 0] )
-        p.resetBaseVelocity( vehicle_handle[veh_index], linearVelocity = [0, 0, 0] )
-
-        # Reset position of obstacle
-        # if randomize == True:
-        #     if random.random() > 0.5:
-                # p.resetBasePositionAndOrientation( vehicle_handle[veh_index],[ scene_const.case_x * x_index + x_pos, scene_const.case_y * y_index + scene_const.veh_init_y,0], [0,0,0.707,0.707]  )
-        #     else:
-                # p.resetBasePositionAndOrientation( vehicle_handle[veh_index],[ scene_const.case_x * x_index + x_pos, scene_const.case_y * y_index + scene_const.veh_init_y,0], [0,0,0.707,0.707]  )
-        
-        # Reset position of dummy    
-        # if randomize == False:
-        #     pass
-        # else:
-        #     pass
-
-    # Reset Steering
-    # p.setJointMotorControlArray( vehicle_handle, motor_handle, p.POSITION_CONTROL, targetPosition = np.zeros(options.VEH_COUNT) )
-
-    # Reset Motor Speed
+        # Randomize the obstacle
+        if randomize == True:
+            obs_width = scene_const.obs_w * scene_const.lane_width
+            x_pos = veh_index * scene_const.case_x
+            temp_prob = random.uniform(0,1)
+            p.removeBody( case_wall_handle[veh_index][8])
+            if temp_prob > (2/3):
+                # right
+                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [veh_index*scene_const.case_x + 0.5*(1-scene_const.obs_w)*scene_const.lane_width, scene_const.lane_len*0.3, 0] )       # right
+            elif temp_prob > (1/3):
+                # middle
+                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [veh_index*scene_const.case_x, scene_const.lane_len*0.3, 0] )       # right
+            else:
+                # left
+                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [veh_index*scene_const.case_x - 0.5*(1-scene_const.obs_w)*scene_const.lane_width, scene_const.lane_len*0.3, 0] )      # right
     return
 
 

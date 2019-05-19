@@ -41,7 +41,7 @@ def get_options():
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.98,
+    parser.add_argument('--GAMMA', type=float, default=0.99,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -105,7 +105,7 @@ def get_options():
                         help='Set simulation seed')
     parser.add_argument('--CTR_FREQ', type=float, default=0.2,
                         help='Control frequency in seconds. Upto 0.001 seconds')
-    parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.2,
+    parser.add_argument('--MIN_LIDAR_CONST', type=float, default=-0.075,
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     parser.add_argument('--L2_LOSS', type=float, default=0.0,
                         help='Scale of L2 loss')
@@ -300,7 +300,7 @@ def drawDebugLines( options, scene_const, vehicle_handle, sensor_data = -1, ray_
         # for each sensor
         for i in range (scene_const.sensor_count):
             # Reference is : y-axis for horizontal, +ve is left.   x-axis for vertical, +ve is up
-            curr_angle = scene_const.sensor_max_angle - i*scene_const.sensor_delta
+            # curr_angle = scene_const.sensor_max_angle - i*scene_const.sensor_delta
 
             # No result just draw
             if createInit == True:
@@ -313,7 +313,6 @@ def drawDebugLines( options, scene_const, vehicle_handle, sensor_data = -1, ray_
                 else:
                     local_hit = np.asarray(scene_const.rayFrom[i]) + hit_fraction*(np.asarray(scene_const.rayTo[i]) - np.asarray(scene_const.rayFrom[i]) )
                     ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], local_hit, rayHitColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
-
 
     if ray_id == -1: 
         return rayIds
@@ -328,6 +327,10 @@ if __name__ == "__main__":
     # Print Options
     parser, options = get_options()
     print(str(options).replace(" ",'\n'))
+
+    # Check Inputs
+    if options.TARGET_UPDATE_STEP % options.VEH_COUNT != 0:
+        raise ValueError('VEH_COUNT must divide TARGET_UPDATE_STEPS')
 
     # Set Seed
     np.random.seed(1)
@@ -542,7 +545,7 @@ if __name__ == "__main__":
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
  
     # Initialize Scene
-    initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
+    initScene( scene_const, options, list(range(0,options.VEH_COUNT)), case_wall_handle, handle_dict, randomize = RANDOMIZE)               # initialize
 
     # List of deque to store data
     sensor_queue = []
@@ -618,6 +621,8 @@ if __name__ == "__main__":
         targetSteer = scene_const.max_steer - action_stack * abs(scene_const.max_steer - scene_const.min_steer)/(options.ACTION_DIM-1)
         # ic(action_stack)
         # ic(targetSteer)
+        #steeringSlider = p.addUserDebugParameter("steering", -2, 2, 0)
+        #steeringAngle = p.readUserDebugParameter(steeringSlider)
         for veh_index in range(options.VEH_COUNT):
             p.setJointMotorControlArray( vehicle_handle[veh_index], steer_handle, p.POSITION_CONTROL, targetPositions = np.repeat(targetSteer[veh_index],len(steer_handle)) )
             p.setJointMotorControlArray( vehicle_handle[veh_index], motor_handle, p.VELOCITY_CONTROL, targetVelocities = np.repeat(options.INIT_SPD,len(motor_handle)) )
@@ -637,6 +642,13 @@ if __name__ == "__main__":
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleState( scene_const, options, handle_dict )
 
+        #print('--------------------------')
+        #ic(next_veh_pos)
+        #ic(next_veh_heading)
+        #ic(next_dDistance)
+        #ic(next_gInfo)
+        #print('--------------------------')
+
         for v in range(0,options.VEH_COUNT):
             # Get new Data
             #veh_pos_queue[v].append(next_veh_pos[v])   
@@ -648,9 +660,15 @@ if __name__ == "__main__":
             goal_queue[v].popleft()
 
             # Get reward for each vehicle
-            # reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
-            reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2
+            #reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
+            reward_stack[v] = -(options.DIST_MUL + 1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
+            # reward_stack[v] = -(options.DIST_MUL)*next_gInfo[v][1]**2
             # cost is the distance squared + inverse of minimum LIDAR distance
+
+        # Draw Debug Lines
+        if options.enable_GUI == True:
+            sensor_handle = drawDebugLines(options, scene_const, vehicle_handle, next_dDistance, sensor_handle, createInit = False )
+
         #######
         # Test Estimation
         #######
@@ -665,6 +683,7 @@ if __name__ == "__main__":
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
             #print('')
             # agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const, agent_train, options, save=True)
+
             
         ###
         # Handle Events
@@ -686,9 +705,9 @@ if __name__ == "__main__":
                 print('-----------------------------------------')
                 
                 # Print last Q-value 
-                observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
-                curr_q_value = sess.run([agent_train.output], feed_dict = {agent_train.observation : np.reshape(observation, (1, -1))})
-                print(curr_q_value)
+                # observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
+                # curr_q_value = sess.run([agent_train.output], feed_dict = {agent_train.observation : np.reshape(observation, (1, -1))})
+                # print(curr_q_value)
 
                 # Add this vehicle to list of vehicles to reset
                 reset_veh_list.append(v)
@@ -840,7 +859,7 @@ if __name__ == "__main__":
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
 
         # Reset Vehicles    
-        initScene( scene_const, options, reset_veh_list, handle_dict, randomize = RANDOMIZE)               # initialize
+        initScene( scene_const, options, reset_veh_list, case_wall_handle, handle_dict, randomize = RANDOMIZE)               # initialize
 
         # Reset data queue
         _, _, reset_dDistance, reset_gInfo = getVehicleState( scene_const, options, handle_dict)
