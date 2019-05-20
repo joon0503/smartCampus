@@ -1,33 +1,31 @@
 # DQN model to solve vehicle control problem
-import tensorflow as tf
-import random
-import numpy as np
+import datetime
 import math
+import os
+import pickle
+import random
+import re
 import sys
-import pybullet as p
+import time
+from argparse import ArgumentParser
+from collections import deque
+
 import matplotlib
 import matplotlib.pyplot as plt
-import time
-import datetime
-import pickle
-import os
-import re
-from icecream import ic
-from collections import deque
-from argparse import ArgumentParser
+import numpy as np
+import pybullet as p
 import pybullet_data
+import tensorflow as tf
+from icecream import ic
 
-# From other files
-# from utils.utils_vrep import *                  # import everything directly from utils_vrep.py
-# from utils.utils_training import *              # import everything directly from utils_vrep.py
-from utils.utils_pb import *
-from utils.utils_pb_scene_2LC import *
-from utils.scene_constants_pb import scene_constants 
+from utils.experience_replay import Memory, SumTree
 from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
-from utils.experience_replay import SumTree 
-from utils.experience_replay import Memory
+from utils.scene_constants_pb import scene_constants
 from utils.utils_data import data_pack
+from utils.utils_pb import *
+from utils.utils_pb_scene_2LC import *
+
 
 def get_options():
     parser = ArgumentParser(
