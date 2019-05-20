@@ -23,8 +23,8 @@ from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.scene_constants_pb import scene_constants
 from utils.utils_data import data_pack
-from utils.utils_pb import *
-from utils.utils_pb_scene_2LC import *
+from utils.utils_pb import initQueue, getVehicleState, detectCollision, detectReachedGoal, resetQueue
+from utils.utils_pb_scene_2LC import genScene, initScene
 
 
 def get_options():

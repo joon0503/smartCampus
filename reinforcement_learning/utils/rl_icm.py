@@ -40,7 +40,6 @@ class ICM:
             act_function = tf.nn.relu
         else:
             raise NameError('Supplied activation function is not supported!')
-            return 
 
         with tf.variable_scope(self.scope):      # Set variable scope
 
@@ -339,7 +338,7 @@ class ICM:
 
     def getPoints(self, curr_state, action, scene_const):
         # Break up into raw data
-        raw_sensor = curr_state[0:scene_const.sensor_count]
+        # raw_sensor = curr_state[0:scene_const.sensor_count]
         raw_angle  = curr_state[scene_const.sensor_count]
         raw_dist   = curr_state[scene_const.sensor_count+1]
 

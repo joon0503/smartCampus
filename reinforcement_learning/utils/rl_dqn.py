@@ -16,7 +16,6 @@ class QAgent:
             act_function = tf.nn.relu
         else:
             raise NameError('Supplied activation function is not supported!')
-            return 
 
         with tf.variable_scope(self.scope):      # Set variable scope
 
