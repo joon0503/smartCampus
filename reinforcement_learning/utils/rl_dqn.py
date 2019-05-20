@@ -207,18 +207,17 @@ class QAgent:
     def sample_action(self, feed, eps, options, verbose = False):
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
-            action_index = random.randrange(options.ACTION_DIM)
-#            action = random.uniform( 0.1 )
+            action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
         else:
             act_values = self.output.eval(feed_dict=feed)
             if options.TESTING == True or verbose == True:
                 # print(np.argmax(act_values))
                 # print(act_values)
                 pass
-            action_index = np.argmax(act_values)
 
-        # action = np.zeros(options.ACTION_DIM)
-        # action[action_index] = 1.0
+            # Get maximum for each vehicle
+            action_index = np.argmax(act_values, axis=1)
+
         return action_index
 
     def getTrainableVarByName(self):

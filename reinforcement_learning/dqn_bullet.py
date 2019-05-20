@@ -603,19 +603,22 @@ if __name__ == "__main__":
         # Find & Apply Action
         ####
         # FIXME: This can be made faster by not using loop and just pushing through network all at once
+        obs_stack = np.empty((options.VEH_COUNT, (scene_const.sensor_count+2)*options.FRAME_COUNT))
+
+        # Get observation stack (which is used in getting the action) 
         for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
-            observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
+            obs_stack[v]    = getObs( sensor_queue[v], goal_queue[v], old=False)
 
-            # Get optimal action
-            action_stack[v] = agent_train.sample_action(
-                                                {
-                                                    agent_train.observation : np.reshape(observation, (1, -1))
-                                                },
-                                                eps,
-                                                options,
-                                                False
-                                                )
+        # Get optimal action. 
+        action_stack = agent_train.sample_action(
+                                            {
+                                                agent_train.observation : obs_stack
+                                            },
+                                            eps,
+                                            options,
+                                            False
+                                            )
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
         targetSteer = scene_const.max_steer - action_stack * abs(scene_const.max_steer - scene_const.min_steer)/(options.ACTION_DIM-1)
