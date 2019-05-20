@@ -111,7 +111,7 @@ def genScene( scene_const, options ):
             dummy_handle[ u_index ], case_wall_handle[ u_index ]  = createTee( i*scene_const.case_x, j*scene_const.case_y, i % 3, scene_const )
 
             # Save vehicle handle
-            temp = p.loadURDF(os.path.join(pybullet_data.getDataPath(), "racecar/racecar.urdf"), basePosition = [i*scene_const.case_x,j*scene_const.case_y + scene_const.veh_init_y,0], globalScaling = 2.0, useFixedBase = False, baseOrientation = [0,0,0.707,0.707])
+            temp = p.loadURDF(os.path.join(pybullet_data.getDataPath(), "racecar/racecar.urdf"), basePosition = [i*scene_const.case_x,j*scene_const.case_y + scene_const.veh_init_y,0], globalScaling = scene_const.veh_scale, useFixedBase = False, baseOrientation = [0,0,0.707,0.707])
             vehicle_handle[ u_index ] = temp
 
             # Resets all wheels
@@ -122,6 +122,7 @@ def genScene( scene_const, options ):
 
     return vehicle_handle, dummy_handle, case_wall_handle
 
+# Remove the scene
 
 # Initialize test cases
 # Input
@@ -134,7 +135,6 @@ def initScene( scene_const, options, veh_index_list, case_wall_handle, handle_di
     steer_handle   = handle_dict['steer']
     motor_handle   = handle_dict['motor']
     # obs_handle     = handle_dict['obstacle']
-    sensor_handle  = handle_dict['sensor']
 
     for veh_index in veh_index_list:
         # Reset position of vehicle. Randomize x-position if enabled
@@ -162,13 +162,13 @@ def initScene( scene_const, options, veh_index_list, case_wall_handle, handle_di
             p.removeBody( case_wall_handle[veh_index][8])
             if temp_prob > (2/3):
                 # right
-                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [veh_index*scene_const.case_x + 0.5*(1-scene_const.obs_w)*scene_const.lane_width, scene_const.lane_len*0.3, 0] )       # right
+                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x + 0.5*(1-scene_const.obs_w)*scene_const.lane_width, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0] )       # right
             elif temp_prob > (1/3):
                 # middle
-                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [veh_index*scene_const.case_x, scene_const.lane_len*0.3, 0] )       # right
+                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0] )       # right
             else:
                 # left
-                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [veh_index*scene_const.case_x - 0.5*(1-scene_const.obs_w)*scene_const.lane_width, scene_const.lane_len*0.3, 0] )      # right
+                case_wall_handle[veh_index][8] = createWall( [ 0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x - 0.5*(1-scene_const.obs_w)*scene_const.lane_width, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0] )      # right
     return
 
 

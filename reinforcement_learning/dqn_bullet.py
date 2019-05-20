@@ -261,13 +261,13 @@ def controlCamera(cam_pos, cam_dist):
     keys = p.getKeyboardEvents()
 
     if keys.get(49):  #1
-      cam_pos[0] = cam_pos[0] - 0.1
+      cam_pos[0] = cam_pos[0] - 1
     if keys.get(50):  #2
-      cam_pos[0] = cam_pos[0] + 0.1
+      cam_pos[0] = cam_pos[0] + 1
     if keys.get(51):  #3
-      cam_pos[1] = cam_pos[1] + 0.1
+      cam_pos[1] = cam_pos[1] + 1
     if keys.get(52):  #4
-      cam_pos[1] = cam_pos[1] - 0.1
+      cam_pos[1] = cam_pos[1] - 1
     if keys.get(53):  #5
       cam_pos = [0,0,0]
       cam_dist = 5
@@ -287,11 +287,11 @@ def controlCamera(cam_pos, cam_dist):
 #   createInit : create initial debug lines
 # Output
 #   rayIds : 2d array for ray id. each row is ray ids for a single vehicle
-def drawDebugLines( options, scene_const, vehicle_handle, sensor_data = -1, ray_id = -1, createInit = False):
+def drawDebugLines( options, scene_const, vehicle_handle, sensor_data = -1, ray_id = -1, createInit = False, ray_width = 2, rayHitColor = [1,0,0], rayMissColor = [0,1,0]):
     # Paremters?
     rayIds=[]                   # 2d array for ray id
-    rayHitColor = [1,0,0]
-    rayMissColor = [0,1,0]
+    # rayHitColor = [1,0,0]
+    # rayMissColor = [0,1,0]
     hokuyo_joint = 8
 
     # for each vehicle
@@ -309,10 +309,10 @@ def drawDebugLines( options, scene_const, vehicle_handle, sensor_data = -1, ray_
                 # Draw
                 hit_fraction = sensor_data[k][i]
                 if hit_fraction == 1:      # If hit nothing
-                    ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], scene_const.rayTo[i], rayMissColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
+                    ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], scene_const.rayTo[i], rayMissColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = ray_width  )
                 else:
                     local_hit = np.asarray(scene_const.rayFrom[i]) + hit_fraction*(np.asarray(scene_const.rayTo[i]) - np.asarray(scene_const.rayFrom[i]) )
-                    ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], local_hit, rayHitColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = 2  )
+                    ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], local_hit, rayHitColor,parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = ray_width )
 
     if ray_id == -1: 
         return rayIds
@@ -407,7 +407,9 @@ if __name__ == "__main__":
     vehicle_handle, dummy_handle, case_wall_handle = genScene( scene_const, options )
 
     # Draw initial lines
-    sensor_handle = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
+    if options.enable_GUI == True:
+        sensor_handle = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
+        collision_handle = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
 
     # Print Handles
     ic(dummy_handle, case_wall_handle, vehicle_handle)
@@ -431,7 +433,7 @@ if __name__ == "__main__":
 
     # Make handle into dict to be passed around functions
     handle_dict = {
-        'sensor'    : sensor_handle,
+        # 'sensor'    : sensor_handle,
         'motor'     : motor_handle,
         'steer'     : steer_handle,
         'vehicle'   : vehicle_handle,
@@ -587,7 +589,7 @@ if __name__ == "__main__":
         # GS_START_TIME_STR   = datetime.datetime.now()
         if options.enable_GUI == True and options.manual == False:
             cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
-
+            time.sleep(0.02)
         # Decay epsilon
         global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
@@ -670,7 +672,11 @@ if __name__ == "__main__":
 
         # Draw Debug Lines
         if options.enable_GUI == True:
+            # Draw Lidar
             sensor_handle = drawDebugLines(options, scene_const, vehicle_handle, next_dDistance, sensor_handle, createInit = False )
+
+            # Draw Collision Range
+            collision_handle = drawDebugLines(options, scene_const, vehicle_handle, np.ones((options.VEH_COUNT,scene_const.sensor_count))*(scene_const.collision_distance/scene_const.sensor_distance), collision_handle, createInit = False, ray_width = 4, rayHitColor = [0,0,0] )
 
         #######
         # Test Estimation
