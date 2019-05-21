@@ -79,7 +79,7 @@ def getVehicleState( scene_const, options, handle_dict ):
 def initQueue(options, sensor_queue, goal_queue, dDistance, gInfo):
     for i in range(0,options.VEH_COUNT):
         # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
-        for q_reset in range(0,options.FRAME_COUNT*2):
+        for _ in range(0,options.FRAME_COUNT*2):
             sensor_queue[i].append(dDistance[i])
             goal_queue[i].append(gInfo[i])
 
@@ -119,7 +119,7 @@ def detectReachedGoal(vehPos, gInfo, currHeading, scene_const ):
 def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_list):
     for v in range(0,options.VEH_COUNT):
         if v in reset_veh_list:
-            for q in range(0,options.FRAME_COUNT*2):
+            for _ in range(0,options.FRAME_COUNT*2):
                 # Update queue
                 sensor_queue[v].append(dDistance[v])
                 sensor_queue[v].popleft()

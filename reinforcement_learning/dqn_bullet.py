@@ -24,7 +24,7 @@ from utils.rl_icm import ICM
 from utils.scene_constants_pb import scene_constants
 from utils.utils_data import data_pack
 from utils.utils_pb import initQueue, getVehicleState, detectCollision, detectReachedGoal, resetQueue
-from utils.utils_pb_scene_2LC import genScene, initScene
+from utils.utils_pb_scene_2LC import genScene, initScene, removeScene
 
 
 def get_options():
@@ -270,9 +270,9 @@ def controlCamera(cam_pos, cam_dist):
       cam_pos = [0,0,0]
       cam_dist = 5
     if keys.get(54):  #6
-      cam_dist = cam_dist + 0.1 
+      cam_dist = cam_dist + 1
     if keys.get(55):  #7
-      cam_dist = cam_dist - 0.1 
+      cam_dist = cam_dist - 1
     p.resetDebugVisualizerCamera( cameraDistance = cam_dist, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = cam_pos )
 
 
@@ -398,36 +398,17 @@ if __name__ == "__main__":
     printSpdInfo()
 
     ###########################
-    # Scene Generation
+    # Scene Generation & Handles
     ###########################
-
-    # Generate Scene and get handles
-    vehicle_handle, dummy_handle, case_wall_handle = genScene( scene_const, options )
-
-    # Draw initial lines
-    if options.enable_GUI == True:
-        sensor_handle = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
-        collision_handle = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
-
-    # Print Handles
-    ic(dummy_handle, case_wall_handle, vehicle_handle)
-
-    #####################
-    # GET HANDLES
-    #####################
-
-    print("Getting handles...")
-    motor_handle = [2, 3]
-    steer_handle = [4, 6]
-    # motor_handle, steer_handle = getMotorHandles( options, scene_const )
-    # sensor_handle = getSensorHandles( options, scene_const )
-
-    # Make Large handle list for communication
-    handle_list = [options.VEH_COUNT, scene_const.sensor_count] 
-
-    # Make handles into big list
-    # for v in range(0,options.VEH_COUNT):
-        # handle_list = handle_list + [vehicle_handle[v]] + sensor_handle[v].tolist() + [dummy_handle[v]]
+    # -------------------------
+    # Handles
+    # -------------------------
+    # Create empty handle list & dict
+    vehicle_handle      = np.zeros(options.VEH_COUNT, dtype=int)
+    dummy_handle        = np.zeros(options.VEH_COUNT, dtype=int)
+    case_wall_handle    = np.zeros((options.VEH_COUNT,scene_const.wall_cnt), dtype=int) 
+    motor_handle        = [2, 3]
+    steer_handle        = [4, 6]
 
     # Make handle into dict to be passed around functions
     handle_dict = {
@@ -436,8 +417,32 @@ if __name__ == "__main__":
         'steer'     : steer_handle,
         'vehicle'   : vehicle_handle,
         'dummy'     : dummy_handle,
+        'wall'      : case_wall_handle,
         # 'obstacle'  : obs_handle
     }
+
+    # -------------------------
+    # Scenartion Generation
+    # -------------------------
+
+    # Load plane
+    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"))
+
+    # Generate Scene and get handles
+    handle_dict = genScene( scene_const, options, handle_dict, range(0,options.VEH_COUNT) )
+
+    # Draw initial lines
+    if options.enable_GUI == True:
+        sensor_handle = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
+        collision_handle = drawDebugLines( options, scene_const, vehicle_handle, createInit = True )
+
+    # Print Handles
+    ic(handle_dict)
+
+    print("Getting handles...")
+    # motor_handle, steer_handle = getMotorHandles( options, scene_const )
+    # sensor_handle = getSensorHandles( options, scene_const )
+
 
     ########################
     # Initialize Test Scene
@@ -481,6 +486,7 @@ if __name__ == "__main__":
             print("Could not find old network weights")
             print("=================================================")
 
+    
     # Some initial local variables
     feed = {}
     feed_icm = {}
@@ -540,12 +546,12 @@ if __name__ == "__main__":
     action_stack        = np.zeros(options.VEH_COUNT)                              # action_stack[k] is the array of optinos.ACTION_DIM with each element representing the index
     epi_step_stack      = np.zeros(options.VEH_COUNT)                              # Count number of step for each vehicle in each episode
     epi_reward_stack    = np.zeros(options.VEH_COUNT)                              # Holds reward of current episode
-    epi_counter         = 0                                                        # Counts # of finished episodes
+    epi_counter         = 0                                                       # Counts # of finished episodes
     epi_done            = np.zeros(options.VEH_COUNT) 
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
  
     # Initialize Scene
-    initScene( scene_const, options, list(range(0,options.VEH_COUNT)), case_wall_handle, handle_dict, randomize = RANDOMIZE)               # initialize
+    initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
 
     # List of deque to store data
     sensor_queue = []
@@ -587,7 +593,7 @@ if __name__ == "__main__":
         # GS_START_TIME_STR   = datetime.datetime.now()
         if options.enable_GUI == True and options.manual == False:
             cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
-            time.sleep(0.02)
+            # time.sleep(0.02)
         # Decay epsilon
         global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
@@ -865,8 +871,15 @@ if __name__ == "__main__":
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
 
+        # Remove Scene
+        handle_dict = removeScene( scene_const, options, reset_veh_list, handle_dict )
+
+        # Generate Scene again with updated lane_width
+        scene_const.lane_width = np.random.random_sample()*4.5 + 3.5
+        handle_dict = genScene( scene_const, options, handle_dict, reset_veh_list, genVehicle = False )
+
         # Reset Vehicles    
-        initScene( scene_const, options, reset_veh_list, case_wall_handle, handle_dict, randomize = RANDOMIZE)               # initialize
+        initScene( scene_const, options, reset_veh_list, handle_dict, randomize = RANDOMIZE)               # initialize
 
         # Reset data queue
         _, _, reset_dDistance, reset_gInfo = getVehicleState( scene_const, options, handle_dict)

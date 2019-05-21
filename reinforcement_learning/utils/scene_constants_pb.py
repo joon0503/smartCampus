@@ -61,8 +61,8 @@ class scene_constants:
     lane_width      = 4             # lane width
     lane_len        = 10            # total len
     turn_len        = 10            # total len after tun
-    case_x          = 15            # distance between each case
-    case_y          = 15            # distance between each case
+    case_x          = 20            # distance between each case
+    case_y          = 25            # distance between each case
     veh_init_y      = -3            # initial vehicle y position
     wall_cnt        = 9             # number of walls
     wall_h          = 0.5           # height of walls
