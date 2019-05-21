@@ -23,9 +23,8 @@ from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.scene_constants_pb import scene_constants
 from utils.utils_data import data_pack
-from utils.utils_pb import initQueue, getVehicleState, detectCollision, detectReachedGoal, resetQueue
+from utils.utils_pb import (detectCollision, detectReachedGoal, getVehicleState, initQueue, resetQueue)
 from utils.utils_pb_scene_2LC import genScene, initScene, removeScene
-
 
 def get_options():
     parser = ArgumentParser(
@@ -53,7 +52,7 @@ def get_options():
                         help='learning rate')
     parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
                         help='size of experience replay memory')
-    parser.add_argument('--SAVER_RATE', type=int, default=20000,
+    parser.add_argument('--SAVER_RATE', type=int, default=500,
                         help='Save network after this number of episodes')
     parser.add_argument('--TARGET_UPDATE_STEP', type=int, default=3000,
                         help='Number of steps required for target update')
@@ -208,7 +207,6 @@ def printRewards( scene_const, options ):
 
     # EPS Info
     
-
 
     ########
     # Print Info
@@ -546,9 +544,10 @@ if __name__ == "__main__":
     action_stack        = np.zeros(options.VEH_COUNT)                              # action_stack[k] is the array of optinos.ACTION_DIM with each element representing the index
     epi_step_stack      = np.zeros(options.VEH_COUNT)                              # Count number of step for each vehicle in each episode
     epi_reward_stack    = np.zeros(options.VEH_COUNT)                              # Holds reward of current episode
-    epi_counter         = 0                                                       # Counts # of finished episodes
+    epi_counter         = 0                                                        # Counts # of finished episodes
     epi_done            = np.zeros(options.VEH_COUNT) 
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
+    last_saved_epi = 0                                                             # variable used for checking when to save
  
     # Initialize Scene
     initScene( scene_const, options, list(range(0,options.VEH_COUNT)), handle_dict, randomize = RANDOMIZE)               # initialize
@@ -593,7 +592,7 @@ if __name__ == "__main__":
         # GS_START_TIME_STR   = datetime.datetime.now()
         if options.enable_GUI == True and options.manual == False:
             cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
-            # time.sleep(0.02)
+            time.sleep(0.01)
         # Decay epsilon
         global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
@@ -870,6 +869,9 @@ if __name__ == "__main__":
         
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
+        else:
+            # If just running to get memory, do not increment counter
+            epi_counter = 0
 
         # Remove Scene
         handle_dict = removeScene( scene_const, options, reset_veh_list, handle_dict )
@@ -923,9 +925,9 @@ if __name__ == "__main__":
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
 
-        # save progress every 1000 episodes AND testing is disabled
+        # save progress
         if options.TESTING == False:
-            if global_step // options.SAVER_RATE >= 1 and global_step % options.SAVER_RATE == 0 and options.NO_SAVE == False:
+            if options.NO_SAVE == False and epi_counter - last_saved_epi >= options.SAVER_RATE:
                 print('-----------------------------------------')
                 print("Saving network...")
                 print('-----------------------------------------')
@@ -939,6 +941,9 @@ if __name__ == "__main__":
                 # Save Reward Data
                 data_package.save_reward()
                 data_package.save_loss()
+
+                # Update variables
+                last_saved_epi = epi_counter
 
 
         # GS_END_TIME_STR   = datetime.datetime.now()
