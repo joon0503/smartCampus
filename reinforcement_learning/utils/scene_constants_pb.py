@@ -27,8 +27,10 @@ class scene_constants:
     sensor_delta = (sensor_max_angle - sensor_min_angle) / (sensor_count - 1)
 
     # Define rayTo and rayFrom. Each are 2d arrays
-    rayTo = []
-    rayFrom = []
+    rayTo       = []
+    rayFrom     = []
+    i           = 0
+    curr_angle  = 0
     for i in range (sensor_count):
         # Reference is : y-axis for horizontal, +ve is left.   x-axis for vertical, +ve is up
         curr_angle = sensor_max_angle - i*sensor_delta
