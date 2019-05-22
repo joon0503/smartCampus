@@ -139,19 +139,24 @@ class ICM:
 
     # Plot current position of the vehicle and the estimation   
     #   curr_state : [sensor_values, goal_angle, goal_distance]
-    #   action     : one hot encoded vector
+    #   action     : index of action
     #   veh_heading: headings of vehicle gamma in radians. 
     #                we use gamma and 0 deg -> front, +90 deg -> right, -90 deg -> left
     #   scene_const: scene constants as the class
     #   ref        : plot reference. If 'vehicle', then viewpoint from vehicle (DEFAULT). If 'ground', then view point from the ground.
 
-    def plotEstimate(self, curr_state, action, veh_heading, scene_const, agent_train, options, ref = 'ground', save = False):
+    def plotEstimate(self, scene_const, options, curr_state, action, veh_heading, agent_train, ref = 'ground', save = False):
         ic.enable()
+
+        # Change into one-hot encoded vector
+        act_index = action
+        action = np.zeros( options.ACTION_DIM )
+        action[act_index] = 1
 
         ####################
         # Proccess Data
         ####################
-        veh_x, veh_y, arrow_x, arrow_y, goal_x, goal_y = self.getPoints(curr_state,action,scene_const)
+        veh_x, veh_y, arrow_x, arrow_y, goal_x, goal_y = self.getPoints(scene_const, curr_state, action)
 
         ic( veh_x, veh_y )
         ic( goal_x, goal_y )
@@ -180,10 +185,11 @@ class ICM:
         radar_x_col = []            # Radius where collision occurs
         radar_y_col = []
 
-        if True:        
-            # RELATIVE
+        if ref == 'vehicle':        
+            # This works for some reason
             veh_heading = 0
-            pass
+        else:
+            veh_heading = 0
         
         for i in range(0,scene_const.sensor_count):
             # gamma + sensor_min_angle   is the current angle of the left most sensor
@@ -221,7 +227,7 @@ class ICM:
             temp_state = np.reshape(temp_state, -1)
 
             # Compute the x,y coordinate
-            temp_x, temp_y, _, _, _ , _ = self.getPoints( temp_state, action, scene_const)
+            temp_x, temp_y, _, _, _ , _ = self.getPoints( scene_const, temp_state, action )
 
             # resets to origin if viewpoint is w.r.t. vehicle
             if ref == 'vehicle':
@@ -252,6 +258,9 @@ class ICM:
                                              )
 
             # Update curr state for next estimation
+            new_act_index = new_action
+            new_action = np.zeros(options.ACTION_DIM)
+            new_action[new_act_index] = 1
             curr_state_concat = np.reshape(np.concatenate([temp_state, new_action]), [-1, (scene_const.sensor_count+2) + options.ACTION_DIM])
 
 
@@ -307,7 +316,8 @@ class ICM:
             self.ax.set_xlim(-scene_const.sensor_distance,scene_const.sensor_distance) 
             self.ax.set_ylim(-1,scene_const.goal_distance+5) 
         elif ref == 'ground':
-            self.ax.set_xlim(-1.2*scene_const.lane_width,1.2*scene_const.lane_width) 
+            fig_width = 10
+            self.ax.set_xlim(-1.2*fig_width,1.2*fig_width) 
             self.ax.set_ylim(-0.5*scene_const.lane_len,scene_const.lane_len*0.5 + 15) 
         self.ax.legend()
 
@@ -336,12 +346,15 @@ class ICM:
     #   arrow_x, arrow_y: x,y coordinate of arrow computed from input
     #   goal_x, goal_y : x,y coordinate of the goal point
 
-    def getPoints(self, curr_state, action, scene_const):
+    def getPoints(self, scene_const, curr_state, action, veh_heading = 0):
+        ic(curr_state, action)
+
         # Break up into raw data
         # raw_sensor = curr_state[0:scene_const.sensor_count]
         raw_angle  = curr_state[scene_const.sensor_count]
         raw_dist   = curr_state[scene_const.sensor_count+1]
 
+        ic(raw_dist,raw_angle)
         # Get position of vehicle from goal point distance and angle from raw data
         veh_x = -1*scene_const.goal_distance * raw_dist * np.sin( math.pi * raw_angle )        # -1 since positive distance means goal is right of vehicle. Since goal is at x=0, from goal's view, vehicle is at left of it, meaning negative.
         veh_y = scene_const.goal_distance - scene_const.goal_distance * raw_dist * np.cos( math.pi * raw_angle ) - 0.5*scene_const.lane_len     # -0.5*lane_len since veh_y think vehicle starts at origin

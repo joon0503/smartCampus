@@ -685,7 +685,7 @@ if __name__ == "__main__":
         # Test Estimation
         #######
         if options.TESTING == True:
-            v = 0
+            v = 1
 
             # Print curr & next state
             curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
@@ -694,7 +694,7 @@ if __name__ == "__main__":
             #print('next_state:', next_state)
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
             #print('')
-            # agent_icm.plotEstimate( curr_state, action_stack[v], next_veh_heading[v], scene_const, agent_train, options, save=True)
+            agent_icm.plotEstimate( scene_const, options, curr_state, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
             
         ###
