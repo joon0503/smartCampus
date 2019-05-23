@@ -35,6 +35,7 @@ def getSensorData( scene_const, options, vehicle_handle ):
 #   veh_heading : VEH_COUNT x 4, uses quaternion
 #   sensorData : VEH_COUNT x scene_const.sensor_count
 #   gInfo : VEH_COUNT x 2, [goal_angle, goal_distance]
+#       goal_angle : referenced at vehicle heading. left -> -ve, right -> +ve
 def getVehicleState( scene_const, options, handle_dict ):
     veh_pos     = np.zeros((options.VEH_COUNT,2))
     veh_heading = np.zeros((options.VEH_COUNT,3))
@@ -78,8 +79,8 @@ def getVehicleState( scene_const, options, handle_dict ):
 #   gInfo        : array (for each vehicle) of goal measurements
 def initQueue(options, sensor_queue, goal_queue, dDistance, gInfo):
     for i in range(0,options.VEH_COUNT):
-        # Copy initial state FRAME_COUNT*2 times. First FRAME_COUNT will store state of previous, and last FRAME_COUNT store state of current
-        for _ in range(0,options.FRAME_COUNT*2):
+        # Copy initial state FRAME_COUNT + 1 times. [0] : oldest info, [-1] : latest info, i.e., current state
+        for _ in range(0,options.FRAME_COUNT + 1):
             sensor_queue[i].append(dDistance[i])
             goal_queue[i].append(gInfo[i])
 
@@ -119,7 +120,7 @@ def detectReachedGoal(vehPos, gInfo, currHeading, scene_const ):
 def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_list):
     for v in range(0,options.VEH_COUNT):
         if v in reset_veh_list:
-            for _ in range(0,options.FRAME_COUNT*2):
+            for _ in range(0,options.FRAME_COUNT + 1):
                 # Update queue
                 sensor_queue[v].append(dDistance[v])
                 sensor_queue[v].popleft()
@@ -127,3 +128,54 @@ def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_li
                 goal_queue[v].popleft()
 
     return sensor_queue, goal_queue
+
+# From sensor and goal queue, get observation.
+# observation is a row vector with all frames of information concatentated to each other
+# Recall that queue stores 2*FRAME_COUNT of information. 
+# first = True: get oldest info
+# first = False: get latest info
+#
+# This work as follows. (Curr frame:3)
+#       [frame1, frame2, frame2]
+#       old = [frame1,frame2]
+#       new = [frame2,frame3]
+def getObs( options, scene_const, sensor_queue, goal_queue, old=True):
+    if old == True:
+        sensor_stack    = np.concatenate(sensor_queue)[0:scene_const.sensor_count*options.FRAME_COUNT]
+        goal_stack      = np.concatenate(goal_queue)[0:2*options.FRAME_COUNT]
+    else:
+        sensor_stack    = np.concatenate(sensor_queue)[scene_const.sensor_count:]
+        goal_stack      = np.concatenate(goal_queue)[2:]
+
+    return np.concatenate((sensor_stack, goal_stack))    
+
+# Update Camera
+# Input
+#   cam_pos  :  [x,y,z], camera target position
+#   cam_dist :  camera distance
+# Output
+#   cam_pos : new camera position
+#   cam_dist : new camerad distance
+def controlCamera(cam_pos, cam_dist):
+    # get keys
+    keys = p.getKeyboardEvents()
+
+    if keys.get(49):  #1
+      cam_pos[0] = cam_pos[0] - 1
+    if keys.get(50):  #2
+      cam_pos[0] = cam_pos[0] + 1
+    if keys.get(51):  #3
+      cam_pos[1] = cam_pos[1] + 1
+    if keys.get(52):  #4
+      cam_pos[1] = cam_pos[1] - 1
+    if keys.get(53):  #5
+      cam_pos = [0,0,0]
+      cam_dist = 5
+    if keys.get(54):  #6
+      cam_dist = cam_dist + 1
+    if keys.get(55):  #7
+      cam_dist = cam_dist - 1
+    p.resetDebugVisualizerCamera( cameraDistance = cam_dist, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = cam_pos )
+
+
+    return cam_pos, cam_dist

@@ -23,7 +23,7 @@ from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.scene_constants_pb import scene_constants
 from utils.utils_data import data_pack
-from utils.utils_pb import (detectCollision, detectReachedGoal, getVehicleState, initQueue, resetQueue)
+from utils.utils_pb import (detectCollision, detectReachedGoal, getVehicleState, initQueue, resetQueue, getObs, controlCamera)
 from utils.utils_pb_scene_2LC import genScene, initScene, removeScene
 
 def get_options():
@@ -140,24 +140,6 @@ def printTFvars():
 # GENERAL
 ##################################
 
-# From sensor and goal queue, get observation.
-# observation is a row vector with all frames of information concatentated to each other
-# Recall that queue stores 2*FRAME_COUNT of information. 
-# first = True: get oldest info
-# first = False: get latest info
-def getObs( sensor_queue, goal_queue, old=True):
-
-    if old == True:
-        sensor_stack    = np.concatenate(sensor_queue)[0:scene_const.sensor_count*options.FRAME_COUNT]
-        goal_stack      = np.concatenate(goal_queue)[0:2*options.FRAME_COUNT]
-        observation     = np.concatenate((sensor_stack, goal_stack))    
-    else:
-        sensor_stack    = np.concatenate(sensor_queue)[scene_const.sensor_count*options.FRAME_COUNT:]
-        goal_stack      = np.concatenate(goal_queue)[2*options.FRAME_COUNT:]
-        observation     = np.concatenate((sensor_stack, goal_stack))    
-
-    return observation
-
 # Calculate Approximate Rewards for variaous cases
 def printRewards( scene_const, options ):
     # Some parameters
@@ -244,37 +226,6 @@ def printSpdInfo():
 
     return
 
-
-# Update Camera
-# Input
-#   cam_pos  :  [x,y,z], camera target position
-#   cam_dist :  camera distance
-# Output
-#   cam_pos : new camera position
-#   cam_dist : new camerad distance
-def controlCamera(cam_pos, cam_dist):
-    # get keys
-    keys = p.getKeyboardEvents()
-
-    if keys.get(49):  #1
-      cam_pos[0] = cam_pos[0] - 1
-    if keys.get(50):  #2
-      cam_pos[0] = cam_pos[0] + 1
-    if keys.get(51):  #3
-      cam_pos[1] = cam_pos[1] + 1
-    if keys.get(52):  #4
-      cam_pos[1] = cam_pos[1] - 1
-    if keys.get(53):  #5
-      cam_pos = [0,0,0]
-      cam_dist = 5
-    if keys.get(54):  #6
-      cam_dist = cam_dist + 1
-    if keys.get(55):  #7
-      cam_dist = cam_dist - 1
-    p.resetDebugVisualizerCamera( cameraDistance = cam_dist, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = cam_pos )
-
-
-    return cam_pos, cam_dist
 
 # Draw Debug Lines
 # Input
@@ -546,6 +497,7 @@ if __name__ == "__main__":
     epi_reward_stack    = np.zeros(options.VEH_COUNT)                              # Holds reward of current episode
     epi_counter         = 0                                                        # Counts # of finished episodes
     epi_done            = np.zeros(options.VEH_COUNT) 
+    epi_sucess          = np.zeros(options.VEH_COUNT)                              # array to keep track of whether epi succeed 
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
     last_saved_epi = 0                                                             # variable used for checking when to save
  
@@ -613,7 +565,7 @@ if __name__ == "__main__":
         # Get observation stack (which is used in getting the action) 
         for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
-            obs_stack[v]    = getObs( sensor_queue[v], goal_queue[v], old=False)
+            obs_stack[v]    = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=False)
 
         # Get optimal action. 
         action_stack = agent_train.sample_action(
@@ -694,7 +646,7 @@ if __name__ == "__main__":
             #print('next_state:', next_state)
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
             #print('')
-            agent_icm.plotEstimate( scene_const, options, curr_state, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
+            # agent_icm.plotEstimate( scene_const, options, curr_state, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
             
         ###
@@ -702,7 +654,8 @@ if __name__ == "__main__":
         ###
         
         # Reset Done
-        epi_done = np.zeros(options.VEH_COUNT)
+        epi_done    = np.zeros(options.VEH_COUNT)
+        epi_sucess  = np.zeros(options.VEH_COUNT)
 
         # List of resetting vehicles
         reset_veh_list = []
@@ -732,6 +685,7 @@ if __name__ == "__main__":
 
                 # Set done
                 epi_done[v] = 1
+                # epi_sucess[v] = 0 # Set fail flag. Not necessary since 0 is the default value
                 # If collided, skip checking for goal point
                 continue
 
@@ -752,6 +706,7 @@ if __name__ == "__main__":
 
                 # Set done
                 epi_done[v] = 1
+                epi_sucess[v] = 1
 
             # If over MAXSTEP
             if epi_step_stack[v] > options.MAX_TIMESTEP:
@@ -777,8 +732,8 @@ if __name__ == "__main__":
         # Add latest information to memory
         for v in range(0,options.VEH_COUNT):
             # Get observation
-            observation             = getObs( sensor_queue[v], goal_queue[v], old = True)
-            next_observation        = getObs( sensor_queue[v], goal_queue[v], old = False)
+            observation             = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old = True)
+            next_observation        = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old = False)
 
             # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
             #experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
@@ -851,8 +806,8 @@ if __name__ == "__main__":
 
                 # Train forward model
                 feed_icm.clear()
-                feed_icm.update({agent_icm.observation  : np.concatenate([states_mb, actions_mb_hot],-1) } )
-                feed_icm.update({agent_icm.actual_state : next_states_mb})
+                feed_icm.update({agent_icm.observation  : np.concatenate([states_mb[:,-scene_const.sensor_count-2:], actions_mb_hot],-1) } )
+                feed_icm.update({agent_icm.actual_state : next_states_mb[:,-scene_const.sensor_count-2:]})
                 #print(feed_icm)
                 icm_loss, _                             = sess.run([agent_icm.loss, agent_icm.optimizer], feed_dict = feed_icm)
                 #print('icm_loss:', icm_loss)
@@ -869,7 +824,7 @@ if __name__ == "__main__":
         
                 # Update priority
                 replay_memory.batch_update(tree_idx, step_loss_per_data)
-        else:
+        elif global_step < options.MAX_EXPERIENCE:
             # If just running to get memory, do not increment counter
             epi_counter = 0
 
@@ -921,6 +876,7 @@ if __name__ == "__main__":
         for v in reset_veh_list:
             data_package.add_reward( epi_reward_stack[v] )  # Add reward
             data_package.add_eps( eps )                     # Add epsilon used for this reward
+            data_package.add_success_rate( epi_sucess[v] )  # Add success/fail
 
             epi_reward_stack[v] = 0
             epi_step_stack[v] = 0
