@@ -640,8 +640,8 @@ if __name__ == "__main__":
             v = 1
 
             # Print curr & next state
-            curr_state     = getObs( sensor_queue[v], goal_queue[v], old=True)
-            next_state     = getObs( sensor_queue[v], goal_queue[v], old=False)
+            curr_state     = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=True)
+            next_state     = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=False)
             #print('curr_state:', curr_state)
             #print('next_state:', next_state)
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
