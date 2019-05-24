@@ -193,7 +193,6 @@ def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False
         # Randomize the obstacle
         if randomize == True:
             obs_width = scene_const.obs_w * scene_const.lane_width
-            x_pos = veh_index * scene_const.case_x
             temp_prob = random.uniform(0, 1)
             p.removeBody(case_wall_handle[veh_index][8])
             if temp_prob > (2/3):
@@ -205,4 +204,18 @@ def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False
             else:
                 # left
                 case_wall_handle[veh_index][8] = createWall([0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x - 0.5*( 1-scene_const.obs_w)*scene_const.lane_width, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0])      # right
+
+
+        # Randomize the goal point                
+        if randomize == True:
+            # Define varialbes 
+            dummy_handle    = handle_dict['dummy']
+            goal_z          = 1.0        
+            x_pos           = random.uniform(-1*scene_const.turn_len*0.5 + 1.0, scene_const.turn_len*0.5 - 1.0)
+
+            # Remove existing goal point
+            p.removeBody( dummy_handle[veh_index] )
+
+            # Create new goal point
+            dummy_handle[veh_index] = createGoal(0.1, [x_pos + x_index * scene_const.case_x, y_index * scene_const.case_y + 0.5*scene_const.lane_len + 0.5*scene_const.lane_width, goal_z])
     return
