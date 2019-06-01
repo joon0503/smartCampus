@@ -1,9 +1,15 @@
+import os
+import random
+import math
+
 import numpy as np
 import pybullet as p
 import pybullet_data
-import random
-import os
 from icecream import ic
+
+from utils.utils_pb import (controlCamera, detectCollision, detectReachedGoal,
+                            getObs, getVehicleState, initQueue, resetQueue)
+
 #########################################
 # Files for generating the scene
 #########################################
@@ -218,4 +224,90 @@ def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False
 
             # Create new goal point
             dummy_handle[veh_index] = createGoal(0.1, [x_pos + x_index * scene_const.case_x, y_index * scene_const.case_y + 0.5*scene_const.lane_len + 0.5*scene_const.lane_width, goal_z])
+    return
+
+# Calculate Approximate Rewards for variaous cases
+def printRewards( scene_const, options ):
+    # Some parameters
+    veh_speed = options.INIT_SPD/3.6  # 10km/hr in m/s
+
+    # Time Steps
+    #dt_code = scene_const.dt * options.FIX_INPUT_STEP
+
+    # Expected Total Time Steps
+    total_step = (scene_const.goal_distance/veh_speed)*(1/options.CTR_FREQ)
+
+    # Reward at the end
+    rew_end = 0
+    for i in range(0, int(total_step)):
+        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
+        if i != total_step-1:
+            rew_end = rew_end -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
+        else:
+            rew_end = rew_end + options.GOAL_REW*(options.GAMMA**i) 
+
+    # Reward at Obs
+    rew_obs = 0
+    for i in range(0, int(total_step*0.5)):
+        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
+        if i != int(total_step*0.5)-1:
+            rew_obs = rew_obs -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
+        else:
+            rew_obs = rew_obs + options.FAIL_REW*(options.GAMMA**i) 
+
+    # Reward at 75%
+    rew_75 = 0
+    for i in range(0, int(total_step*0.75)):
+        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
+        if i != int(total_step*0.75)-1:
+            rew_75 = rew_75 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
+        else:
+            rew_75 = rew_75 + options.FAIL_REW*(options.GAMMA**i) 
+
+    # Reward at 25%
+    rew_25 = 0
+    for i in range(0, int(total_step*0.25)):
+        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
+        if i != int(total_step*0.25)-1:
+            rew_25 = rew_25 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
+        else:
+            rew_25 = rew_25 + options.FAIL_REW*(options.GAMMA**i) 
+
+    # EPS Info
+    
+
+    ########
+    # Print Info
+    ########
+
+    print("======================================")
+    print("======================================")
+    print("        REWARD ESTIMATION")
+    print("======================================")
+    print("Control Frequency (s)  : ", options.CTR_FREQ)
+    print("Expected Total Step    : ", total_step)
+    print("Expected Reward (25)   : ", rew_25)
+    print("Expected Reward (Obs)  : ", rew_obs)
+    print("Expected Reward (75)   : ", rew_75)
+    print("Expected Reward (Goal) : ", rew_end)
+    print("======================================")
+    print("        EPS ESTIMATION")
+    print("Expected Step per Epi  : ", total_step*0.5)
+    print("Total Steps            : ", total_step*0.5*options.MAX_EPISODE)
+    print("EPS at Last Episode    : ", options.INIT_EPS*options.EPS_DECAY**(total_step*0.5*options.MAX_EPISODE/options.EPS_ANNEAL_STEPS)  )
+    print("======================================")
+    print("======================================")
+
+
+    return
+
+def printSpdInfo(options):
+    desiredSpd = options.INIT_SPD
+
+    wheel_radius = 0.63407*0.5      # Wheel radius in metre
+
+    desiredSpd_rps = desiredSpd*(1000/3600)*(1/wheel_radius)   # km/hr into radians per second
+
+    print("Desired Speed: " + str(desiredSpd) + " km/hr = " + str(desiredSpd_rps) + " radians per seconds = " + str(math.degrees(desiredSpd_rps)) + " degrees per seconds. = " + str(desiredSpd*(1000/3600)) + "m/s" )
+
     return

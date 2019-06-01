@@ -54,7 +54,7 @@ class ICM:
             # [\hat{s}_{t+1}]
 
             #self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2) + 1], name='icm_input')
-            self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2) + options.ACTION_DIM], name='icm_input')
+            self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2)*options.FRAME_COUNT + options.ACTION_DIM], name='icm_input')
             self.actual_state   = tf.placeholder(tf.float32, [None, (scene_const.sensor_count)+2], name='icm_target')
 
             # Regular neural net

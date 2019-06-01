@@ -42,7 +42,7 @@ class scene_constants:
     angle_scale = math.pi/2
  
     # client ID
-    clientID            = -1
+    clientID            = []
 
     # Maximum steering angle in degrees
     max_steer           = 0.5

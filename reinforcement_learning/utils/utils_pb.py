@@ -139,6 +139,8 @@ def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_li
 #       [frame1, frame2, frame2]
 #       old = [frame1,frame2]
 #       new = [frame2,frame3]
+# Each data is (sensor_count + 2,frame_count). On each frame, last 2 elements are goal point
+# Rightmost column is the latest frame
 def getObs( options, scene_const, sensor_queue, goal_queue, old=True):
     if old == True:
         sensor_stack    = np.concatenate(sensor_queue)[0:scene_const.sensor_count*options.FRAME_COUNT]
@@ -147,7 +149,11 @@ def getObs( options, scene_const, sensor_queue, goal_queue, old=True):
         sensor_stack    = np.concatenate(sensor_queue)[scene_const.sensor_count:]
         goal_stack      = np.concatenate(goal_queue)[2:]
 
-    return np.concatenate((sensor_stack, goal_stack))    
+    out = np.transpose(np.hstack((sensor_stack.reshape(options.FRAME_COUNT,-1), goal_stack.reshape(options.FRAME_COUNT,-1))))
+    # ic(sensor_stack)
+    # ic(out, out.shape)
+    return out
+    # return np.concatenate((sensor_stack, goal_stack))
 
 # Update Camera
 # Input
@@ -177,5 +183,44 @@ def controlCamera(cam_pos, cam_dist):
       cam_dist = cam_dist - 1
     p.resetDebugVisualizerCamera( cameraDistance = cam_dist, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = cam_pos )
 
-
     return cam_pos, cam_dist
+
+# Draw Debug Lines
+# Input
+#   ray_batch_result: result from raytest batch 
+#   sensor_data
+#   createInit : create initial debug lines
+# Output
+#   rayIds : 2d array for ray id. each row is ray ids for a single vehicle
+def drawDebugLines( options, scene_const, handle_dict, sensor_data = -1, ray_id = -1, createInit = False, ray_width = 2, rayHitColor = [1,0,0], rayMissColor = [0,1,0]):
+    # Paremters?
+    rayIds=[]                   # 2d array for ray id
+    # rayHitColor = [1,0,0]
+    # rayMissColor = [0,1,0]
+    hokuyo_joint = 8
+
+    # for each vehicle
+    for k in range (options.VEH_COUNT):
+        rayIds.append([])
+        # for each sensor
+        for i in range (scene_const.sensor_count):
+            # Reference is : y-axis for horizontal, +ve is left.   x-axis for vertical, +ve is up
+            # curr_angle = scene_const.sensor_max_angle - i*scene_const.sensor_delta
+
+            # No result just draw
+            if createInit == True:
+                rayIds[k].append(p.addUserDebugLine(scene_const.rayFrom[i], scene_const.rayTo[i], rayMissColor,parentObjectUniqueId=handle_dict['vehicle'][k], parentLinkIndex=hokuyo_joint ))
+            else:
+                # Draw
+                hit_fraction = sensor_data[k][i]
+                if hit_fraction == 1:      # If hit nothing
+                    ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], scene_const.rayTo[i], rayMissColor,parentObjectUniqueId=handle_dict['vehicle'][k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = ray_width  )
+                else:
+                    local_hit = np.asarray(scene_const.rayFrom[i]) + hit_fraction*(np.asarray(scene_const.rayTo[i]) - np.asarray(scene_const.rayFrom[i]) )
+                    ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], local_hit, rayHitColor,parentObjectUniqueId=handle_dict['vehicle'][k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = ray_width )
+
+    if ray_id == -1: 
+        return rayIds
+    else:
+        return ray_id
+

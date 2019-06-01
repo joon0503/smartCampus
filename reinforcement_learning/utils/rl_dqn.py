@@ -3,6 +3,7 @@ import tensorflow as tf
 import math
 import sys
 import random
+from icecream import ic
 
 # Class for Neural Network
 class QAgent:
@@ -28,7 +29,7 @@ class QAgent:
             # Inputs
 #            self.sensor_input   = tf.placeholder(tf.float32, [None, scene_const.sensor_count*options.FRAME_COUNT], name='observation')
 #            self.goal_input     = tf.placeholder(tf.float32, [None, 2*options.FRAME_COUNT], name='observation')
-            self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2)*options.FRAME_COUNT], name='observation')
+            self.observation    = tf.placeholder(tf.float32, [None, scene_const.sensor_count+2, options.FRAME_COUNT], name='observation')
             self.ISWeights      = tf.placeholder(tf.float32, [None,1], name='IS_weights')
             self.act            = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
             self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
@@ -113,14 +114,49 @@ class QAgent:
                     self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
             else:
                 # Regular neural net
-                self.h_s1 = tf.layers.dense( inputs=self.observation,
-                                             units=options.H1_SIZE,
-                                             activation = act_function,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
-                                             name="h_s1"
-                                           )
-                self.h_s2 = tf.layers.dense( inputs=self.h_s1,
+
+                # Input is [BATCH_SIZE, sensor_count+2, frame_count]
+                self.h_s1 = tf.layers.conv1d(
+                  inputs      = self.observation,
+                  filters     = 5,
+                  kernel_size = 5,
+                  activation  = act_function,
+                  padding     = 'valid',
+                  kernel_initializer= tf.contrib.layers.xavier_initializer()
+                )
+                # # Output is [BATCH_SIZE, sensor_count+2 - kernel_size = 21-3=18, filter_count = 5  ]
+
+                self.h_s1_max = tf.layers.max_pooling1d(
+                  inputs      = self.h_s1,
+                  pool_size   = 2,
+                  strides     = 2    
+                )
+
+                # self.h_s2 = tf.layers.flatten(
+                #   tf.layers.max_pooling1d(
+                #     inputs = 
+                #       tf.layers.conv1d(
+                #       inputs      = self.h_s1_max,
+                #       filters     = 10,
+                #       kernel_size = 3,
+                #       activation  = act_function,
+                #       padding     = 'valid',
+                #       kernel_initializer= tf.contrib.layers.xavier_initializer()
+                #     ),
+                #     pool_size = 2,
+                #     strides   = 2
+                #   )
+                # )
+
+                self.h_flat = tf.layers.flatten( inputs = self.h_s1_max )
+                # self.h_s1 = tf.layers.dense( inputs=self.h_flat,
+                #                              units=options.H1_SIZE,
+                #                              activation = act_function,
+                #                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                #                              kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
+                #                              name="h_s1"
+                #                            )
+                self.h_s2 = tf.layers.dense( inputs=self.h_flat,
                                              units=options.H2_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
@@ -149,6 +185,7 @@ class QAgent:
                     print("======================")
                     print("Dueling Network")
                     print("======================")
+
                     # Dueling Network
                     self.h_layer_val = tf.layers.dense( inputs=self.h_s2,
                                                  units=options.H3_SIZE,
@@ -203,15 +240,15 @@ class QAgent:
     # Sample action with random rate eps
     # output:
     #   action_index
-    def sample_action(self, feed, eps, options, verbose = False):
+    def sample_action(self, feed, eps, options):
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
         else:
             act_values = self.output.eval(feed_dict=feed)
-            if options.TESTING == True or verbose == True:
-                # print(np.argmax(act_values))
-                # print(act_values)
+            if options.TESTING == True or options.VERBOSE == True:
+                ic(np.argmax(act_values))
+                ic(act_values)
                 pass
 
             # Get maximum for each vehicle
