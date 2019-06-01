@@ -87,7 +87,7 @@ class env_py:
         print("=============================================")
         return self.clientID, self.handle_dict
 
-    def end():
+    def end(self):
         for id in self.clientID:
             p.disconnect(id)
 
