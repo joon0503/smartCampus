@@ -21,6 +21,11 @@ class env_py:
        self.scene_const = scene_const
        self.clientID = []
        self.handle_dict = []
+
+       # Memory related to rewards
+       self.epi_reward_stack    = np.zeros(self.options.VEH_COUNT)                              # Holds reward of current episode
+       self.epi_step_stack      = np.zeros(self.options.VEH_COUNT, dtype=int)                              # Count number of step for each vehicle in each episode
+
        return
 
     # Start Simulation & Generate the Scene
@@ -78,7 +83,7 @@ class env_py:
         }
 
         # Load plane
-        p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"))
+        p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"), globalScaling=10)
 
         # Generate Scene and get handles
         self.handle_dict = genScene( self.scene_const, self.options, handle_dict, range(0,self.options.VEH_COUNT) )
@@ -145,5 +150,129 @@ class env_py:
     def printInfo(self): 
         printRewards(self.scene_const, self.options)
         printSpdInfo(self.options)
+
+        return
+
+
+    # Handle events
+    # Inputs
+    #   next_dDistance
+    #   next_veh_heading
+    # Output
+    #   array : status of each vehicle
+    #       0 - no event
+    #       1 - collision
+    #       2 - reached goal
+    #       3 - over maxstep
+    def checkEvent(self, next_dDistance, next_veh_pos, next_gInfo, next_veh_heading, epi_step_stack):
+        out = np.array( self.options.VEH_COUNT )
+
+        # Find reset list 
+        for v in range(0,options.VEH_COUNT):
+            # If vehicle collided, give large negative reward
+            collision_detected, collision_sensor = detectCollision(next_dDistance[v], self.scene_const)
+            if collision_detected == True:
+                print('-----------------------------------------')
+                print('Vehicle #' + str(v) + ' collided! Detected Sensor : ' + str(collision_sensor) )
+                print('-----------------------------------------')
+
+                out[v] = self.scene_const.EVENT_COLLISION                
+                continue
+
+            # If vehicle is at the goal point, give large positive reward
+            if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v], self.scene_const):
+                print('-----------------------------------------')
+                print('Vehicle #' + str(v) + ' reached goal point')
+                print('-----------------------------------------')
+
+                out[v] = self.scene_const.EVENT_GOAL                
+                continue
+
+            # If over MAXSTEP
+            if epi_step_stack[v] > self.options.MAX_TIMESTEP:
+                print('-----------------------------------------')
+                print('Vehicle #' + str(v) + ' over max step')
+                print('-----------------------------------------')
+
+                out[v] = self.EVENT_OVER_MAX_STEP
+                continue
+
+        return out
+
+
+    # Given the observation, find rewards. Also returns various other information
+    def getRewards(self, next_dDistance, next_veh_pos, next_gInfo, next_veh_heading ):
+        reward_stack        = np.zeros( self.options.VEH_COUNT )                              # Holds rewards of current step
+        epi_done            = np.zeros( self.options.VEH_COUNT) 
+        epi_sucess          = np.zeros( self.options.VEH_COUNT)                              # array to keep track of whether epi succeed 
+        veh_status          = np.zeros( self.options.VEH_COUNT)                              # array to keep track of whether epi succeed 
+
+        # Handle Events
+        for v in range(0,self.options.VEH_COUNT):
+            # If vehicle collided, give large negative reward
+            collision_detected, collision_sensor = detectCollision(next_dDistance[v], self.scene_const)
+            if collision_detected == True:
+                print('-----------------------------------------')
+                print('Vehicle #' + str(v) + ' collided! Detected Sensor : ' + str(collision_sensor) )
+                print('-----------------------------------------')
+
+                # Record data
+                veh_status[v]   = self.scene_const.EVENT_COLLISION
+                reward_stack[v] = self.options.FAIL_REW
+                epi_done[v]     = 1
+
+                # Resets
+                # self.epi_reward_stack[v] = 0
+                # self.epi_step_stack[v] = 0
+                continue
+
+            # If vehicle is at the goal point, give large positive reward
+            if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v], self.scene_const):
+                print('-----------------------------------------')
+                print('Vehicle #' + str(v) + ' reached goal point')
+                print('-----------------------------------------')
+
+                veh_status[v]   = self.scene_const.EVENT_GOAL
+                reward_stack[v] = self.options.GOAL_REW
+                epi_done[v]     = 1
+                epi_sucess[v]   = 1
+
+                # self.epi_reward_stack[v] = 0
+                # self.epi_step_stack[v] = 0
+                continue
+
+            # If over MAXSTEP
+            if self.epi_step_stack[v] > self.options.MAX_TIMESTEP:
+                print('-----------------------------------------')
+                print('Vehicle #' + str(v) + ' over max step')
+                print('-----------------------------------------')
+
+                veh_status[v]   = self.scene_const.EVENT_OVER_MAX_STEP
+                epi_done[v]     = 1
+
+                # self.epi_reward_stack[v] = 0
+                # self.epi_step_stack[v] = 0
+                continue
+
+            veh_status[v]   = self.scene_const.EVENT_FINE
+            # Update rewards
+            #reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
+            # reward_stack[v] = -(options.DIST_MUL + 1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
+            reward_stack[v] = -(self.options.DIST_MUL)*next_gInfo[v][1]**2
+
+        # Update cumulative rewards
+        self.epi_step_stack = self.epi_step_stack + 1
+        for v in range(0,self.options.VEH_COUNT):
+            self.epi_reward_stack[v] = self.epi_reward_stack[v] + reward_stack[v]*(self.options.GAMMA**self.epi_step_stack[v])
+
+        return reward_stack, veh_status, epi_done, epi_sucess
+
+
+    # Reset the epi_step_stack and epi_reward_stack
+    def resetRewards(self, veh_status):
+        for v, veh_status_val in enumerate(veh_status):
+            if veh_status_val != self.scene_const.EVENT_FINE:
+                self.epi_reward_stack[v] = 0
+                self.epi_step_stack[v] = 0
 
         return

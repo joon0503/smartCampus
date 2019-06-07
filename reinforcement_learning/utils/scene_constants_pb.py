@@ -69,3 +69,11 @@ class scene_constants:
     wall_cnt        = 9             # number of walls
     wall_h          = 0.5           # height of walls
     veh_scale       = 2.0           # vehicle scale
+
+
+    # Contants for Event Handling
+    EVENT_FINE          = 0
+    EVENT_COLLISION     = 1
+    EVENT_GOAL          = 2
+    EVENT_OVER_MAX_STEP = 3
+

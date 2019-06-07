@@ -176,9 +176,6 @@ if __name__ == "__main__":
     # Parse options
     _, options = get_options()
 
-    # Set scene_constants
-    scene_const                     = scene_constants()
-
     ########
     # Set Seed
     ########
@@ -203,30 +200,27 @@ if __name__ == "__main__":
     cam_dist = 5
 
     # Start Environment
-    sim_env                             = env_py( options, scene_const)
-    scene_const.clientID, handle_dict   = sim_env.start()
+    sim_env                                     = env_py( options, scene_constants() )
+    sim_env.scene_const.clientID, handle_dict   = sim_env.start()
 
     # Print Infos
     sim_env.printInfo()
 
     # Draw initial lines
     if options.enable_GUI == True:
-        sensor_handle = drawDebugLines( options, scene_const, handle_dict, createInit = True )
-        collision_handle = drawDebugLines( options, scene_const, handle_dict, createInit = True )
+        sensor_handle = drawDebugLines( options, sim_env.scene_const, handle_dict, createInit = True )
+        collision_handle = drawDebugLines( options, sim_env.scene_const, handle_dict, createInit = True )
 
     # Print Handles
     ic(handle_dict)
-
-    # Data
-    sensorData      = np.zeros(scene_const.sensor_count)   
 
     ##############
     # TF Setup
     ##############
     # Define placeholders to catch inputs and add options
-    agent_train     = QAgent(options,scene_const, 'Training')
-    agent_target    = QAgent(options,scene_const, 'Target')
-    agent_icm       = ICM(options,scene_const,'icm_Training')
+    agent_train     = QAgent(options,sim_env.scene_const, 'Training')
+    agent_target    = QAgent(options,sim_env.scene_const, 'Target')
+    agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
     sess            = tf.InteractiveSession()
 
@@ -304,13 +298,8 @@ if __name__ == "__main__":
     ###########################        
    
     # Some variables
-    reward_stack        = np.zeros(options.VEH_COUNT)                              # Holds rewards of current step
     action_stack        = np.zeros(options.VEH_COUNT)                              # action_stack[k] is the array of optinos.ACTION_DIM with each element representing the index
-    epi_step_stack      = np.zeros(options.VEH_COUNT)                              # Count number of step for each vehicle in each episode
-    epi_reward_stack    = np.zeros(options.VEH_COUNT)                              # Holds reward of current episode
     epi_counter         = 0                                                        # Counts # of finished episodes
-    epi_done            = np.zeros(options.VEH_COUNT) 
-    epi_sucess          = np.zeros(options.VEH_COUNT)                              # array to keep track of whether epi succeed 
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
     last_saved_epi = 0                                                             # variable used for checking when to save
  
@@ -343,13 +332,13 @@ if __name__ == "__main__":
         ####
         # Find & Apply Action
         ####
-        obs_sensor_stack = np.empty((options.VEH_COUNT, scene_const.sensor_count, options.FRAME_COUNT))
+        obs_sensor_stack = np.empty((options.VEH_COUNT, sim_env.scene_const.sensor_count, options.FRAME_COUNT))
         obs_goal_stack   = np.empty((options.VEH_COUNT, 2, options.FRAME_COUNT))
 
         # Get observation stack (which is used in getting the action) 
         for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
-            obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=False)
+            obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
 
         # Get optimal action. 
         action_stack = agent_train.sample_action(
@@ -362,7 +351,7 @@ if __name__ == "__main__":
                                             )
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
-        targetSteer = scene_const.max_steer - action_stack * abs(scene_const.max_steer - scene_const.min_steer)/(options.ACTION_DIM-1)
+        targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
         # ic(action_stack)
         # ic(targetSteer)
         #steeringSlider = p.addUserDebugParameter("steering", -2, 2, 0)
@@ -386,11 +375,16 @@ if __name__ == "__main__":
             goal_queue[v].append(next_gInfo[v])
             goal_queue[v].popleft()
 
-            # Get reward for each vehicle
-            #reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
-            # reward_stack[v] = -(options.DIST_MUL + 1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
-            reward_stack[v] = -(options.DIST_MUL)*next_gInfo[v][1]**2
-            # cost is the distance squared + inverse of minimum LIDAR distance
+        ####
+        # Handle Events & Get Rewards
+        ####
+        reward_stack, veh_status, epi_done, epi_sucess = sim_env.getRewards( next_dDistance, next_veh_pos, next_gInfo, next_veh_heading)
+
+        # List of resetting vehicles
+        reset_veh_list = [ v for v in range(0,options.VEH_COUNT) if veh_status[v] != sim_env.scene_const.EVENT_FINE ]
+
+        # Update epi counter
+        epi_counter += len(reset_veh_list)
 
         if options.VERBOSE == True:
             ic(reward_stack)
@@ -398,10 +392,10 @@ if __name__ == "__main__":
         # Draw Debug Lines
         if options.enable_GUI == True:
             # Draw Lidar
-            sensor_handle = drawDebugLines(options, scene_const, handle_dict, next_dDistance, sensor_handle, createInit = False )
+            sensor_handle = drawDebugLines(options, sim_env.scene_const, handle_dict, next_dDistance, sensor_handle, createInit = False )
 
             # Draw Collision Range
-            collision_handle = drawDebugLines(options, scene_const, handle_dict, np.ones((options.VEH_COUNT,scene_const.sensor_count))*(scene_const.collision_distance/scene_const.sensor_distance), collision_handle, createInit = False, ray_width = 4, rayHitColor = [0,0,0] )
+            collision_handle = drawDebugLines(options, sim_env.scene_const, handle_dict, np.ones((options.VEH_COUNT,sim_env.scene_const.sensor_count))*(sim_env.scene_const.collision_distance/sim_env.scene_const.sensor_distance), collision_handle, createInit = False, ray_width = 4, rayHitColor = [0,0,0] )
 
         #######
         # Test Estimation
@@ -410,85 +404,14 @@ if __name__ == "__main__":
             v = 0
 
             # Print curr & next state
-            curr_state_sensor, curr_state_goal     = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=True)
-            next_state_sensor, next_state_Goal     = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=False)
+            curr_state_sensor, curr_state_goal     = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=True)
+            next_state_sensor, next_state_Goal     = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
             #print('curr_state:', curr_state)
             #print('next_state:', next_state)
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
             #print('')
-            # agent_icm.plotEstimate( scene_const, options, curr_state, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
+            # agent_icm.plotEstimate( sim_env.scene_const, options, curr_state, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
-            
-        ###
-        # Handle Events
-        ###
-        
-        # Reset Done
-        epi_done    = np.zeros(options.VEH_COUNT)
-        epi_sucess  = np.zeros(options.VEH_COUNT)
-
-        # List of resetting vehicles
-        reset_veh_list = []
-
-        # Find reset list 
-        for v in range(0,options.VEH_COUNT):
-            # If vehicle collided, give large negative reward
-            collision_detected, collision_sensor = detectCollision(next_dDistance[v], scene_const)
-            if collision_detected == True:
-                print('-----------------------------------------')
-                print('Vehicle #' + str(v) + ' collided! Detected Sensor : ' + str(collision_sensor) )
-                print('-----------------------------------------')
-                
-                # Add this vehicle to list of vehicles to reset
-                reset_veh_list.append(v)
-
-                # Set flag and reward, and save eps
-                reward_stack[v] = options.FAIL_REW
-                eps_tracker[epi_counter] = eps
-                epi_counter += 1
-
-                # Set done
-                epi_done[v] = 1
-                # epi_sucess[v] = 0 # Set fail flag. Not necessary since 0 is the default value
-                # If collided, skip checking for goal point
-                continue
-
-            # If vehicle is at the goal point, give large positive reward
-            if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v], scene_const):
-                print('-----------------------------------------')
-                print('Vehicle #' + str(v) + ' reached goal point')
-                print('-----------------------------------------')
-                
-                # Reset Simulation
-                reset_veh_list.append(v)
-
-                # Set flag and reward
-                reward_stack[v] = options.GOAL_REW
-                eps_tracker[epi_counter] = eps
-                epi_counter += 1
-
-                # Set done
-                epi_done[v] = 1
-                epi_sucess[v] = 1
-
-                continue
-
-            # If over MAXSTEP
-            if epi_step_stack[v] > options.MAX_TIMESTEP:
-                print('-----------------------------------------')
-                print('Vehicle #' + str(v) + ' over max step')
-                print('-----------------------------------------')
-
-                # Reset Simulation
-                reset_veh_list.append(v)
-
-                eps_tracker[epi_counter] = eps
-                epi_counter += 1
-                
-
-        # Detect being stuck
-        #   Not coded yet.
-        
         ###########
         # START LEARNING
         ###########
@@ -496,8 +419,8 @@ if __name__ == "__main__":
         # Add latest information to memory
         for v in range(0,options.VEH_COUNT):
             # Get observation
-            observation_sensor, observation_goal             = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old = True)
-            next_observation_sensor, next_observation_goal   = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old = False)
+            observation_sensor, observation_goal             = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = True)
+            next_observation_sensor, next_observation_goal   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = False)
 
             # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
             experience = observation_sensor, observation_goal, action_stack[v], reward_stack[v], next_observation_sensor, next_observation_goal, epi_done[v]
@@ -525,10 +448,10 @@ if __name__ == "__main__":
                 actions_mb_hot[np.arange(options.BATCH_SIZE),np.asarray(actions_mb, dtype=int)] = 1
 
                 # actions converted to value array
-                #actions_mb_val = oneHot2Angle( actions_mb_hot, scene_const, options, radians = False, scale = True )
+                #actions_mb_val = oneHot2Angle( actions_mb_hot, sim_env.scene_const, options, radians = False, scale = True )
 
                 # ic(states_mb,actions_mb,rewards_mb,next_states_mb,done_mb)
-                # ic( next_states_mb.reshape(-1,scene_const.sensor_count+2,options.FRAME_COUNT) )
+                # ic( next_states_mb.reshape(-1,sim_env.scene_const.sensor_count+2,options.FRAME_COUNT) )
 
                 # Get Target Q-Value
                 feed.clear()
@@ -584,11 +507,11 @@ if __name__ == "__main__":
                 # Train forward model
                 feed_icm.clear()
                 # ic(states_mb, states_mb.shape)
-                # ic(states_mb.reshape(options.BATCH_SIZE,(scene_const.sensor_count+2)*options.FRAME_COUNT), states_mb.shape)
+                # ic(states_mb.reshape(options.BATCH_SIZE,(sim_env.scene_const.sensor_count+2)*options.FRAME_COUNT), states_mb.shape)
                 # FIXME : for icm observation, we reshape the states_mb , which is (BATCH_SIZE, SENSOR_COUNT+2,FRAME_COUNT) into (BATCH_SIZE, (SENSOR_COUNT+2)*frame+count)
                 #         merging the frame data into a single array. 
                 #         However, the order of the data is not mixed together between frames, i.e., s1_f1, s1_f2, s2_f1...
-                # feed_icm.update({agent_icm.observation  : np.concatenate([ states_mb.reshape(options.BATCH_SIZE,(scene_const.sensor_count+2)*options.FRAME_COUNT), actions_mb_hot],-1) } )
+                # feed_icm.update({agent_icm.observation  : np.concatenate([ states_mb.reshape(options.BATCH_SIZE,(sim_env.scene_const.sensor_count+2)*options.FRAME_COUNT), actions_mb_hot],-1) } )
 
                 # Get state of the latest frame
                 # feed_icm.update({agent_icm.actual_state : next_states_mb[:,:,-1]})
@@ -610,7 +533,7 @@ if __name__ == "__main__":
             # If just running to get memory, do not increment counter
             epi_counter = 0
 
-        handle_dict, scene_const = sim_env.initScene( reset_veh_list, RANDOMIZE )
+        handle_dict, sim_env.scene_const = sim_env.initScene( reset_veh_list, RANDOMIZE )
 
         # Reset data queue
         _, _, reset_dDistance, reset_gInfo = sim_env.getObservation()
@@ -626,34 +549,26 @@ if __name__ == "__main__":
             print('-----------------------------------------')
             copy_online_to_target.run()
 
-        # Update rewards
-        for v in range(0,options.VEH_COUNT):
-            # print('Vehicle ' + str(v) + ' reward_stack[v]' + str(reward_stack[v]))
-            epi_reward_stack[v] = epi_reward_stack[v] + reward_stack[v]*(options.GAMMA**epi_step_stack[v])
-
         # Print Rewards
         for v in reset_veh_list:
             print('========')
             print('Vehicle #:', v)
             print('\tGlobal Step:' + str(global_step))
             print('\tEPS: ' + str(eps))
-            print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(epi_step_stack[v])) )
-            print('\tEpisode Reward: ' + str(epi_reward_stack[v])) 
+            print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(sim_env.epi_step_stack[v])) )
+            print('\tEpisode Reward: ' + str(sim_env.epi_reward_stack[v])) 
             print('Last Loss: ',data_package.avg_loss[-1])
             print('========')
             print('')
 
-        # Update Counters
-        epi_step_stack = epi_step_stack + 1
-
-        # Reset rewards for finished vehicles
+        # Update data
         for v in reset_veh_list:
-            data_package.add_reward( epi_reward_stack[v] )  # Add reward
+            data_package.add_reward( sim_env.epi_reward_stack[v] )  # Add reward
             data_package.add_eps( eps )                     # Add epsilon used for this reward
             data_package.add_success_rate( epi_sucess[v] )  # Add success/fail
 
-            epi_reward_stack[v] = 0
-            epi_step_stack[v] = 0
+        # Reset rewards for finished vehicles
+        sim_env.resetRewards(veh_status)
 
         # save progress
         if options.TESTING == False:
