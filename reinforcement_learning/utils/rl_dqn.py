@@ -29,7 +29,8 @@ class QAgent:
             # Inputs
 #            self.sensor_input   = tf.placeholder(tf.float32, [None, scene_const.sensor_count*options.FRAME_COUNT], name='observation')
 #            self.goal_input     = tf.placeholder(tf.float32, [None, 2*options.FRAME_COUNT], name='observation')
-            self.observation    = tf.placeholder(tf.float32, [None, scene_const.sensor_count+2, options.FRAME_COUNT], name='observation')
+            self.obs_sensor     = tf.placeholder(tf.float32, [None, scene_const.sensor_count, options.FRAME_COUNT], name='observation_sensor')
+            self.obs_goal       = tf.placeholder(tf.float32, [None, 2, options.FRAME_COUNT], name='observation_goal')
             self.ISWeights      = tf.placeholder(tf.float32, [None,1], name='IS_weights')
             self.act            = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
             self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
@@ -117,8 +118,8 @@ class QAgent:
 
                 # Input is [BATCH_SIZE, sensor_count+2, frame_count]
                 self.h_s1 = tf.layers.conv1d(
-                  inputs      = self.observation,
-                  filters     = 5,
+                  inputs      = self.obs_sensor,
+                  filters     = 10,
                   kernel_size = 5,
                   activation  = act_function,
                   padding     = 'valid',
@@ -132,23 +133,23 @@ class QAgent:
                   strides     = 2    
                 )
 
-                # self.h_s2 = tf.layers.flatten(
-                #   tf.layers.max_pooling1d(
-                #     inputs = 
-                #       tf.layers.conv1d(
-                #       inputs      = self.h_s1_max,
-                #       filters     = 10,
-                #       kernel_size = 3,
-                #       activation  = act_function,
-                #       padding     = 'valid',
-                #       kernel_initializer= tf.contrib.layers.xavier_initializer()
-                #     ),
-                #     pool_size = 2,
-                #     strides   = 2
-                #   )
-                # )
+                self.h_s2 = tf.layers.flatten(
+                  tf.layers.max_pooling1d(
+                    inputs = 
+                      tf.layers.conv1d(
+                      inputs      = self.h_s1_max,
+                      filters     = 20,
+                      kernel_size = 3,
+                      activation  = act_function,
+                      padding     = 'valid',
+                      kernel_initializer= tf.contrib.layers.xavier_initializer()
+                    ),
+                    pool_size = 2,
+                    strides   = 2
+                  )
+                )
 
-                self.h_flat = tf.layers.flatten( inputs = self.h_s1_max )
+                self.h_flat = tf.layers.flatten( inputs = self.h_s2 )
                 # self.h_s1 = tf.layers.dense( inputs=self.h_flat,
                 #                              units=options.H1_SIZE,
                 #                              activation = act_function,
@@ -156,7 +157,10 @@ class QAgent:
                 #                              kernel_regularizer= tf.contrib.layers.l2_regularizer(scale=loss_scale),
                 #                              name="h_s1"
                 #                            )
-                self.h_s2 = tf.layers.dense( inputs=self.h_flat,
+
+                self.h_concat = tf.concat([self.h_flat, tf.layers.flatten( inputs = self.obs_goal )], -1)
+
+                self.h_s2 = tf.layers.dense( inputs=self.h_concat,
                                              units=options.H2_SIZE,
                                              activation = act_function,
                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
@@ -247,8 +251,9 @@ class QAgent:
         else:
             act_values = self.output.eval(feed_dict=feed)
             if options.TESTING == True or options.VERBOSE == True:
-                ic(np.argmax(act_values))
+                ic(np.argmax(act_values,axis=1))
                 ic(act_values)
+                print("\n")
                 pass
 
             # Get maximum for each vehicle

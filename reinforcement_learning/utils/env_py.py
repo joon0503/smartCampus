@@ -136,9 +136,14 @@ class env_py:
         for q in range(0,self.options.FIX_INPUT_STEP):
             p.stepSimulation()
 
+        if self.options.manual == True:
+            input('Press Enter')
+
         return
 
     # Some info related the scenario
     def printInfo(self): 
         printRewards(self.scene_const, self.options)
         printSpdInfo(self.options)
+
+        return

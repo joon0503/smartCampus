@@ -141,6 +141,9 @@ def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_li
 #       new = [frame2,frame3]
 # Each data is (sensor_count + 2,frame_count). On each frame, last 2 elements are goal point
 # Rightmost column is the latest frame
+# Output
+#   sensor_out : [sensor_count , frame_count] 
+#   goal_out   : [2, frame_count] , first row is angle, second row is distance
 def getObs( options, scene_const, sensor_queue, goal_queue, old=True):
     if old == True:
         sensor_stack    = np.concatenate(sensor_queue)[0:scene_const.sensor_count*options.FRAME_COUNT]
@@ -151,8 +154,7 @@ def getObs( options, scene_const, sensor_queue, goal_queue, old=True):
 
     out = np.transpose(np.hstack((sensor_stack.reshape(options.FRAME_COUNT,-1), goal_stack.reshape(options.FRAME_COUNT,-1))))
     # ic(sensor_stack)
-    # ic(out, out.shape)
-    return out
+    return np.transpose(sensor_stack.reshape(options.FRAME_COUNT,-1)), np.transpose(goal_stack.reshape(options.FRAME_COUNT,-1))
     # return np.concatenate((sensor_stack, goal_stack))
 
 # Update Camera

@@ -28,6 +28,7 @@ from utils.utils_pb import (controlCamera, detectCollision, detectReachedGoal,
                             getObs, initQueue, resetQueue, drawDebugLines)
 
 def get_options():
+    # Parser Settings
     parser = ArgumentParser(
         description='File for learning'
         )
@@ -117,6 +118,30 @@ def get_options():
                         help='Number of threads for parallel simulation.')
     options = parser.parse_args()
 
+    # Print Options
+    print(str(options).replace(" ",'\n'))
+
+    # Check Inputs
+    if options.TARGET_UPDATE_STEP % options.VEH_COUNT != 0:
+        raise ValueError('VEH_COUNT must divide TARGET_UPDATE_STEPS')
+
+    # Save options
+    if not os.path.exists("./checkpoints-vehicle"):
+        os.makedirs("./checkpoints-vehicle")
+
+    if options.TESTING == True:
+        option_file = open("./checkpoints-vehicle/options_TESTING_"+START_TIME_STR+'.txt', "w")
+    else:
+        option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
+
+    # For each option
+    for x in sorted(vars(options).keys()):
+        option_file.write( str(x).ljust(20) + ": " + str(vars(options)[x]).ljust(10) )   # write option
+        if vars(options)[x] == parser.get_default(x):       # if default value
+            option_file.write( '(DEFAULT)' )                # say it is default
+        option_file.write('\n')
+    option_file.close()
+
     return parser, options
 
 
@@ -143,41 +168,16 @@ def printTFvars():
 # MAIN
 ########################
 if __name__ == "__main__":
-    ######################################
-    # Inital Option Handling
-    ######################################
-    # Print Options
-    parser, options = get_options()
-    print(str(options).replace(" ",'\n'))
-
-    # Check Inputs
-    if options.TARGET_UPDATE_STEP % options.VEH_COUNT != 0:
-        raise ValueError('VEH_COUNT must divide TARGET_UPDATE_STEPS')
-
-    # Save options
-    if not os.path.exists("./checkpoints-vehicle"):
-        os.makedirs("./checkpoints-vehicle")
-
     # SET 'GLOBAL' Variables
     START_TIME       = datetime.datetime.now() 
     START_TIME_STR   = str(START_TIME).replace(" ","_")
     START_TIME_STR   = str(START_TIME).replace(":","_")
 
+    # Parse options
+    _, options = get_options()
+
     # Set scene_constants
     scene_const                     = scene_constants()
-
-    if options.TESTING == True:
-        option_file = open("./checkpoints-vehicle/options_TESTING_"+START_TIME_STR+'.txt', "w")
-    else:
-        option_file = open("./checkpoints-vehicle/options_"+START_TIME_STR+'.txt', "w")
-
-    # For each option
-    for x in sorted(vars(options).keys()):
-        option_file.write( str(x).ljust(20) + ": " + str(vars(options)[x]).ljust(10) )   # write option
-        if vars(options)[x] == parser.get_default(x):       # if default value
-            option_file.write( '(DEFAULT)' )                # say it is default
-        option_file.write('\n')
-    option_file.close()
 
     ########
     # Set Seed
@@ -203,8 +203,8 @@ if __name__ == "__main__":
     cam_dist = 5
 
     # Start Environment
-    sim_env = env_py( options, scene_const)
-    scene_const.clientID, handle_dict = sim_env.start()
+    sim_env                             = env_py( options, scene_const)
+    scene_const.clientID, handle_dict   = sim_env.start()
 
     # Print Infos
     sim_env.printInfo()
@@ -229,7 +229,6 @@ if __name__ == "__main__":
     agent_icm       = ICM(options,scene_const,'icm_Training')
 
     sess            = tf.InteractiveSession()
-    rwd             = tf.placeholder(tf.float32, [None, ], name='reward')
 
     # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
     target_vars = agent_target.getTrainableVarByName()
@@ -257,10 +256,10 @@ if __name__ == "__main__":
 
     
     # Some initial local variables
-    feed = {}
-    feed_icm = {}
-    eps = options.INIT_EPS
-    global_step = 0
+    feed            = {}
+    feed_icm        = {}
+    eps             = options.INIT_EPS
+    global_step     = 0
 
     # The replay memory.
     if options.enable_PER == False:
@@ -300,12 +299,6 @@ if __name__ == "__main__":
     ###########################        
     data_package = data_pack( START_TIME_STR )    
 
-    reward_data         = np.empty(0)
-    avg_loss_value_data = np.empty(1)
-    avg_epi_reward_data = np.zeros(options.MAX_EPISODE)
-    track_eps           = []
-    track_eps.append((0,eps))
-
     ###########################        
     # Initialize Variables
     ###########################        
@@ -332,7 +325,7 @@ if __name__ == "__main__":
         goal_queue.append( deque() )
 
     # initilize them with initial data
-    veh_pos, veh_heading, dDistance, gInfo = sim_env.getObservation()
+    _, _, dDistance, gInfo   = sim_env.getObservation()
     sensor_queue, goal_queue = initQueue( options, sensor_queue, goal_queue, dDistance, gInfo )
 
     # Global Step Loop
@@ -341,31 +334,28 @@ if __name__ == "__main__":
         if options.enable_GUI == True and options.manual == False:
             cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
             time.sleep(0.01)
+
         # Decay epsilon
         global_step += options.VEH_COUNT
         if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
             eps = eps * options.EPS_DECAY
-            # Save eps for plotting
-            #track_eps.append((epi_counter+1,eps)) 
-
-        #print("=====================================")
-        #print("Global Step: " + str(global_step) + 'EPS: ' + str(eps) + ' Finished Episodes:' + str(epi_counter) )
-
 
         ####
         # Find & Apply Action
         ####
-        obs_stack = np.empty((options.VEH_COUNT, (scene_const.sensor_count+2), options.FRAME_COUNT))
+        obs_sensor_stack = np.empty((options.VEH_COUNT, scene_const.sensor_count, options.FRAME_COUNT))
+        obs_goal_stack   = np.empty((options.VEH_COUNT, 2, options.FRAME_COUNT))
 
         # Get observation stack (which is used in getting the action) 
         for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
-            obs_stack[v]    = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=False)
+            obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=False)
 
         # Get optimal action. 
         action_stack = agent_train.sample_action(
                                             {
-                                                agent_train.observation : obs_stack
+                                                agent_train.obs_sensor : obs_sensor_stack,
+                                                agent_train.obs_goal   : obs_goal_stack
                                             },
                                             eps,
                                             options,
@@ -384,18 +374,12 @@ if __name__ == "__main__":
         ####
         sim_env.step()
 
-        if options.manual == True:
-            input('Press Enter')
-
         ####
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = sim_env.getObservation( verbosity = options.VERBOSE )
 
         for v in range(0,options.VEH_COUNT):
-            # Get new Data
-            #veh_pos_queue[v].append(next_veh_pos[v])   
-
             # Update queue
             sensor_queue[v].append(next_dDistance[v])
             sensor_queue[v].popleft()
@@ -426,8 +410,8 @@ if __name__ == "__main__":
             v = 0
 
             # Print curr & next state
-            curr_state     = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=True)
-            next_state     = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=False)
+            curr_state_sensor, curr_state_goal     = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=True)
+            next_state_sensor, next_state_Goal     = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old=False)
             #print('curr_state:', curr_state)
             #print('next_state:', next_state)
             #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
@@ -455,18 +439,12 @@ if __name__ == "__main__":
                 print('Vehicle #' + str(v) + ' collided! Detected Sensor : ' + str(collision_sensor) )
                 print('-----------------------------------------')
                 
-                # Print last Q-value 
-                # observation     = getObs( sensor_queue[v], goal_queue[v], old=False)
-                # curr_q_value = sess.run([agent_train.output], feed_dict = {agent_train.observation : np.reshape(observation, (1, -1))})
-                # print(curr_q_value)
-
                 # Add this vehicle to list of vehicles to reset
                 reset_veh_list.append(v)
 
                 # Set flag and reward, and save eps
                 reward_stack[v] = options.FAIL_REW
                 eps_tracker[epi_counter] = eps
-                #if global_step >= options.MAX_EXPERIENCE:
                 epi_counter += 1
 
                 # Set done
@@ -487,12 +465,13 @@ if __name__ == "__main__":
                 # Set flag and reward
                 reward_stack[v] = options.GOAL_REW
                 eps_tracker[epi_counter] = eps
-                #if global_step >= options.MAX_EXPERIENCE:
                 epi_counter += 1
 
                 # Set done
                 epi_done[v] = 1
                 epi_sucess[v] = 1
+
+                continue
 
             # If over MAXSTEP
             if epi_step_stack[v] > options.MAX_TIMESTEP:
@@ -504,7 +483,6 @@ if __name__ == "__main__":
                 reset_veh_list.append(v)
 
                 eps_tracker[epi_counter] = eps
-                #if global_step >= options.MAX_EXPERIENCE:
                 epi_counter += 1
                 
 
@@ -518,13 +496,11 @@ if __name__ == "__main__":
         # Add latest information to memory
         for v in range(0,options.VEH_COUNT):
             # Get observation
-            observation             = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old = True)
-            next_observation        = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old = False)
+            observation_sensor, observation_goal             = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old = True)
+            next_observation_sensor, next_observation_goal   = getObs( options, scene_const, sensor_queue[v], goal_queue[v], old = False)
 
             # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
-            #experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
-            experience = observation, action_stack[v], reward_stack[v], next_observation, epi_done[v]
-            #print('experience', experience)
+            experience = observation_sensor, observation_goal, action_stack[v], reward_stack[v], next_observation_sensor, next_observation_goal, epi_done[v]
            
             # Save new memory 
             replay_memory.store(experience)
@@ -536,11 +512,13 @@ if __name__ == "__main__":
                 tree_idx, batch_memory, ISWeights_mb = replay_memory.sample(options.BATCH_SIZE)
 
                 # Get state/action/next state from obtained memory. Size same as queues
-                states_mb       = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x STATE_DIM 
-                actions_mb      = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
-                rewards_mb      = np.array([each[0][2] for each in batch_memory])           # 1 x BATCH_SIZE
-                next_states_mb  = np.array([each[0][3] for each in batch_memory])   
-                done_mb         = np.array([each[0][4] for each in batch_memory])   
+                states_sensor_mb        = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x SENSOR_COUNT
+                states_goal_mb          = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x 2
+                actions_mb              = np.array([each[0][2] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
+                rewards_mb              = np.array([each[0][3] for each in batch_memory])           # 1 x BATCH_SIZE
+                next_states_sensor_mb   = np.array([each[0][4] for each in batch_memory])   
+                next_states_goal_mb     = np.array([each[0][5] for each in batch_memory])   
+                done_mb                 = np.array([each[0][6] for each in batch_memory])   
 
                 # actions mb is list of numbers. Need to change it into one hot encoding
                 actions_mb_hot = np.zeros((options.BATCH_SIZE,options.ACTION_DIM))
@@ -554,14 +532,14 @@ if __name__ == "__main__":
 
                 # Get Target Q-Value
                 feed.clear()
-                feed.update({agent_train.observation : next_states_mb})
+                feed.update({agent_train.obs_sensor : next_states_sensor_mb, agent_train.obs_goal : next_states_goal_mb})
 
                 # Calculate Target Q-value. Uses double network. First, get action from training network
                 action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
 
                 if options.disable_DN == False:
                     feed.clear()
-                    feed.update({agent_target.observation : next_states_mb})
+                    feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
 
                     # Using Target + Double network
                     # ic( agent_target.output.eval( feed_dict = feed), agent_target.output.eval( feed_dict = feed).shape  )
@@ -570,7 +548,7 @@ if __name__ == "__main__":
                     q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
                 else:
                     feed.clear()
-                    feed.update({agent_target.observation : next_states_mb})
+                    feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
 
                     # Just using Target Network.
                     q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
@@ -586,7 +564,8 @@ if __name__ == "__main__":
 
                 # Gradient Descent
                 feed.clear()
-                feed.update({agent_train.observation : states_mb})
+                feed.update({agent_train.obs_sensor : states_sensor_mb, agent_train.obs_goal : states_goal_mb})
+                # feed.update({agent_train.observation : states_mb})
                 feed.update({agent_train.act : actions_mb_hot})
                 feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
                 feed.update({agent_train.ISWeights : ISWeights_mb   })
@@ -595,7 +574,7 @@ if __name__ == "__main__":
                 # Train RL         
                 step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
 
-                # test = agent_train.h_s1.eval(feed_dict = feed)
+                # test = agent_train.h_concat.eval(feed_dict = feed)
                 # ic(test,test.shape)
                 # test = agent_train.h_s1_max.eval(feed_dict = feed)
                 # ic(test,test.shape)
@@ -609,11 +588,11 @@ if __name__ == "__main__":
                 # FIXME : for icm observation, we reshape the states_mb , which is (BATCH_SIZE, SENSOR_COUNT+2,FRAME_COUNT) into (BATCH_SIZE, (SENSOR_COUNT+2)*frame+count)
                 #         merging the frame data into a single array. 
                 #         However, the order of the data is not mixed together between frames, i.e., s1_f1, s1_f2, s2_f1...
-                feed_icm.update({agent_icm.observation  : np.concatenate([ states_mb.reshape(options.BATCH_SIZE,(scene_const.sensor_count+2)*options.FRAME_COUNT), actions_mb_hot],-1) } )
+                # feed_icm.update({agent_icm.observation  : np.concatenate([ states_mb.reshape(options.BATCH_SIZE,(scene_const.sensor_count+2)*options.FRAME_COUNT), actions_mb_hot],-1) } )
 
                 # Get state of the latest frame
-                feed_icm.update({agent_icm.actual_state : next_states_mb[:,:,-1]})
-                icm_loss, _                             = sess.run([agent_icm.loss, agent_icm.optimizer], feed_dict = feed_icm)
+                # feed_icm.update({agent_icm.actual_state : next_states_mb[:,:,-1]})
+                # icm_loss, _                             = sess.run([agent_icm.loss, agent_icm.optimizer], feed_dict = feed_icm)
 
 
                 #print(rewards_mb)
