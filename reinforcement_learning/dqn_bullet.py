@@ -255,7 +255,6 @@ if __name__ == "__main__":
     # Some initial local variables
     feed            = {}
     feed_icm        = {}
-    eps             = options.INIT_EPS
     global_step     = 0
 
     # The replay memory.
@@ -304,7 +303,7 @@ if __name__ == "__main__":
     action_stack        = np.zeros(options.VEH_COUNT)                              # action_stack[k] is the array of optinos.ACTION_DIM with each element representing the index
     epi_counter         = 0                                                        # Counts # of finished episodes
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
-    last_saved_epi = 0                                                             # variable used for checking when to save
+    last_saved_epi      = 0                                                             # variable used for checking when to save
  
     # Initialize Scene
     _, _ = sim_env.initScene( list(range(0,options.VEH_COUNT)), False )
@@ -330,8 +329,6 @@ if __name__ == "__main__":
         # Decay epsilon
         agent_train.decayEps( options, global_step)
         global_step += options.VEH_COUNT
-        # if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
-        #     eps = eps * options.EPS_DECAY
 
         ####
         # Find & Apply Action
