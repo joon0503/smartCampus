@@ -9,7 +9,11 @@ from icecream import ic
 class QAgent:
     def __init__(self, options, scene_const, name):
         self.scope = name
-    
+
+        # Variables
+        self.eps = options.INIT_EPS
+
+
         # Parse input for activation function
         if options.ACT_FUNC == 'elu':
             act_function = tf.nn.elu
@@ -244,8 +248,8 @@ class QAgent:
     # Sample action with random rate eps
     # output:
     #   action_index
-    def sample_action(self, feed, eps, options):
-        if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
+    def sample_action(self, feed, options):
+        if random.random() <= self.eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
         else:
@@ -265,3 +269,9 @@ class QAgent:
         trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)
         trainable_vars_by_name = {var.name[len(self.scope):]: var for var in trainable_vars }   # This makes a dictionary with key being the name of varialbe without scope
         return trainable_vars_by_name
+
+    # update epsilon
+    def decayEps( self, options, global_step ):
+      # Decay epsilon
+      if global_step % options.EPS_ANNEAL_STEPS == 0 and self.eps > options.FINAL_EPS:
+          self.eps = self.eps * options.EPS_DECAY

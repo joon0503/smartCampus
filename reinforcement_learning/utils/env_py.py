@@ -153,53 +153,6 @@ class env_py:
 
         return
 
-
-    # Handle events
-    # Inputs
-    #   next_dDistance
-    #   next_veh_heading
-    # Output
-    #   array : status of each vehicle
-    #       0 - no event
-    #       1 - collision
-    #       2 - reached goal
-    #       3 - over maxstep
-    def checkEvent(self, next_dDistance, next_veh_pos, next_gInfo, next_veh_heading, epi_step_stack):
-        out = np.array( self.options.VEH_COUNT )
-
-        # Find reset list 
-        for v in range(0,options.VEH_COUNT):
-            # If vehicle collided, give large negative reward
-            collision_detected, collision_sensor = detectCollision(next_dDistance[v], self.scene_const)
-            if collision_detected == True:
-                print('-----------------------------------------')
-                print('Vehicle #' + str(v) + ' collided! Detected Sensor : ' + str(collision_sensor) )
-                print('-----------------------------------------')
-
-                out[v] = self.scene_const.EVENT_COLLISION                
-                continue
-
-            # If vehicle is at the goal point, give large positive reward
-            if detectReachedGoal(next_veh_pos[v], next_gInfo[v], next_veh_heading[v], self.scene_const):
-                print('-----------------------------------------')
-                print('Vehicle #' + str(v) + ' reached goal point')
-                print('-----------------------------------------')
-
-                out[v] = self.scene_const.EVENT_GOAL                
-                continue
-
-            # If over MAXSTEP
-            if epi_step_stack[v] > self.options.MAX_TIMESTEP:
-                print('-----------------------------------------')
-                print('Vehicle #' + str(v) + ' over max step')
-                print('-----------------------------------------')
-
-                out[v] = self.EVENT_OVER_MAX_STEP
-                continue
-
-        return out
-
-
     # Given the observation, find rewards. Also returns various other information
     def getRewards(self, next_dDistance, next_veh_pos, next_gInfo, next_veh_heading ):
         reward_stack        = np.zeros( self.options.VEH_COUNT )                              # Holds rewards of current step

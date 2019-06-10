@@ -48,7 +48,7 @@ def get_options():
                         help='finial probability for randomly sampling action')
     parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=2000,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1800,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
@@ -124,6 +124,9 @@ def get_options():
     # Check Inputs
     if options.TARGET_UPDATE_STEP % options.VEH_COUNT != 0:
         raise ValueError('VEH_COUNT must divide TARGET_UPDATE_STEPS')
+
+    if options.EPS_ANNEAL_STEPS % options.VEH_COUNT != 0:
+        raise ValueError('VEH_COUNT must divide EPS_ANNEAL_STEPS')
 
     # Save options
     if not os.path.exists("./checkpoints-vehicle"):
@@ -325,9 +328,10 @@ if __name__ == "__main__":
             time.sleep(0.01)
 
         # Decay epsilon
+        agent_train.decayEps( options, global_step)
         global_step += options.VEH_COUNT
-        if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
-            eps = eps * options.EPS_DECAY
+        # if global_step % options.EPS_ANNEAL_STEPS == 0 and eps > options.FINAL_EPS:
+        #     eps = eps * options.EPS_DECAY
 
         ####
         # Find & Apply Action
@@ -346,7 +350,6 @@ if __name__ == "__main__":
                                                 agent_train.obs_sensor : obs_sensor_stack,
                                                 agent_train.obs_goal   : obs_goal_stack
                                             },
-                                            eps,
                                             options,
                                             )
 
@@ -554,7 +557,7 @@ if __name__ == "__main__":
             print('========')
             print('Vehicle #:', v)
             print('\tGlobal Step:' + str(global_step))
-            print('\tEPS: ' + str(eps))
+            print('\tEPS: ' + str(agent_train.eps))
             print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(sim_env.epi_step_stack[v])) )
             print('\tEpisode Reward: ' + str(sim_env.epi_reward_stack[v])) 
             print('Last Loss: ',data_package.avg_loss[-1])
@@ -564,7 +567,7 @@ if __name__ == "__main__":
         # Update data
         for v in reset_veh_list:
             data_package.add_reward( sim_env.epi_reward_stack[v] )  # Add reward
-            data_package.add_eps( eps )                     # Add epsilon used for this reward
+            data_package.add_eps( agent_train.eps )                     # Add epsilon used for this reward
             data_package.add_success_rate( epi_sucess[v] )  # Add success/fail
 
         # Reset rewards for finished vehicles
