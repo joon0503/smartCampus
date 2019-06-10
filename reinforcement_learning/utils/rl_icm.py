@@ -8,13 +8,15 @@
 #
 ########
 
+import math
+import random
+import sys
+
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-import math
-import sys
-import random
-import matplotlib.pyplot as plt
 from icecream import ic
+
 
 # Class for Neural Network
 class ICM:

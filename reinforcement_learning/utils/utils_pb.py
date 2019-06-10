@@ -1,10 +1,12 @@
 ################
 # This file contains functions for pb
 ###############
+import math
+
 import numpy as np
 import pybullet as p
 from icecream import ic
-import math
+
 # import pybullet_data
 # import random
 # import0os
@@ -225,4 +227,3 @@ def drawDebugLines( options, scene_const, handle_dict, sensor_data = -1, ray_id 
         return rayIds
     else:
         return ray_id
-

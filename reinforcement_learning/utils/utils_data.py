@@ -1,8 +1,9 @@
-import numpy as np
 import math
-import sys
-import matplotlib.pyplot as plt
 import pickle
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 # This is class for storing all the data
 

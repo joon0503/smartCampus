@@ -11,7 +11,8 @@ from icecream import ic
 
 from utils.utils_pb import (controlCamera, detectCollision, detectReachedGoal,
                             getObs, getVehicleState, initQueue, resetQueue)
-from utils.utils_pb_scene_2LC import genScene, initScene, removeScene, printRewards, printSpdInfo
+from utils.utils_pb_scene_2LC import (genScene, initScene, printRewards,
+                                      printSpdInfo, removeScene)
 
 
 class env_py:

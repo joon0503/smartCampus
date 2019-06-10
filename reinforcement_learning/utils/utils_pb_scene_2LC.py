@@ -1,6 +1,6 @@
+import math
 import os
 import random
-import math
 
 import numpy as np
 import pybullet as p

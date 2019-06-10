@@ -25,7 +25,8 @@ from utils.rl_icm import ICM
 from utils.scene_constants_pb import scene_constants
 from utils.utils_data import data_pack
 from utils.utils_pb import (controlCamera, detectCollision, detectReachedGoal,
-                            getObs, initQueue, resetQueue, drawDebugLines)
+                            drawDebugLines, getObs, initQueue, resetQueue)
+
 
 def get_options():
     # Parser Settings

@@ -2,6 +2,7 @@
 # This is class containing all constants relevant to the test scene for bullet simulation
 
 import math
+
 import numpy as np
 
 
@@ -76,4 +77,3 @@ class scene_constants:
     EVENT_COLLISION     = 1
     EVENT_GOAL          = 2
     EVENT_OVER_MAX_STEP = 3
-

@@ -1,9 +1,11 @@
+import math
+import random
+import sys
+
 import numpy as np
 import tensorflow as tf
-import math
-import sys
-import random
 from icecream import ic
+
 
 # Class for Neural Network
 class QAgent:
