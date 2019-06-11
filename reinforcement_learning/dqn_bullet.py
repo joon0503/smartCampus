@@ -91,13 +91,13 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=500,
+    parser.add_argument('--GOAL_REW', type=int, default=6000,
                         help='Activation function')
     parser.add_argument('--FAIL_REW', type=int, default=-2000,
                         help='Activation function')
-    parser.add_argument('--VEH_COUNT', type=int, default=10,
+    parser.add_argument('--VEH_COUNT', type=int, default=6,
                         help='Number of vehicles to use for simulation')
-    parser.add_argument('--INIT_SPD', type=int, default=2,
+    parser.add_argument('--INIT_SPD', type=int, default=15,
                         help='Initial speed of vehicle in  km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=20,
                         help='Multiplier for rewards based on the distance to the goal')
@@ -111,16 +111,13 @@ def get_options():
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     parser.add_argument('--L2_LOSS', type=float, default=0.0,
                         help='Scale of L2 loss')
-    parser.add_argument('--FIX_INPUT_STEP', type=int, default=4,
+    parser.add_argument('--FIX_INPUT_STEP', type=int, default=6,
                         help='Fix input steps')
     parser.add_argument('--X_COUNT', type=int, default=6,
                         help='Width of the grid for vehicles. Default of 5 means we lay down 5 vehicles as the width of the grid')
     parser.add_argument('--THREAD', type=int, default=1,
                         help='Number of threads for parallel simulation.')
     options = parser.parse_args()
-
-    # Print Options
-    print(str(options).replace(" ",'\n'))
 
     # Check Inputs
     if options.TARGET_UPDATE_STEP % options.VEH_COUNT != 0:
@@ -140,10 +137,17 @@ def get_options():
 
     # For each option
     for x in sorted(vars(options).keys()):
-        option_file.write( str(x).ljust(20) + ": " + str(vars(options)[x]).ljust(10) )   # write option
-        if vars(options)[x] == parser.get_default(x):       # if default value
-            option_file.write( '(DEFAULT)' )                # say it is default
+        # Option string
+        opt_str = str(x).ljust(20) + ": " + str(vars(options)[x]).ljust(10)
+        if vars(options)[x] == parser.get_default(x):
+            opt_str = opt_str + '(DEFAULT)'
+
+        # Print to file
+        option_file.write( opt_str )   # write option
         option_file.write('\n')
+
+        # Print to terminal
+        print( opt_str )
     option_file.close()
 
     return parser, options
@@ -172,6 +176,11 @@ def printTFvars():
 # MAIN
 ########################
 if __name__ == "__main__":
+    print('=================VERSION==============================')
+    print('TENSOR FLOW VERSION : ' + tf.VERSION)
+    print('KERAS VERSION       : ' + tf.keras.__version__)
+    print('=================OPTIONS==============================')
+
     # SET 'GLOBAL' Variables
     START_TIME       = datetime.datetime.now() 
     START_TIME_STR   = str(START_TIME).replace(" ","_")

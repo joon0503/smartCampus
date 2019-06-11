@@ -34,7 +34,7 @@ class env_py:
     #   clientid - list of ids
     #   handle_dict
     def start(self): 
-        print("=============================================")
+        print('======================================================')
         print("Starting Simulations...")
         for i in range(0,self.options.THREAD):
             if self.options.enable_GUI == True:
