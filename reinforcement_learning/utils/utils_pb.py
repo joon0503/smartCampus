@@ -223,7 +223,9 @@ def drawDebugLines( options, scene_const, handle_dict, sensor_data = -1, ray_id 
                     local_hit = np.asarray(scene_const.rayFrom[i]) + hit_fraction*(np.asarray(scene_const.rayTo[i]) - np.asarray(scene_const.rayFrom[i]) )
                     ray_id[k][i] = p.addUserDebugLine(scene_const.rayFrom[i], local_hit, rayHitColor,parentObjectUniqueId=handle_dict['vehicle'][k], parentLinkIndex=hokuyo_joint, replaceItemUniqueId = ray_id[k][i], lineWidth = ray_width )
 
+    
     if ray_id == -1: 
+        # If initial creation, return newly created handles
         return rayIds
     else:
         return ray_id
