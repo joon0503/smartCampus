@@ -6,12 +6,10 @@ import numpy as np
 import tensorflow as tf
 from icecream import ic
 
-
 # Class for Neural Network
 class QAgent:
     def __init__(self, options, scene_const, name):
         self.scope = name
-
         # Variables
         self.eps = options.INIT_EPS
 
@@ -41,6 +39,9 @@ class QAgent:
             self.act            = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
             self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
 
+            self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_sensor', batch_size = options.BATCH_SIZE )
+            self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal', batch_size=options.BATCH_SIZE )
+            self.act_k          = tf.keras.layers.Input( shape = (options.ACTION_DIM,), name='action', batch_size=options.BATCH_SIZE )
 
             if False:
                 # Slicing
@@ -230,6 +231,51 @@ class QAgent:
                                                )
                  
                     self.output = self.val_est + tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) ) 
+                    print( tf.subtract(self.adv_est, tf.reduce_mean(self.adv_est, axis=1, keepdims=True) )  )
+                    print( tf.reduce_mean(self.adv_est, axis=1, keepdims=True))
+
+                    # Keras
+
+                    # Typical Neural Net
+                    if False:
+                        self.h_flat1_k = tf.keras.layers.Flatten()(self.obs_goal_k)
+                        self.h_flat2_k = tf.keras.layers.Flatten()(self.obs_sensor_k)
+                        self.h_concat_k = tf.keras.layers.concatenate([self.h_flat1_k, self.h_flat2_k])
+                        self.h_dense1_k = tf.keras.layers.Dense( options.H1_SIZE, activation='relu')( self.h_concat_k )
+                        self.h_dense2_k = tf.keras.layers.Dense( options.H2_SIZE, activation='relu')( self.h_dense1_k )
+                        self.h_dense3_k = tf.keras.layers.Dense( options.H3_SIZE, activation='relu')( self.h_dense2_k )
+                        self.h_out_k = tf.keras.layers.Dense( options.ACTION_DIM, activation='relu')( self.h_dense3_k )
+                    else:
+                        # CNN + dueling network
+                        self.h_s1_k   = tf.keras.layers.Conv1D(filters = 10, kernel_size = 5, strides = 1, padding = 'valid', activation = 'relu')(self.obs_sensor_k)
+                        self.h_s1_k_p = tf.keras.layers.MaxPool1D(pool_size = 2, strides = 2)(self.h_s1_k)
+                        self.h_s2_k   = tf.keras.layers.Conv1D(filters = 20, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu')(self.h_s1_k_p)
+                        self.h_s2_k_p = tf.keras.layers.MaxPool1D(pool_size = 2, strides = 2)(self.h_s2_k)
+                        self.h_flat   = tf.keras.layers.Flatten()(self.h_s2_k_p)
+                        self.h_flat_g = tf.keras.layers.Flatten()(self.obs_goal_k)
+                        self.h_concat_k = tf.keras.layers.concatenate([ self.h_flat, self.h_flat_g])
+                        self.h_val = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_concat_k)
+                        self.h_adv = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_concat_k)
+                        self.h_val_est = tf.keras.layers.Dense( 1, activation = 'relu')(self.h_val)
+                        self.h_adv_est = tf.keras.layers.Dense( options.ACTION_DIM, activation = 'relu')(self.h_adv)
+                        # self.reduced_mean = tf.keras.backend.mean(self.h_adv_est, axis = 1, keepdims=True)
+                        # print('Hi')
+                        # print(tf.keras.layers.RepeatVector(5)(self.reduced_mean))
+                        print(self.h_adv_est)
+                        # self.sub = self.h_adv_est - self.reduced_mean
+                        # self.h_out_k = self.h_val_est + self.sub
+                        print( tf.keras.backend.mean( self.h_adv_est, axis = 1, keepdims=True) )
+
+                        self.h_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.expand_dims(x[:,0], axis=1) + (x[:,1:] - tf.keras.backend.mean( x[:,1:], axis = 1, keepdims=True))  )(tf.keras.layers.concatenate([self.h_val_est,self.h_adv_est]))
+
+
+                    self.model = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k], outputs = self.h_out_k)
+
+                    self.model.compile( optimizer='sgd',
+                                        loss = 'mean_squared_error' 
+                    )
+                    self.model.summary()
+                    tf.keras.utils.plot_model( self.model, to_file='model2.png')
             ######################################:
             ## END Constructing Neural Network
             ######################################:
