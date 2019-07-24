@@ -258,7 +258,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
     """
     Update the priorities on the tree
     """
-    def batch_update(self, tree_idx, abs_errors):
+    def batch_update(self, tree_idx, abs_errors = 0):
         if self.PER_disabled == True:
             return
 

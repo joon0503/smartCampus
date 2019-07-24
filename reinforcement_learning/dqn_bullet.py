@@ -53,7 +53,7 @@ def get_options():
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=1000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=20000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=500,
                         help='Save network after this number of episodes')
@@ -117,6 +117,8 @@ def get_options():
                         help='Width of the grid for vehicles. Default of 5 means we lay down 5 vehicles as the width of the grid')
     parser.add_argument('--THREAD', type=int, default=1,
                         help='Number of threads for parallel simulation.')
+    parser.add_argument('--WEIGHT_FILE', type=str, default=None,
+                        help='Relative path to the weight file to load. Only works for KERAS.')
     options = parser.parse_args()
 
     # Check Inputs
@@ -172,6 +174,47 @@ def printTFvars():
 
     return
 
+def saveNetworkKeras():
+    print('-----------------------------------------')
+    print("Saving network...")
+    print('-----------------------------------------')
+    if not os.path.exists('./checkpoints-vehicle'):
+        os.makedirs('./checkpoints-vehicle')
+    agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+
+    # Save checkpoint
+    with open('./checkpoints-vehicle/checkpoint.txt','w') as check_file:
+        check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5')
+
+    return
+
+def loadNetworkKeras():
+    weight_path = None
+
+    # If file is provided
+    if options.WEIGHT_FILE != None:
+        weight_path = options.WEIGHT_FILE
+    elif os.path.isfile('./checkpoints-vehicle/checkpoint.txt'):
+        with open('./checkpoints-vehicle/checkpoint.txt') as check_file:
+            weight_file = check_file.readline()
+            weight_path = './checkpoints-vehicle/' + weight_file 
+
+    if weight_path == None:
+        print("\n\n=================================================")
+        print("=================================================")
+        print("Could not find old network weights")
+        print("=================================================")
+        print("=================================================\n\n")
+    else:
+        agent_train.model.load_weights( weight_path )
+        agent_target.model.load_weights( weight_path )
+        print("\n\n=================================================")
+        print("=================================================")
+        print("Successfully loaded:", weight_path)
+        print("=================================================")
+        print("=================================================\n\n")
+
+    return
 ########################
 # MAIN
 ########################
@@ -182,9 +225,8 @@ if __name__ == "__main__":
     print('=================OPTIONS==============================')
 
     # SET 'GLOBAL' Variables
-    START_TIME       = datetime.datetime.now() 
-    START_TIME_STR   = str(START_TIME).replace(" ","_")
-    START_TIME_STR   = str(START_TIME).replace(":","_")
+    START_TIME       = datetime.datetime.now()
+    START_TIME_STR   = re.sub( r'\ |:', '_', str( START_TIME) )
 
     # Parse options
     _, options = get_options()
@@ -192,9 +234,9 @@ if __name__ == "__main__":
     ########
     # Set Seed
     ########
-    np.random.seed(1)
-    random.seed(1)
-    tf.set_random_seed(1)
+    np.random.seed( options.SEED )
+    random.seed( options.SEED )
+    tf.set_random_seed( options.SEED )
 
     # Set print options
     np.set_printoptions( precision = 4, linewidth = 100 )
@@ -235,31 +277,33 @@ if __name__ == "__main__":
     agent_target    = QAgent(options,sim_env.scene_const, 'Target')
     agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
-    sess            = tf.InteractiveSession()
+    # sess            = tf.InteractiveSession()
 
     # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
-    target_vars = agent_target.getTrainableVarByName()
-    online_vars = agent_train.getTrainableVarByName()
+    # target_vars = agent_target.getTrainableVarByName()
+    # online_vars = agent_train.getTrainableVarByName()
 
-    copy_ops = [target_var.assign(online_vars[var_name]) for var_name, target_var in target_vars.items()]
-    copy_online_to_target = tf.group(*copy_ops)
+    # copy_ops = [target_var.assign(online_vars[var_name]) for var_name, target_var in target_vars.items()]
+    # copy_online_to_target = tf.group(*copy_ops)
         
-    sess.run(tf.global_variables_initializer())
-    copy_online_to_target.run()         # Copy init weights
+    # sess.run(tf.global_variables_initializer())
+    # copy_online_to_target.run()         # Copy init weights
 
     # saving and loading networks
     if options.NO_SAVE == False:
-        saver = tf.train.Saver( max_to_keep = 100 )
-        checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
-        if checkpoint and checkpoint.model_checkpoint_path:
-            saver.restore(sess, checkpoint.model_checkpoint_path)
-            print("=================================================")
-            print("Successfully loaded:", checkpoint.model_checkpoint_path)
-            print("=================================================")
-        else:
-            print("=================================================")
-            print("Could not find old network weights")
-            print("=================================================")
+        loadNetworkKeras()
+
+        # saver = tf.train.Saver( max_to_keep = 100 )
+        # checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
+        # if checkpoint and checkpoint.model_checkpoint_path:
+        #     saver.restore(sess, checkpoint.model_checkpoint_path)
+        #     print("=================================================")
+        #     print("Successfully loaded:", checkpoint.model_checkpoint_path)
+        #     print("=================================================")
+        # else:
+        #     print("=================================================")
+        #     print("Could not find old network weights")
+        #     print("=================================================")
 
     
     # Some initial local variables
@@ -292,7 +336,7 @@ if __name__ == "__main__":
         for v in val:
             fixed_name = str(v.name).replace('/','_')
             fixed_name = str(v.name).replace(':','_')
-            np.savetxt( './model_weights/' + fixed_name + '.txt', sess.run([v])[0], delimiter=',')
+            # np.savetxt( './model_weights/' + fixed_name + '.txt', sess.run([v])[0], delimiter=',')
         sys.exit() 
 
 
@@ -337,7 +381,7 @@ if __name__ == "__main__":
             time.sleep(0.01)
 
         # Decay epsilon
-        agent_train.decayEps( options, global_step)
+        agent_train.decayEps( options, global_step )
         global_step += options.VEH_COUNT
 
         ####
@@ -351,22 +395,33 @@ if __name__ == "__main__":
             # Get current info to generate input
             obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
 
-        # Get optimal action. 
-        action_stack = agent_train.sample_action(
+        # Get optimal action TF. 
+        # action_stack = agent_train.sample_action(
+        #                                     {
+        #                                         agent_train.obs_sensor : obs_sensor_stack,
+        #                                         agent_train.obs_goal   : obs_goal_stack
+        #                                     },
+        #                                     options,
+        #                                     )
+
+        # Get optimal action Keras. 
+        action_stack_k = agent_train.sample_action_k(
                                             {
-                                                agent_train.obs_sensor : obs_sensor_stack,
-                                                agent_train.obs_goal   : obs_goal_stack
+                                                'observation_sensor_k' : obs_sensor_stack,
+                                                'observation_goal_k'   : obs_goal_stack
                                             },
                                             options,
                                             )
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
-        targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
+        # targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
+        targetSteer_k = sim_env.scene_const.max_steer - action_stack_k * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
+
         # ic(action_stack)
         # ic(targetSteer)
         #steeringSlider = p.addUserDebugParameter("steering", -2, 2, 0)
         #steeringAngle = p.readUserDebugParameter(steeringSlider)
-        sim_env.applyAction( targetSteer )
+        sim_env.applyAction( targetSteer_k )
 
         ####
         # Step
@@ -433,7 +488,7 @@ if __name__ == "__main__":
             next_observation_sensor, next_observation_goal   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = False)
 
             # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
-            experience = observation_sensor, observation_goal, action_stack[v], reward_stack[v], next_observation_sensor, next_observation_goal, epi_done[v]
+            experience = observation_sensor, observation_goal, action_stack_k[v], reward_stack[v], next_observation_sensor, next_observation_goal, epi_done[v]
            
             # Save new memory 
             replay_memory.store(experience)
@@ -468,45 +523,84 @@ if __name__ == "__main__":
                 feed.update({agent_train.obs_sensor : next_states_sensor_mb, agent_train.obs_goal : next_states_goal_mb})
 
                 # Calculate Target Q-value. Uses double network. First, get action from training network
-                action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
+                # action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
+                action_train_k = agent_train.model_out.predict(
+                                                    {
+                                                        'observation_sensor_k' : next_states_sensor_mb,
+                                                        'observation_goal_k'   : next_states_goal_mb
+                                                    },
+                                                    batch_size = options.VEH_COUNT
+                )
+                action_train_k = np.argmax( action_train_k, axis=1)
+                # ic(np.argmax(action_train_k,axis=1))
 
                 if options.disable_DN == False:
                     feed.clear()
                     feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
 
+                    keras_feed = {}
+                    keras_feed.clear()
+                    keras_feed.update(
+                        {
+                            'observation_sensor_k' : next_states_sensor_mb,
+                            'observation_goal_k'   : next_states_goal_mb
+                        }
+
+                    )
                     # Using Target + Double network
                     # ic( agent_target.output.eval( feed_dict = feed), agent_target.output.eval( feed_dict = feed).shape  )
                     # ic( agent_target.h_s1.eval( feed_dict = feed), agent_target.h_s1.eval( feed_dict = feed).shape  )
                     # ic( agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train] )
-                    q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
+                    # q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
+                    q_target_val_k = rewards_mb + options.GAMMA * agent_target.model_out.predict(keras_feed)[np.arange(0,options.BATCH_SIZE),action_train_k]
                 else:
                     feed.clear()
                     feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
 
+                    keras_feed.clear()
+                    keras_feed.update(
+                        {
+                            'observation_sensor_k' : next_states_sensor_mb,
+                            'observation_goal_k'   : next_states_goal_mb
+                        }
+
+                    )
                     # Just using Target Network.
                     q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
+                    q_target_val_k = rewards_mb + options.GAMMA * np.amas( agent_target.model.predict(keras_feed), axis=1)
            
                 # set q_target to reward if episode is done
                 for v_mb in range(0,options.BATCH_SIZE):
                     if done_mb[v_mb] == 1:
-                        q_target_val[v_mb] = rewards_mb[v_mb]
+                        # q_target_val[v_mb] = rewards_mb[v_mb]
+                        q_target_val_k[v_mb] = rewards_mb[v_mb]
 
                 #print('q_target_val', q_target_val) 
                 #print("\n\n")
-
+                # ic(q_target_val, q_target_val_k)
 
                 # Gradient Descent
-                feed.clear()
-                feed.update({agent_train.obs_sensor : states_sensor_mb, agent_train.obs_goal : states_goal_mb})
-                # feed.update({agent_train.observation : states_mb})
-                feed.update({agent_train.act : actions_mb_hot})
-                feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
-                feed.update({agent_train.ISWeights : ISWeights_mb   })
+                # feed.clear()
+                # feed.update({agent_train.obs_sensor : states_sensor_mb, agent_train.obs_goal : states_goal_mb})
+                # feed.update({agent_train.act : actions_mb_hot})
+                # feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
+                # feed.update({agent_train.ISWeights : ISWeights_mb   })
 
                 #with tf.variable_scope("Training"):   
                 # Train RL         
-                step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
+                # step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
 
+                # Train Keras Model
+                keras_feed = {}
+                keras_feed.clear()
+                keras_feed.update({ 'observation_sensor_k' : states_sensor_mb, 'observation_goal_k' : states_goal_mb})
+                # ic(keras_feed['observation_sensor_k'].shape)
+                # ic(keras_feed['observation_goal_k'].shape)
+                # ic(q_target_val.shape)
+                # ic( agent_train.model_out.predict( keras_feed ) )
+                # q_target_val_k = np.ones((options.BATCH_SIZE,1))
+                loss_k = agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(options.BATCH_SIZE,1)) )
+                # ic(loss_k)
                 # test = agent_train.h_concat.eval(feed_dict = feed)
                 # ic(test,test.shape)
                 # test = agent_train.h_s1_max.eval(feed_dict = feed)
@@ -532,13 +626,14 @@ if __name__ == "__main__":
                 #print(step_loss_per_data)
 
                 # Use sum to calculate average loss of this episode.
-                data_package.add_loss( np.mean(step_loss_per_data) )
+                # data_package.add_loss( np.mean(step_loss_per_data )
+                data_package.add_loss( loss_k )
 
                 #if tf_train_counter == 0:
                     #print(step_loss_per_data)
         
                 # Update priority
-                replay_memory.batch_update(tree_idx, step_loss_per_data)
+                # replay_memory.batch_update(tree_idx)
         elif global_step < options.MAX_EXPERIENCE:
             # If just running to get memory, do not increment counter
             epi_counter = 0
@@ -557,7 +652,8 @@ if __name__ == "__main__":
             print('-----------------------------------------')
             print("Updating Target network.")
             print('-----------------------------------------')
-            copy_online_to_target.run()
+            # copy_online_to_target.run()
+            agent_target.model.set_weights( agent_train.model.get_weights() )
 
         # Print Rewards
         for v in reset_veh_list:
@@ -583,10 +679,11 @@ if __name__ == "__main__":
         # save progress
         if options.TESTING == False:
             if options.NO_SAVE == False and epi_counter - last_saved_epi >= options.SAVER_RATE:
-                print('-----------------------------------------')
-                print("Saving network...")
-                print('-----------------------------------------')
-                saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step))
+                saveNetworkKeras()
+                # print('-----------------------------------------')
+                # print("Saving network...")
+                # print('-----------------------------------------')
+                # saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step))
                 #print("Done") 
 
                 print('-----------------------------------------')
@@ -615,7 +712,7 @@ if __name__ == "__main__":
     END_TIME = datetime.datetime.now()
     print("===============================")
     print("Start Time: ",START_TIME_STR)
-    print("End Time  : ",str(END_TIME).replace(" ","_"))
+    print("End Time  : ",str(END_TIME))
     print("Duration  : ",END_TIME-START_TIME)
     print("===============================")
 

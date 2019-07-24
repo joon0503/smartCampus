@@ -39,9 +39,11 @@ class QAgent:
             self.act            = tf.placeholder(tf.float32, [None, options.ACTION_DIM],name='action')
             self.target_Q       = tf.placeholder(tf.float32, [None, ], name='target_q' )  
 
-            self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_sensor', batch_size = options.BATCH_SIZE )
-            self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal', batch_size=options.BATCH_SIZE )
-            self.act_k          = tf.keras.layers.Input( shape = (options.ACTION_DIM,), name='action', batch_size=options.BATCH_SIZE )
+            # self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_sensor_k', batch_size = options.BATCH_SIZE )
+            # self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal_k', batch_size=options.BATCH_SIZE )
+            self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_sensor_k')
+            self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal_k')
+            # self.act_k          = tf.keras.layers.Input( shape = (options.ACTION_DIM,), name='action', batch_size=options.BATCH_SIZE )
 
             if False:
                 # Slicing
@@ -237,14 +239,26 @@ class QAgent:
                     # Keras
 
                     # Typical Neural Net
-                    if False:
+                    network_structure = 2
+                    if network_structure == 1:
                         self.h_flat1_k = tf.keras.layers.Flatten()(self.obs_goal_k)
                         self.h_flat2_k = tf.keras.layers.Flatten()(self.obs_sensor_k)
                         self.h_concat_k = tf.keras.layers.concatenate([self.h_flat1_k, self.h_flat2_k])
                         self.h_dense1_k = tf.keras.layers.Dense( options.H1_SIZE, activation='relu')( self.h_concat_k )
                         self.h_dense2_k = tf.keras.layers.Dense( options.H2_SIZE, activation='relu')( self.h_dense1_k )
                         self.h_dense3_k = tf.keras.layers.Dense( options.H3_SIZE, activation='relu')( self.h_dense2_k )
-                        self.h_out_k = tf.keras.layers.Dense( options.ACTION_DIM, activation='relu')( self.h_dense3_k )
+                        self.h_out_k = tf.keras.layers.Dense( options.ACTION_DIM, activation=None, name='out_large')( self.h_dense3_k )
+                    elif network_structure == 2:
+                        self.h_flat1_k = tf.keras.layers.Flatten()(self.obs_goal_k)
+                        self.h_flat2_k = tf.keras.layers.Flatten()(self.obs_sensor_k)
+                        self.h_concat_k = tf.keras.layers.concatenate([self.h_flat1_k, self.h_flat2_k])
+                        self.h_dense1_k = tf.keras.layers.Dense( options.H1_SIZE, activation='relu')( self.h_concat_k )
+                        self.h_dense2_k = tf.keras.layers.Dense( options.H2_SIZE, activation='relu')( self.h_dense1_k )
+                        self.h_val = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_dense2_k)
+                        self.h_adv = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_dense2_k)
+                        self.h_val_est = tf.keras.layers.Dense( 1, activation = None)(self.h_val)
+                        self.h_adv_est = tf.keras.layers.Dense( options.ACTION_DIM, activation = None)(self.h_adv)
+                        self.h_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.expand_dims(x[:,0], axis=1) + (x[:,1:] - tf.keras.backend.mean( x[:,1:], axis = 1, keepdims=True)), name = 'out_large'  )(tf.keras.layers.concatenate([self.h_val_est,self.h_adv_est]))
                     else:
                         # CNN + dueling network
                         self.h_s1_k   = tf.keras.layers.Conv1D(filters = 10, kernel_size = 5, strides = 1, padding = 'valid', activation = 'relu')(self.obs_sensor_k)
@@ -266,15 +280,20 @@ class QAgent:
                         # self.h_out_k = self.h_val_est + self.sub
                         print( tf.keras.backend.mean( self.h_adv_est, axis = 1, keepdims=True) )
 
-                        self.h_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.expand_dims(x[:,0], axis=1) + (x[:,1:] - tf.keras.backend.mean( x[:,1:], axis = 1, keepdims=True))  )(tf.keras.layers.concatenate([self.h_val_est,self.h_adv_est]))
+                        self.h_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.expand_dims(x[:,0], axis=1) + (x[:,1:] - tf.keras.backend.mean( x[:,1:], axis = 1, keepdims=True)), name = 'out_large'  )(tf.keras.layers.concatenate([self.h_val_est,self.h_adv_est]))
 
+                    self.h_action_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.max( x, axis = 1, keepdims = True) )(self.h_out_k)
 
-                    self.model = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k], outputs = self.h_out_k)
+                    self.model = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k], outputs = self.h_action_out_k)
 
-                    self.model.compile( optimizer='sgd',
+                    sgd = tf.keras.optimizers.Adam(lr = options.LR)
+                    self.model.compile( optimizer=sgd,
                                         loss = 'mean_squared_error' 
                     )
                     self.model.summary()
+
+                    # effectively computing twice to get value and maximum
+                    self.model_out = tf.keras.Model(inputs = self.model.input, outputs = self.model.get_layer('out_large').output)
                     tf.keras.utils.plot_model( self.model, to_file='model2.png')
             ######################################:
             ## END Constructing Neural Network
@@ -303,6 +322,24 @@ class QAgent:
         else:
             act_values = self.output.eval(feed_dict=feed)
             if options.TESTING == True or options.VERBOSE == True:
+                ic(np.argmax(act_values,axis=1))
+                ic(act_values)
+                print("\n")
+                pass
+
+            # Get maximum for each vehicle
+            action_index = np.argmax(act_values, axis=1)
+
+        return action_index
+
+    def sample_action_k(self, feed, options):
+        if random.random() <= self.eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
+            # pick random action
+            action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
+        else:
+            act_values = self.model_out.predict(feed, batch_size=options.VEH_COUNT)
+            if options.TESTING == True or options.VERBOSE == True:
+                ic('Sample Action K')
                 ic(np.argmax(act_values,axis=1))
                 ic(act_values)
                 print("\n")
