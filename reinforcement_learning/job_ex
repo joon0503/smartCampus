@@ -1,0 +1,25 @@
+#!/bin/bash
+h1_size=160
+h2_size=160
+h3_size=80
+
+#python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 2 --EPS_ANNEAL_STEPS 5400 --INIT_EPS 0.2
+#python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 1.0
+#python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 0.9
+#python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 0.8
+#python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 0.7
+python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 0.6
+python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 0.5
+python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 0.4
+python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 0.3
+python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 10000 --FRAME_COUNT 4 --EPS_ANNEAL_STEPS 10800 --INIT_EPS 0.2
+
+# Shut down if before 9 am
+currenttime=`date +"%H:%M"`
+if [[ "$currenttime" > "23:00" ]] || [[ "$currenttime" < "08:30" ]]; then
+#    echo Hi
+    echo "$currenttime"
+#    sudo poweroff
+else
+    echo Bye
+fi
