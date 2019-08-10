@@ -162,8 +162,8 @@ def removeScene(scene_const, options, veh_reset_list, handle_dict):
 # Initialize test cases. Reset position of vehicle and obstacle
 # Input
 # veh_index_list : vehicle reset list
-
-
+# Output
+#   direction : info about randomized testcase. 0/1/2 - left/straight/right
 def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False):
     # If reset list is empty, just return
     if len(veh_index_list) == 0:
@@ -173,6 +173,7 @@ def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False
     steer_handle = handle_dict['steer']
     motor_handle = handle_dict['motor']
     case_wall_handle = handle_dict['wall']
+    direction = -1*np.ones(options.VEH_COUNT)           # 0/1/2: left/straight/right
     # obs_handle     = handle_dict['obstacle']
 
     for veh_index in veh_index_list:
@@ -203,12 +204,15 @@ def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False
             p.removeBody(case_wall_handle[veh_index][8])
             if temp_prob > (2/3):
                 # right
+                direction[veh_index] = 2
                 case_wall_handle[veh_index][8] = createWall([0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x + 0.5*( 1-scene_const.obs_w)*scene_const.lane_width, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0])       # right
             elif temp_prob > (1/3):
                 # middle
+                direction[veh_index] = 1
                 case_wall_handle[veh_index][8] = createWall([0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0])       # right
             else:
                 # left
+                direction[veh_index] = 0
                 case_wall_handle[veh_index][8] = createWall([0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x - 0.5*( 1-scene_const.obs_w)*scene_const.lane_width, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0])      # right
 
 
@@ -224,7 +228,7 @@ def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False
 
             # Create new goal point
             dummy_handle[veh_index] = createGoal(0.1, [x_pos + x_index * scene_const.case_x, y_index * scene_const.case_y + 0.5*scene_const.lane_len + 0.5*scene_const.lane_width, goal_z])
-    return
+    return direction
 
 # Calculate Approximate Rewards for variaous cases
 def printRewards( scene_const, options ):

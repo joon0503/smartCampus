@@ -108,9 +108,9 @@ class env_py:
         self.handle_dict = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
 
         # Initilize position
-        initScene( self.scene_const, self.options, veh_reset_list, self.handle_dict, randomize = randomize_input)               # initialize
+        direction = initScene( self.scene_const, self.options, veh_reset_list, self.handle_dict, randomize = randomize_input)               # initialize
 
-        return self.handle_dict, self.scene_const
+        return self.handle_dict, self.scene_const, direction
 
 
     # Get Observation

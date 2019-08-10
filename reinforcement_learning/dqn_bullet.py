@@ -33,15 +33,15 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=10001,
+    parser.add_argument('--MAX_EPISODE', type=int, default=10000,
                         help='max number of episodes iteration\n')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=1000,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.99,
+    parser.add_argument('--GAMMA', type=float, default=0.995,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -53,7 +53,7 @@ def get_options():
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=20000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=500,
                         help='Save network after this number of episodes')
@@ -358,9 +358,9 @@ if __name__ == "__main__":
     epi_counter         = 0                                                        # Counts # of finished episodes
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
     last_saved_epi      = 0                                                             # variable used for checking when to save
- 
+    case_direction      = np.zeros(options.VEH_COUNT)                               # store tested direction
     # Initialize Scene
-    _, _ = sim_env.initScene( list(range(0,options.VEH_COUNT)), False )
+    _, _, _ = sim_env.initScene( list(range(0,options.VEH_COUNT)), False )
 
     # List of deque to store data
     sensor_queue = []
@@ -395,6 +395,8 @@ if __name__ == "__main__":
             # Get current info to generate input
             obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
 
+        # ic(obs_sensor_stack)
+        # ic(obs_goal_stack)
         # Get optimal action TF. 
         # action_stack = agent_train.sample_action(
         #                                     {
@@ -638,7 +640,7 @@ if __name__ == "__main__":
             # If just running to get memory, do not increment counter
             epi_counter = 0
 
-        handle_dict, sim_env.scene_const = sim_env.initScene( reset_veh_list, RANDOMIZE )
+        handle_dict, sim_env.scene_const, case_direction = sim_env.initScene( reset_veh_list, RANDOMIZE )
 
         # Reset data queue
         _, _, reset_dDistance, reset_gInfo = sim_env.getObservation()
@@ -663,6 +665,7 @@ if __name__ == "__main__":
             print('\tEPS: ' + str(agent_train.eps))
             print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(sim_env.epi_step_stack[v])) )
             print('\tEpisode Reward: ' + str(sim_env.epi_reward_stack[v])) 
+            print('\tDirection: ' + str(case_direction[v]) ) 
             print('Last Loss: ',data_package.avg_loss[-1])
             print('========')
             print('')
