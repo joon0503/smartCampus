@@ -62,8 +62,10 @@ class QAgent:
             # self.h_out_k = self.h_val_est + self.sub
             print( tf.keras.backend.mean( self.h_adv_est, axis = 1, keepdims=True) )
 
+            # Q-values
             self.h_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.expand_dims(x[:,0], axis=1) + (x[:,1:] - tf.keras.backend.mean( x[:,1:], axis = 1, keepdims=True)), name = 'out_large'  )(tf.keras.layers.concatenate([self.h_val_est,self.h_adv_est]))
 
+        # Max Q-value
         self.h_action_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.max( x, axis = 1, keepdims = True) )(self.h_out_k)
 
         self.model = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k], outputs = self.h_action_out_k)

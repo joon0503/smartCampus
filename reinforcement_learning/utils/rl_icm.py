@@ -43,6 +43,43 @@ class ICM:
         else:
             raise NameError('Supplied activation function is not supported!')
 
+        # KERAS
+        self.observation_k = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='icm_input_sensor_frame')
+        self.action_k      = tf.keras.layers.Input( shape = (1,), name='icm_input_action')
+
+        network_type = 1
+        if network_type == 1:
+            # Flatten
+            self.h_flat1_k = tf.keras.layers.Flatten()(self.observation_k)
+            self.h_flat2_k = tf.keras.layers.Flatten()(self.action_k)
+            self.h_concat_k = tf.keras.layers.concatenate([self.h_flat1_k, self.h_flat2_k])
+
+            # Dense
+            self.h_dense1_k = tf.keras.layers.Dense( options.H1_SIZE, activation='relu')( self.h_concat_k )
+            self.h_dense2_k = tf.keras.layers.Dense( options.H2_SIZE, activation='relu')( self.h_dense1_k )
+            self.h_dense3_k = tf.keras.layers.Dense( options.H3_SIZE, activation='relu')( self.h_dense2_k )
+
+            # Sensor Estimation
+            self.out_sensor = tf.keras.layers.Dense( scene_const.sensor_count, activation='sigmoid', name='out_sensor')( self.h_dense3_k )
+            # Goal Distance & Angle
+            self.out_goal_dist  = tf.keras.layers.Dense( 1, activation='sigmoid', name='out_goal_dist')( self.h_dense3_k )
+            self.out_goal_angle = tf.keras.layers.Dense( 1, activation='tanh', name='out_goal_angle')( self.h_dense3_k )
+
+            self.out = tf.keras.layers.concatenate( [self.out_sensor, self.out_goal_angle, self.out_goal_dist] )
+
+        self.model = tf.keras.models.Model( inputs = [self.observation_k, self.action_k], outputs = self.out)
+        keras_opt = tf.keras.optimizers.Adam(lr = options.LR)
+        self.model.compile( optimizer= keras_opt,
+                            loss = 'mean_squared_error' 
+        )
+        print('ICM MODEL')
+        self.model.summary()
+
+        # effectively computing twice to get value and maximum
+        tf.keras.utils.plot_model( self.model, to_file='model_icm.png')
+
+        return
+
         with tf.variable_scope(self.scope):      # Set variable scope
 
             ######################################:
@@ -58,6 +95,7 @@ class ICM:
             #self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2) + 1], name='icm_input')
             self.observation    = tf.placeholder(tf.float32, [None, (scene_const.sensor_count+2)*options.FRAME_COUNT + options.ACTION_DIM], name='icm_input')
             self.actual_state   = tf.placeholder(tf.float32, [None, (scene_const.sensor_count)+2], name='icm_target')
+
 
             # Regular neural net
             self.h_s1 = tf.layers.dense( inputs=self.observation,

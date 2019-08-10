@@ -412,6 +412,7 @@ if __name__ == "__main__":
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = sim_env.getObservation( verbosity = options.VERBOSE )
+        # print(next_dDistance)
 
         for v in range(0,options.VEH_COUNT):
             # Update queue
@@ -499,8 +500,8 @@ if __name__ == "__main__":
                 # ic( next_states_mb.reshape(-1,sim_env.scene_const.sensor_count+2,options.FRAME_COUNT) )
 
                 # Get Target Q-Value
-                feed.clear()
-                feed.update({agent_train.obs_sensor : next_states_sensor_mb, agent_train.obs_goal : next_states_goal_mb})
+                # feed.clear()
+                # feed.update({agent_train.obs_sensor : next_states_sensor_mb, agent_train.obs_goal : next_states_goal_mb})
 
                 # Calculate Target Q-value. Uses double network. First, get action from training network
                 # action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
@@ -515,8 +516,8 @@ if __name__ == "__main__":
                 # ic(np.argmax(action_train_k,axis=1))
 
                 if options.disable_DN == False:
-                    feed.clear()
-                    feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
+                    # feed.clear()
+                    # feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
 
                     keras_feed = {}
                     keras_feed.clear()
@@ -534,8 +535,8 @@ if __name__ == "__main__":
                     # q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
                     q_target_val_k = rewards_mb + options.GAMMA * agent_target.model_out.predict(keras_feed)[np.arange(0,options.BATCH_SIZE),action_train_k]
                 else:
-                    feed.clear()
-                    feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
+                    # feed.clear()
+                    # feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
 
                     keras_feed.clear()
                     keras_feed.update(
@@ -580,38 +581,31 @@ if __name__ == "__main__":
                 # ic( agent_train.model_out.predict( keras_feed ) )
                 # q_target_val_k = np.ones((options.BATCH_SIZE,1))
                 loss_k = agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(options.BATCH_SIZE,1)) )
-                # ic(loss_k)
-                # test = agent_train.h_concat.eval(feed_dict = feed)
-                # ic(test,test.shape)
-                # test = agent_train.h_s1_max.eval(feed_dict = feed)
-                # ic(test,test.shape)
-                # test = agent_train.output.eval(feed_dict = feed)
-                # ic(test,test.shape)
 
+                ##############################
                 # Train forward model
+                ##############################
                 feed_icm.clear()
-                # ic(states_mb, states_mb.shape)
-                # ic(states_mb.reshape(options.BATCH_SIZE,(sim_env.scene_const.sensor_count+2)*options.FRAME_COUNT), states_mb.shape)
-                # FIXME : for icm observation, we reshape the states_mb , which is (BATCH_SIZE, SENSOR_COUNT+2,FRAME_COUNT) into (BATCH_SIZE, (SENSOR_COUNT+2)*frame+count)
-                #         merging the frame data into a single array. 
-                #         However, the order of the data is not mixed together between frames, i.e., s1_f1, s1_f2, s2_f1...
-                # feed_icm.update({agent_icm.observation  : np.concatenate([ states_mb.reshape(options.BATCH_SIZE,(sim_env.scene_const.sensor_count+2)*options.FRAME_COUNT), actions_mb_hot],-1) } )
 
-                # Get state of the latest frame
-                # feed_icm.update({agent_icm.actual_state : next_states_mb[:,:,-1]})
-                # icm_loss, _                             = sess.run([agent_icm.loss, agent_icm.optimizer], feed_dict = feed_icm)
+                # Feed
+                feed_icm.update(
+                    { 
+                        'icm_input_sensor_frame' : states_sensor_mb,
+                        'icm_input_action'       : actions_mb*(1/(options.ACTION_DIM-1)),         # action_stack is 0 to ACTION_DIM, scale to 0-1
+                    }
+                )
+
+                # next_statse have BATCH_SIZE x SENSOR_COUNT x FRAME_COUNT. Hence, [:,:,-1] pick up the latest frame
+                icm_target = np.hstack([next_states_sensor_mb[:,:,-1], next_states_goal_mb[:,:,-1]])
+
+                # Train
+                loss_icm_k = agent_icm.model.train_on_batch( feed_icm, icm_target )
 
 
-                #print(rewards_mb)
-                #print(step_loss_per_data)
 
-                # Use sum to calculate average loss of this episode.
-                # data_package.add_loss( np.mean(step_loss_per_data )
+                # Save LOSS
                 data_package.add_loss( loss_k )
 
-                #if tf_train_counter == 0:
-                    #print(step_loss_per_data)
-        
                 # Update priority
                 # replay_memory.batch_update(tree_idx)
         elif global_step < options.MAX_EXPERIENCE:
