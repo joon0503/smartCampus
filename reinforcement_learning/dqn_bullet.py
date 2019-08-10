@@ -215,6 +215,7 @@ def loadNetworkKeras():
         print("=================================================\n\n")
 
     return
+
 ########################
 # MAIN
 ########################
@@ -222,6 +223,7 @@ if __name__ == "__main__":
     print('=================VERSION==============================')
     print('TENSOR FLOW VERSION : ' + tf.VERSION)
     print('KERAS VERSION       : ' + tf.keras.__version__)
+    print('PYTHON VERSION      : ' + sys.version)
     print('=================OPTIONS==============================')
 
     # SET 'GLOBAL' Variables
@@ -277,34 +279,9 @@ if __name__ == "__main__":
     agent_target    = QAgent(options,sim_env.scene_const, 'Target')
     agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
-    # sess            = tf.InteractiveSession()
-
-    # Copying Variables (taken from https://github.com/akaraspt/tiny-dqn-tensorflow/blob/master/main.py)
-    # target_vars = agent_target.getTrainableVarByName()
-    # online_vars = agent_train.getTrainableVarByName()
-
-    # copy_ops = [target_var.assign(online_vars[var_name]) for var_name, target_var in target_vars.items()]
-    # copy_online_to_target = tf.group(*copy_ops)
-        
-    # sess.run(tf.global_variables_initializer())
-    # copy_online_to_target.run()         # Copy init weights
-
     # saving and loading networks
     if options.NO_SAVE == False:
         loadNetworkKeras()
-
-        # saver = tf.train.Saver( max_to_keep = 100 )
-        # checkpoint = tf.train.get_checkpoint_state("checkpoints-vehicle")
-        # if checkpoint and checkpoint.model_checkpoint_path:
-        #     saver.restore(sess, checkpoint.model_checkpoint_path)
-        #     print("=================================================")
-        #     print("Successfully loaded:", checkpoint.model_checkpoint_path)
-        #     print("=================================================")
-        # else:
-        #     print("=================================================")
-        #     print("Could not find old network weights")
-        #     print("=================================================")
-
     
     # Some initial local variables
     feed            = {}
@@ -359,6 +336,7 @@ if __name__ == "__main__":
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
     last_saved_epi      = 0                                                             # variable used for checking when to save
     case_direction      = np.zeros(options.VEH_COUNT)                               # store tested direction
+
     # Initialize Scene
     _, _, _ = sim_env.initScene( list(range(0,options.VEH_COUNT)), False )
 
