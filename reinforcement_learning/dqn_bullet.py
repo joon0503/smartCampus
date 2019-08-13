@@ -338,7 +338,7 @@ if __name__ == "__main__":
     case_direction      = np.zeros(options.VEH_COUNT)                               # store tested direction
 
     # Initialize Scene
-    _, _, _ = sim_env.initScene( list(range(0,options.VEH_COUNT)), False )
+    _, _, _ = sim_env.initScene( list(range(0,options.VEH_COUNT)), RANDOMIZE )
 
     # List of deque to store data
     sensor_queue = []
@@ -449,14 +449,25 @@ if __name__ == "__main__":
         if options.TESTING == True:
             v = 0
 
-            # Print curr & next state
+            # Get curr & next state
             curr_state_sensor, curr_state_goal     = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=True)
-            next_state_sensor, next_state_Goal     = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
-            #print('curr_state:', curr_state)
-            #print('next_state:', next_state)
-            #print('estimate  :', agent_icm.getEstimate( {agent_icm.observation : np.reshape(np.concatenate([curr_state, action_stack[v]]), [-1, 16])  }  ) )
-            #print('')
-            # agent_icm.plotEstimate( sim_env.scene_const, options, curr_state, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
+            next_state_sensor, next_state_goal     = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
+
+            # Print curr & next state
+            ic(curr_state_sensor, curr_state_goal)
+            ic(next_state_sensor, next_state_goal)
+
+            # Print estimate
+            print(
+                agent_icm.getEstimate( 
+                    {
+                        'icm_input_sensor_frame': curr_state_sensor.reshape((1,sim_env.scene_const.sensor_count,options.FRAME_COUNT)),  
+                        'icm_input_goal_frame'  : curr_state_goal.reshape((1,2,options.FRAME_COUNT)),  
+                        'icm_input_action'      : action_stack_k[0].reshape((1,1))
+                    }  
+                )
+            )
+            agent_icm.plotEstimate( sim_env.scene_const, options, curr_state_sensor, curr_state_goal, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
         ###########
         # START LEARNING
@@ -600,8 +611,6 @@ if __name__ == "__main__":
 
                 # Train
                 loss_icm_k = agent_icm.model.train_on_batch( feed_icm, icm_target )
-
-
 
                 # Save LOSS
                 data_package.add_loss( loss_k )

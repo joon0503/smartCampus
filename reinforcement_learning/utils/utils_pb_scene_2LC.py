@@ -164,16 +164,21 @@ def removeScene(scene_const, options, veh_reset_list, handle_dict):
 # veh_index_list : vehicle reset list
 # Output
 #   direction : info about randomized testcase. 0/1/2 - left/straight/right
-def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False):
+#   goal_pos  : VEH_COUNT x 2 array of goal position
+def initScene_2LC(scene_const, options, veh_index_list, handle_dict, randomize=False):
     # If reset list is empty, just return
     if len(veh_index_list) == 0:
-        return
+        return None, None 
 
-    vehicle_handle = handle_dict['vehicle']
-    steer_handle = handle_dict['steer']
-    motor_handle = handle_dict['motor']
-    case_wall_handle = handle_dict['wall']
-    direction = -1*np.ones(options.VEH_COUNT)           # 0/1/2: left/straight/right
+    vehicle_handle      = handle_dict['vehicle']
+    steer_handle        = handle_dict['steer']
+    motor_handle        = handle_dict['motor']
+    case_wall_handle    = handle_dict['wall']
+
+    # Output
+    direction           = -1*np.ones(options.VEH_COUNT)           # 0/1/2: left/straight/right
+    goal_pos            = np.zeros((options.VEH_COUNT,2))
+
     # obs_handle     = handle_dict['obstacle']
 
     for veh_index in veh_index_list:
@@ -228,7 +233,11 @@ def initScene(scene_const, options, veh_index_list, handle_dict, randomize=False
 
             # Create new goal point
             dummy_handle[veh_index] = createGoal(0.1, [x_pos + x_index * scene_const.case_x, y_index * scene_const.case_y + 0.5*scene_const.lane_len + 0.5*scene_const.lane_width, goal_z])
-    return direction
+
+            goal_pos[veh_index,0] = x_pos + x_index * scene_const.case_x
+            goal_pos[veh_index,1] = y_index * scene_const.case_y + 0.5*scene_const.lane_len + 0.5*scene_const.lane_width
+
+    return direction, goal_pos
 
 # Calculate Approximate Rewards for variaous cases
 def printRewards( scene_const, options ):

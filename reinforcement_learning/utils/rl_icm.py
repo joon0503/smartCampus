@@ -44,20 +44,22 @@ class ICM:
             raise NameError('Supplied activation function is not supported!')
 
         # KERAS
-        self.observation_k = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='icm_input_sensor_frame')
-        self.action_k      = tf.keras.layers.Input( shape = (1,), name='icm_input_action')
+        self.observation_k  = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='icm_input_sensor_frame')
+        self.goal_k         = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='icm_input_goal_frame')
+        self.action_k       = tf.keras.layers.Input( shape = (1,), name='icm_input_action')
 
         network_type = 1
         if network_type == 1:
             # Flatten
             self.h_flat1_k = tf.keras.layers.Flatten()(self.observation_k)
-            self.h_flat2_k = tf.keras.layers.Flatten()(self.action_k)
-            self.h_concat_k = tf.keras.layers.concatenate([self.h_flat1_k, self.h_flat2_k])
+            self.h_flat2_k = tf.keras.layers.Flatten()(self.goal_k)
+            self.h_flat3_k = tf.keras.layers.Flatten()(self.action_k)
+            self.h_concat_k = tf.keras.layers.concatenate([self.h_flat1_k, self.h_flat2_k, self.h_flat3_k])
 
             # Dense
-            self.h_dense1_k = tf.keras.layers.Dense( options.H1_SIZE, activation='relu')( self.h_concat_k )
-            self.h_dense2_k = tf.keras.layers.Dense( options.H2_SIZE, activation='relu')( self.h_dense1_k )
-            self.h_dense3_k = tf.keras.layers.Dense( options.H3_SIZE, activation='relu')( self.h_dense2_k )
+            self.h_dense1_k = tf.keras.layers.Dense( options.H1_SIZE, activation=options.ACT_FUNC)( self.h_concat_k )
+            self.h_dense2_k = tf.keras.layers.Dense( options.H2_SIZE, activation=options.ACT_FUNC)( self.h_dense1_k )
+            self.h_dense3_k = tf.keras.layers.Dense( options.H3_SIZE, activation=options.ACT_FUNC)( self.h_dense2_k )
 
             # Sensor Estimation
             self.out_sensor = tf.keras.layers.Dense( scene_const.sensor_count, activation='sigmoid', name='out_sensor')( self.h_dense3_k )
@@ -67,7 +69,7 @@ class ICM:
 
             self.out = tf.keras.layers.concatenate( [self.out_sensor, self.out_goal_angle, self.out_goal_dist] )
 
-        self.model = tf.keras.models.Model( inputs = [self.observation_k, self.action_k], outputs = self.out)
+        self.model = tf.keras.models.Model( inputs = [self.observation_k, self.goal_k, self.action_k], outputs = self.out)
         keras_opt = tf.keras.optimizers.Adam(lr = options.LR)
         self.model.compile( optimizer= keras_opt,
                             loss = 'mean_squared_error' 
@@ -173,33 +175,35 @@ class ICM:
             self.optimizer = tf.train.AdamOptimizer(options.LR).minimize(self.loss)
 
     # Evalulate the neural network to get the estimate of the next state
-    def getEstimate(self, feed):
-        return self.est_combined.eval(feed_dict = feed)
+    def getEstimate(self, feed, batch_size_in = 1):
+        return self.model.predict(feed, batch_size=batch_size_in)
+        # return self.est_combined.eval(feed_dict = feed)
 
 
     # Plot current position of the vehicle and the estimation   
-    #   curr_state : [sensor_values, goal_angle, goal_distance]
+    #   curr_state_sensor : dim : sensor_count x frame_count
+    #   curr_state_goal   : [goal_angle;goal_distance] dim : 2 x frame_count
     #   action     : index of action
     #   veh_heading: headings of vehicle gamma in radians. 
     #                we use gamma and 0 deg -> front, +90 deg -> right, -90 deg -> left
     #   scene_const: scene constants as the class
     #   ref        : plot reference. If 'vehicle', then viewpoint from vehicle (DEFAULT). If 'ground', then view point from the ground.
 
-    def plotEstimate(self, scene_const, options, curr_state, action, veh_heading, agent_train, ref = 'ground', save = False):
+    def plotEstimate(self, scene_const, options, curr_state_sensor, curr_state_goal, action, veh_heading, agent_train, ref = 'ground', save = False):
         ic.enable()
-
         # Change into one-hot encoded vector
-        act_index = action
+        act_index = int(action)
         action = np.zeros( options.ACTION_DIM )
         action[act_index] = 1
 
         ####################
         # Proccess Data
         ####################
-        veh_x, veh_y, arrow_x, arrow_y, goal_x, goal_y = self.getPoints(scene_const, curr_state, action)
-
+        veh_x, veh_y, arrow_x, arrow_y, goal_x, goal_y = self.getPoints(scene_const, curr_state_goal, action)
         ic( veh_x, veh_y )
         ic( goal_x, goal_y )
+
+        return
         # Resets pos of veh to origin if viewpoint is w.r.t. the vehicle
         if ref == 'vehicle':
             veh_x = 0
@@ -374,7 +378,7 @@ class ICM:
 
     # Compute data required for plotting from state and action values
     # Input
-    #   curr_state : [sensor_values, goal_angle, goal_distance]
+    #   curr_state_goal : 
     #   action     : one hot encoded vector
     #   scene_const: scene constants as the class
     #   ref        : string 
@@ -386,13 +390,16 @@ class ICM:
     #   arrow_x, arrow_y: x,y coordinate of arrow computed from input
     #   goal_x, goal_y : x,y coordinate of the goal point
 
-    def getPoints(self, scene_const, curr_state, action, veh_heading = 0):
-        ic(curr_state, action)
+    def getPoints(self, scene_const, curr_state_goal, action, veh_heading = 0):
+        if curr_state_goal.shape[0] != 2:
+            raise ValueError('Wrong input type')
+
+        ic(curr_state_goal, action)
 
         # Break up into raw data
         # raw_sensor = curr_state[0:scene_const.sensor_count]
-        raw_angle  = curr_state[scene_const.sensor_count]
-        raw_dist   = curr_state[scene_const.sensor_count+1]
+        raw_angle  = curr_state_goal[0,:]
+        raw_dist   = curr_state_goal[1,:]
 
         ic(raw_dist,raw_angle)
         # Get position of vehicle from goal point distance and angle from raw data

@@ -11,7 +11,7 @@ from icecream import ic
 
 from utils.utils_pb import (controlCamera, detectCollision, detectReachedGoal,
                             getObs, getVehicleState, initQueue, resetQueue)
-from utils.utils_pb_scene_2LC import (genScene, initScene, printRewards,
+from utils.utils_pb_scene_2LC import (genScene, initScene_2LC, printRewards,
                                       printSpdInfo, removeScene)
 
 
@@ -27,6 +27,8 @@ class env_py:
        self.epi_reward_stack    = np.zeros(self.options.VEH_COUNT)                              # Holds reward of current episode
        self.epi_step_stack      = np.zeros(self.options.VEH_COUNT, dtype=int)                              # Count number of step for each vehicle in each episode
 
+       # Goal position for each testcase (VEH_COUNT x 2) [x1,y1;x2,y2]
+       self.goal_pos            = np.empty((self.options.VEH_COUNT,2), dtype=float)                              # Count number of step for each vehicle in each episode
        return
 
     # Start Simulation & Generate the Scene
@@ -108,8 +110,14 @@ class env_py:
         self.handle_dict = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
 
         # Initilize position
-        direction = initScene( self.scene_const, self.options, veh_reset_list, self.handle_dict, randomize = randomize_input)               # initialize
+        direction, goal_pos_temp = initScene_2LC( self.scene_const, self.options, veh_reset_list, self.handle_dict, randomize = randomize_input)               # initialize
 
+        # goal_pos_temp is zero if not updated, and nonzero if updated. Hence only change the goal_pos with new values
+        if goal_pos_temp is not None: 
+            # if none, then no update
+            self.goal_pos[np.nonzero(goal_pos_temp)] = goal_pos_temp[np.nonzero(goal_pos_temp)]
+
+        ic(self.goal_pos)
         return self.handle_dict, self.scene_const, direction
 
 
