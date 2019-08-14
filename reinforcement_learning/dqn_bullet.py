@@ -158,21 +158,6 @@ def get_options():
 ##################################
 # TENSORFLOW HELPER
 ##################################
-def printTFvars():
-    print("==Training==")
-    tvars = tf.trainable_variables(scope='Training')
-
-    for var in tvars:
-        print(var)
-
-    print("==Target==")
-    tvars = tf.trainable_variables(scope='Target')
-
-    for var in tvars:
-        print(var)
-    print("=========")
-
-    return
 
 def saveNetworkKeras():
     print('-----------------------------------------')
@@ -301,10 +286,6 @@ if __name__ == "__main__":
         print("Using PER!")
         print("=================================================")
         replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = False, absolute_error_upperbound = 2000)
-        
-
-    # Print trainable variables
-    # printTFvars()
 
     # Export weights
     if options.EXPORT == True:
@@ -626,12 +607,6 @@ if __name__ == "__main__":
         if options.TESTING == False:
             if options.NO_SAVE == False and epi_counter - last_saved_epi >= options.SAVER_RATE:
                 saveNetworkKeras()
-                # print('-----------------------------------------')
-                # print("Saving network...")
-                # print('-----------------------------------------')
-                # saver.save(sess, 'checkpoints-vehicle/vehicle-dqn_s' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step))
-                #print("Done") 
-
                 print('-----------------------------------------')
                 print("Saving data...") 
                 print('-----------------------------------------')
