@@ -199,6 +199,7 @@ def loadNetworkKeras():
         print("=================================================")
         print("=================================================\n\n")
 
+    time.sleep(2)
     return
 
 ########################
@@ -241,7 +242,9 @@ if __name__ == "__main__":
     cam_pos = [0,0,0]
     cam_dist = 5
 
+    #-----------------------
     # Start Environment
+    #-----------------------
     sim_env                                     = env_py( options, scene_constants() )
     sim_env.scene_const.clientID, handle_dict   = sim_env.start()
 
@@ -250,16 +253,16 @@ if __name__ == "__main__":
 
     # Draw initial lines
     if options.enable_GUI == True:
-        sensor_handle = drawDebugLines( options, sim_env.scene_const, handle_dict, createInit = True )
-        collision_handle = drawDebugLines( options, sim_env.scene_const, handle_dict, createInit = True )
+        sensor_handle       = drawDebugLines( options, sim_env.scene_const, handle_dict, createInit = True )
+        collision_handle    = drawDebugLines( options, sim_env.scene_const, handle_dict, createInit = True )
 
     # Print Handles
-    ic(handle_dict)
+    if options.VERBOSE == True:
+        ic(handle_dict)
 
     ##############
     # TF Setup
     ##############
-    # Define placeholders to catch inputs and add options
     agent_train     = QAgent(options,sim_env.scene_const, 'Training')
     agent_target    = QAgent(options,sim_env.scene_const, 'Target')
     agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
