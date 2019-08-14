@@ -117,7 +117,6 @@ class env_py:
             # if none, then no update
             self.goal_pos[np.nonzero(goal_pos_temp)] = goal_pos_temp[np.nonzero(goal_pos_temp)]
 
-        ic(self.goal_pos)
         return self.handle_dict, self.scene_const, direction
 
 

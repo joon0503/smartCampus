@@ -384,13 +384,14 @@ class ICM:
     #   ref        : string 
     #              'vehicle' - viewpoint from vehicle (DEFAULT)
     #              'ground'  - viewpoint from the ground
+    #   goal_pos   : VEH_COUNT x 2, array of goal position [x1,y1;x2,y2;...] 
     #
     # Output
     #   veh_x, veh_y: x,y coordinate of vehicle. 
     #   arrow_x, arrow_y: x,y coordinate of arrow computed from input
     #   goal_x, goal_y : x,y coordinate of the goal point
 
-    def getPoints(self, scene_const, curr_state_goal, action, veh_heading = 0):
+    def getPoints(self, scene_const, curr_state_goal, action, goal_pos, veh_heading = 0):
         if curr_state_goal.shape[0] != 2:
             raise ValueError('Wrong input type')
 

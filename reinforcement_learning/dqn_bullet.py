@@ -304,7 +304,7 @@ if __name__ == "__main__":
         
 
     # Print trainable variables
-    printTFvars()
+    # printTFvars()
 
     # Export weights
     if options.EXPORT == True:
@@ -373,17 +373,6 @@ if __name__ == "__main__":
             # Get current info to generate input
             obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
 
-        # ic(obs_sensor_stack)
-        # ic(obs_goal_stack)
-        # Get optimal action TF. 
-        # action_stack = agent_train.sample_action(
-        #                                     {
-        #                                         agent_train.obs_sensor : obs_sensor_stack,
-        #                                         agent_train.obs_goal   : obs_goal_stack
-        #                                     },
-        #                                     options,
-        #                                     )
-
         # Get optimal action Keras. 
         action_stack_k = agent_train.sample_action_k(
                                             {
@@ -397,10 +386,7 @@ if __name__ == "__main__":
         # targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
         targetSteer_k = sim_env.scene_const.max_steer - action_stack_k * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
 
-        # ic(action_stack)
-        # ic(targetSteer)
-        #steeringSlider = p.addUserDebugParameter("steering", -2, 2, 0)
-        #steeringAngle = p.readUserDebugParameter(steeringSlider)
+        # Apply Action
         sim_env.applyAction( targetSteer_k )
 
         ####
@@ -546,9 +532,6 @@ if __name__ == "__main__":
                     # q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
                     q_target_val_k = rewards_mb + options.GAMMA * agent_target.model_out.predict(keras_feed)[np.arange(0,options.BATCH_SIZE),action_train_k]
                 else:
-                    # feed.clear()
-                    # feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
-
                     keras_feed.clear()
                     keras_feed.update(
                         {
@@ -567,30 +550,10 @@ if __name__ == "__main__":
                         # q_target_val[v_mb] = rewards_mb[v_mb]
                         q_target_val_k[v_mb] = rewards_mb[v_mb]
 
-                #print('q_target_val', q_target_val) 
-                #print("\n\n")
-                # ic(q_target_val, q_target_val_k)
-
-                # Gradient Descent
-                # feed.clear()
-                # feed.update({agent_train.obs_sensor : states_sensor_mb, agent_train.obs_goal : states_goal_mb})
-                # feed.update({agent_train.act : actions_mb_hot})
-                # feed.update({agent_train.target_Q : q_target_val } )        # Add target_y to feed
-                # feed.update({agent_train.ISWeights : ISWeights_mb   })
-
-                #with tf.variable_scope("Training"):   
-                # Train RL         
-                # step_loss_per_data, step_loss_value, _  = sess.run([agent_train.loss_per_data, agent_train.loss, agent_train.optimizer], feed_dict = feed)
-
                 # Train Keras Model
                 keras_feed = {}
                 keras_feed.clear()
                 keras_feed.update({ 'observation_sensor_k' : states_sensor_mb, 'observation_goal_k' : states_goal_mb})
-                # ic(keras_feed['observation_sensor_k'].shape)
-                # ic(keras_feed['observation_goal_k'].shape)
-                # ic(q_target_val.shape)
-                # ic( agent_train.model_out.predict( keras_feed ) )
-                # q_target_val_k = np.ones((options.BATCH_SIZE,1))
                 loss_k = agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(options.BATCH_SIZE,1)) )
 
                 ##############################
@@ -635,7 +598,6 @@ if __name__ == "__main__":
             print('-----------------------------------------')
             print("Updating Target network.")
             print('-----------------------------------------')
-            # copy_online_to_target.run()
             agent_target.model.set_weights( agent_train.model.get_weights() )
 
         # Print Rewards
