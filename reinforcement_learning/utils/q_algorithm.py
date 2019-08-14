@@ -5,6 +5,8 @@
 # This uses QAgent class and replay memory among other things to implement the overall algorith,
 #####################################
 import numpy as np
+import time
+import os
 from utils.rl_dqn import QAgent
 from utils.experience_replay import Memory
 
@@ -148,4 +150,39 @@ class dqn:
         keras_feed.update({ 'observation_sensor_k' : states_sensor_mb, 'observation_goal_k' : states_goal_mb})
         loss_k = self.agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(options.BATCH_SIZE,1)) )
 
-        return loss_k
+        return loss_k, states_sensor_mb, next_states_sensor_mb, states_goal_mb, next_states_goal_mb, actions_mb
+
+
+
+
+
+
+    # Load network wegiths
+    def loadNetwork( self ):
+        weight_path = None
+
+        # If file is provided
+        if self.options.WEIGHT_FILE != None:
+            weight_path = self.options.WEIGHT_FILE
+        elif os.path.isfile('./checkpoints-vehicle/checkpoint.txt'):
+            with open('./checkpoints-vehicle/checkpoint.txt') as check_file:
+                weight_file = check_file.readline()
+                weight_path = './checkpoints-vehicle/' + weight_file 
+
+        if weight_path == None:
+            print("\n\n=================================================")
+            print("=================================================")
+            print("Could not find old network weights")
+            print("=================================================")
+            print("=================================================\n\n")
+        else:
+            self.agent_train.model.load_weights( weight_path )
+            self.agent_target.model.load_weights( weight_path )
+            print("\n\n=================================================")
+            print("=================================================")
+            print("Successfully loaded:", weight_path)
+            print("=================================================")
+            print("=================================================\n\n")
+
+        time.sleep(2)
+        return
