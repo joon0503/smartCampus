@@ -3,6 +3,7 @@
 
 import os
 import sys
+from collections import deque
 
 import numpy as np
 import pybullet as p
@@ -18,18 +19,29 @@ from utils.utils_pb_scene_2LC import (genScene, initScene_2LC, printRewards,
 class env_py:
     # Initializer
     def __init__(self, options, scene_const):
-       self.options = options
-       self.scene_const = scene_const
-       self.clientID = []
-       self.handle_dict = []
+        # Basic vars 
+        self.options         = options
+        self.scene_const     = scene_const
+        self.clientID        = []
+        self.handle_dict     = []
 
-       # Memory related to rewards
-       self.epi_reward_stack    = np.zeros(self.options.VEH_COUNT)                              # Holds reward of current episode
-       self.epi_step_stack      = np.zeros(self.options.VEH_COUNT, dtype=int)                              # Count number of step for each vehicle in each episode
+        # Momory for data frames
+        # List of deque to store data
+        self.sensor_queue = []
+        self.goal_queue   = []
 
-       # Goal position for each testcase (VEH_COUNT x 2) [x1,y1;x2,y2]
-       self.goal_pos            = np.empty((self.options.VEH_COUNT,2), dtype=float)                              # Count number of step for each vehicle in each episode
-       return
+        for i in range(0,self.options.VEH_COUNT):
+            self.sensor_queue.append( deque() )
+            self.goal_queue.append( deque() )
+
+        # Memory related to rewards
+        self.epi_reward_stack    = np.zeros(self.options.VEH_COUNT)                              # Holds reward of current episode
+        self.epi_step_stack      = np.zeros(self.options.VEH_COUNT, dtype=int)                              # Count number of step for each vehicle in each episode
+
+        # Goal position for each testcase (VEH_COUNT x 2) [x1,y1;x2,y2]
+        self.goal_pos            = np.empty((self.options.VEH_COUNT,2), dtype=float)                              # Count number of step for each vehicle in each episode
+
+        return
 
     # Start Simulation & Generate the Scene
     # Returns
@@ -117,24 +129,44 @@ class env_py:
             # if none, then no update
             self.goal_pos[np.nonzero(goal_pos_temp)] = goal_pos_temp[np.nonzero(goal_pos_temp)]
 
+        # Initialize the data queues
+        _, _, dDistance, gInfo = getVehicleState( self.scene_const, self.options, self.handle_dict )
+        self.sensor_queue, self.goal_queue = initQueue( self.options, self.sensor_queue, self.goal_queue, dDistance, gInfo )
+
         return self.handle_dict, self.scene_const, direction
 
 
     # Get Observation
+    # Input
+    #   type - 'curr'/'next' 
     # Output
     #   structure follows the getVehicleState
-    def getObservation(self, verbosity = 0):
+    def getObservation(self, type, verbosity = 0):
+        next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleState( self.scene_const, self.options, self.handle_dict)
+
+        # Update queue
+        for v in range(0,options.VEH_COUNT):
+            self.sensor_queue[v].append(next_dDistance[v])
+            self.sensor_queue[v].popleft()
+            self.goal_queue[v].append(next_gInfo[v])
+            self.goal_queue[v].popleft()
+
         # Get state
-        out = getVehicleState( self.scene_const, self.options, self.handle_dict )
+        # out = getVehicleState( self.scene_const, self.options, self.handle_dict )
 
         # Print if verbose
         if verbosity > 0:
             print('===================')
-            ic(out)
+            ic(self.sensor_queue)
+            ic(self.goal_queue)
             print('===================')
 
-        return out
+        return self.sensor_queue, self.goal_queue
 
+
+    def updateObservation():
+
+        return
     # Apply Action
     def applyAction(self, targetSteer):
         for veh_index in range(self.options.VEH_COUNT):
