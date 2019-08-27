@@ -258,7 +258,7 @@ if __name__ == "__main__":
 
     # Print Handles
     if options.VERBOSE == True:
-        ic(handle_dict)
+        ic('handle_dict',handle_dict)
 
     ##############
     # TF Setup
@@ -332,8 +332,9 @@ if __name__ == "__main__":
         goal_queue.append( deque() )
 
     # initilize them with initial data
-    _, _, dDistance, gInfo   = sim_env.getObservation()
-    sensor_queue, goal_queue = initQueue( options, sensor_queue, goal_queue, dDistance, gInfo )
+    sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT) )
+    # _, _, dDistance, gInfo   = sim_env.getObservation( type = 'curr')
+    # sensor_queue, goal_queue = initQueue( options, sensor_queue, goal_queue, dDistance, gInfo )
 
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
@@ -353,15 +354,16 @@ if __name__ == "__main__":
         obs_goal_stack   = np.empty((options.VEH_COUNT, 2, options.FRAME_COUNT))
 
         # Get observation stack (which is used in getting the action) 
-        for v in range(0,options.VEH_COUNT):
+        # for v in range(0,options.VEH_COUNT):
             # Get current info to generate input
-            obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
+            # obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
+        _, _, obs_sensor_stack, obs_goal_stack = sim_env.getObservation(old = False)
 
         # Get optimal action Keras. 
         action_stack_k = agent_train.sample_action_k(
                                             {
                                                 'observation_sensor_k' : obs_sensor_stack,
-                                                'observation_goal_k'   : obs_goal_stack
+                                                'observation_goal_k'   : obs_goal_stack,
                                             },
                                             options,
                                             )
@@ -378,10 +380,14 @@ if __name__ == "__main__":
         ####
         sim_env.step()
 
+        # Update Observation
+        sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT) )
+
         ####
         # Get Next State
         ####
-        next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = sim_env.getObservation( verbosity = options.VERBOSE )
+        next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = sim_env.getObservation( verbosity = options.VERBOSE, frame = -1 )
+
         # print(next_dDistance)
 
         for v in range(0,options.VEH_COUNT):
@@ -413,6 +419,7 @@ if __name__ == "__main__":
             # Draw Collision Range
             collision_handle = drawDebugLines(options, sim_env.scene_const, handle_dict, np.ones((options.VEH_COUNT,sim_env.scene_const.sensor_count))*(sim_env.scene_const.collision_distance/sim_env.scene_const.sensor_distance), collision_handle, createInit = False, ray_width = 4, rayHitColor = [0,0,0] )
 
+
         #######
         # Test Estimation
         #######
@@ -420,37 +427,42 @@ if __name__ == "__main__":
             v = 0
 
             # Get curr & next state
-            curr_state_sensor, curr_state_goal     = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=True)
-            next_state_sensor, next_state_goal     = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
+            _, _, curr_state_sensor, curr_state_goal     = sim_env.getObservation( old = False)
+            _, _, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
 
             # Print curr & next state
-            ic(curr_state_sensor, curr_state_goal)
-            ic(next_state_sensor, next_state_goal)
+            ic(curr_state_sensor[v], curr_state_goal[v])
+            ic(next_state_sensor[v], next_state_goal[v])
 
+            ic(np.expand_dims(curr_state_sensor, axis = 0).shape)
             # Print estimate
             print(
                 agent_icm.getEstimate( 
                     {
-                        'icm_input_sensor_frame': curr_state_sensor.reshape((1,sim_env.scene_const.sensor_count,options.FRAME_COUNT)),  
-                        'icm_input_goal_frame'  : curr_state_goal.reshape((1,2,options.FRAME_COUNT)),  
+                        'icm_input_sensor_frame': np.expand_dims(curr_state_sensor[v], axis = 0),
+                        'icm_input_goal_frame'  : np.expand_dims(curr_state_goal[v], axis = 0),
                         'icm_input_action'      : action_stack_k[0].reshape((1,1))
                     }  
                 )
             )
-            agent_icm.plotEstimate( sim_env.scene_const, options, curr_state_sensor, curr_state_goal, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
+
+            # agent_icm.plotEstimate( sim_env.scene_const, options, curr_state_sensor, curr_state_goal, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
         ###########
         # START LEARNING
         ###########
 
         # Add latest information to memory
+        # Get observation
+        _, _, observation_sensor, observation_goal            = sim_env.getObservation( verbosity = options.VERBOSE, old = True)
+        _, _, next_observation_sensor, next_observation_goal  = sim_env.getObservation( verbosity = options.VERBOSE, old = False)
+
         for v in range(0,options.VEH_COUNT):
-            # Get observation
-            observation_sensor, observation_goal             = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = True)
-            next_observation_sensor, next_observation_goal   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = False)
+            # observation_sensor, observation_goal             = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = True)
+            # next_observation_sensor, next_observation_goal   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = False)
 
             # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
-            experience = observation_sensor, observation_goal, action_stack_k[v], reward_stack[v], next_observation_sensor, next_observation_goal, epi_done[v]
+            experience = observation_sensor[v], observation_goal[v], action_stack_k[v], reward_stack[v], next_observation_sensor[v], next_observation_goal[v], epi_done[v]
            
             # Save new memory 
             replay_memory.store(experience)
@@ -484,6 +496,7 @@ if __name__ == "__main__":
                 # feed.clear()
                 # feed.update({agent_train.obs_sensor : next_states_sensor_mb, agent_train.obs_goal : next_states_goal_mb})
 
+                # FIXME : 0826 ERROR HERE
                 # Calculate Target Q-value. Uses double network. First, get action from training network
                 # action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
                 action_train_k = agent_train.model_out.predict(
@@ -549,6 +562,7 @@ if __name__ == "__main__":
                 feed_icm.update(
                     { 
                         'icm_input_sensor_frame' : states_sensor_mb,
+                        'icm_input_goal_frame'   : states_goal_mb,
                         'icm_input_action'       : actions_mb*(1/(options.ACTION_DIM-1)),         # action_stack is 0 to ACTION_DIM, scale to 0-1
                     }
                 )
@@ -570,9 +584,11 @@ if __name__ == "__main__":
 
         handle_dict, sim_env.scene_const, case_direction = sim_env.initScene( reset_veh_list, RANDOMIZE )
 
+        # FIXME: initScene is called whenever new test scene is needed. this cause sensor_queue to accumulate and grow in size. Need to take that away from this function
         # Reset data queue
-        _, _, reset_dDistance, reset_gInfo = sim_env.getObservation()
-        sensor_queue, goal_queue = resetQueue( options, sensor_queue, goal_queue, reset_dDistance, reset_gInfo, reset_veh_list )
+        # sim_env.updateObservation( reset_veh_list )
+        # _, _, reset_dDistance, reset_gInfo = sim_env.getObservation( frame = -1)
+        # sim_env.sensor_queue, sim_env.goal_queue = initQueue( options, sim_env.sensor_queue, sim_env.goal_queue, reset_dDistance, reset_gInfo )
 
         ###############
         # Miscellaneous

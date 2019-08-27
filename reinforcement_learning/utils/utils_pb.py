@@ -34,7 +34,7 @@ def getSensorData( scene_const, options, vehicle_handle ):
 # handle_dict
 # Output
 #   veh_pos : VEH_COUNT x 2, (x,y)
-#   veh_heading : VEH_COUNT x 4, uses quaternion
+#   veh_heading : VEH_COUNT x 3, uses euler which is converted from quaternion
 #   sensorData : VEH_COUNT x scene_const.sensor_count
 #   gInfo : VEH_COUNT x 2, [goal_angle, goal_distance]
 #       goal_angle : referenced at vehicle heading. left -> -ve, right -> +ve
@@ -79,14 +79,17 @@ def getVehicleState( scene_const, options, handle_dict ):
 #   goal_queue   : empty array
 #   dDistance    : array (for each vehicle) of sensor measurements
 #   gInfo        : array (for each vehicle) of goal measurements
-def initQueue(options, sensor_queue, goal_queue, dDistance, gInfo):
+def initQueue(options, sensor_queue, goal_queue, veh_pos_queue, veh_heading_queue, init_veh_pos, init_veh_heading, init_distance, init_gInfo ):
+    # For each vehicle
     for i in range(0,options.VEH_COUNT):
         # Copy initial state FRAME_COUNT + 1 times. [0] : oldest info, [-1] : latest info, i.e., current state
         for _ in range(0,options.FRAME_COUNT + 1):
-            sensor_queue[i].append(dDistance[i])
-            goal_queue[i].append(gInfo[i])
+            sensor_queue[i].append(init_distance[i])
+            goal_queue[i].append(init_gInfo[i])
+            veh_pos_queue[i].append(init_veh_pos[i])
+            veh_heading_queue[i].append(init_veh_heading[i])
 
-    return sensor_queue, goal_queue
+    return sensor_queue, goal_queue, veh_pos_queue, veh_heading_queue
 
 # Detect whether vehicle is collided
 # For now simply say vehicle is collided if distance if smaller than 1.1m. Initial sensor distance to the right starts at 1.2m.
@@ -119,17 +122,22 @@ def detectReachedGoal(vehPos, gInfo, currHeading, scene_const ):
         return False
 
 # Reset the queue by filling the queue with the given initial data
-def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_list):
+# def resetQueue(options, sensor_queue, goal_queue, dDistance, gInfo, reset_veh_list):
+def resetQueue(options, sensor_queue, goal_queue, veh_pos_queue, veh_heading_queue, init_veh_pos, init_veh_heading, init_distance, init_gInfo, reset_veh_list ):
     for v in range(0,options.VEH_COUNT):
         if v in reset_veh_list:
             for _ in range(0,options.FRAME_COUNT + 1):
                 # Update queue
-                sensor_queue[v].append(dDistance[v])
+                sensor_queue[v].append(init_distance[v])
                 sensor_queue[v].popleft()
-                goal_queue[v].append(gInfo[v])
+                goal_queue[v].append(init_gInfo[v])
                 goal_queue[v].popleft()
+                veh_pos_queue[v].append(init_veh_pos[v])
+                veh_pos_queue[v].popleft()
+                veh_heading_queue[v].append(init_veh_heading[v])
+                veh_heading_queue[v].popleft()
 
-    return sensor_queue, goal_queue
+    return veh_pos_queue, veh_heading_queue, sensor_queue, goal_queue
 
 # From sensor and goal queue, get observation.
 # observation is a row vector with all frames of information concatentated to each other
