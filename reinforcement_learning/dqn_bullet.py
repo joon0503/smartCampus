@@ -324,17 +324,8 @@ if __name__ == "__main__":
     # Initialize Scene
     _, _, _ = sim_env.initScene( list(range(0,options.VEH_COUNT)), RANDOMIZE )
 
-    # List of deque to store data
-    sensor_queue = []
-    goal_queue   = []
-    for i in range(0,options.VEH_COUNT):
-        sensor_queue.append( deque() )
-        goal_queue.append( deque() )
-
     # initilize them with initial data
     sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT) )
-    # _, _, dDistance, gInfo   = sim_env.getObservation( type = 'curr')
-    # sensor_queue, goal_queue = initQueue( options, sensor_queue, goal_queue, dDistance, gInfo )
 
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
@@ -354,9 +345,6 @@ if __name__ == "__main__":
         obs_goal_stack   = np.empty((options.VEH_COUNT, 2, options.FRAME_COUNT))
 
         # Get observation stack (which is used in getting the action) 
-        # for v in range(0,options.VEH_COUNT):
-            # Get current info to generate input
-            # obs_sensor_stack[v], obs_goal_stack[v]   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old=False)
         _, _, obs_sensor_stack, obs_goal_stack = sim_env.getObservation(old = False)
 
         # Get optimal action Keras. 
@@ -387,15 +375,6 @@ if __name__ == "__main__":
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = sim_env.getObservation( verbosity = options.VERBOSE, frame = -1 )
-
-        # print(next_dDistance)
-
-        for v in range(0,options.VEH_COUNT):
-            # Update queue
-            sensor_queue[v].append(next_dDistance[v])
-            sensor_queue[v].popleft()
-            goal_queue[v].append(next_gInfo[v])
-            goal_queue[v].popleft()
 
         ####
         # Handle Events & Get Rewards
@@ -458,9 +437,6 @@ if __name__ == "__main__":
         _, _, next_observation_sensor, next_observation_goal  = sim_env.getObservation( verbosity = options.VERBOSE, old = False)
 
         for v in range(0,options.VEH_COUNT):
-            # observation_sensor, observation_goal             = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = True)
-            # next_observation_sensor, next_observation_goal   = getObs( options, sim_env.scene_const, sensor_queue[v], goal_queue[v], old = False)
-
             # Add experience. (observation, action in one hot encoding, reward, next observation, done(1/0) )
             experience = observation_sensor[v], observation_goal[v], action_stack_k[v], reward_stack[v], next_observation_sensor[v], next_observation_goal[v], epi_done[v]
            
@@ -583,12 +559,6 @@ if __name__ == "__main__":
             epi_counter = 0
 
         handle_dict, sim_env.scene_const, case_direction = sim_env.initScene( reset_veh_list, RANDOMIZE )
-
-        # FIXME: initScene is called whenever new test scene is needed. this cause sensor_queue to accumulate and grow in size. Need to take that away from this function
-        # Reset data queue
-        # sim_env.updateObservation( reset_veh_list )
-        # _, _, reset_dDistance, reset_gInfo = sim_env.getObservation( frame = -1)
-        # sim_env.sensor_queue, sim_env.goal_queue = initQueue( options, sim_env.sensor_queue, sim_env.goal_queue, reset_dDistance, reset_gInfo )
 
         ###############
         # Miscellaneous
