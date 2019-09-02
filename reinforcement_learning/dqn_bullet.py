@@ -33,7 +33,7 @@ def get_options():
     parser = ArgumentParser(
         description='File for learning'
         )
-    parser.add_argument('--MAX_EPISODE', type=int, default=10000,
+    parser.add_argument('--MAX_EPISODE', type=int, default=5000,
                         help='max number of episodes iteration\n')
     parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
                         help='max number of time step of simulation per episode')
@@ -49,7 +49,7 @@ def get_options():
                         help='finial probability for randomly sampling action')
     parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=1800,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=5400,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
@@ -61,11 +61,11 @@ def get_options():
                         help='Number of steps required for target update')
     parser.add_argument('--BATCH_SIZE', type=int, default=32,
                         help='mini batch size'),
-    parser.add_argument('--H1_SIZE', type=int, default=80,
+    parser.add_argument('--H1_SIZE', type=int, default=160,
                         help='size of hidden layer 1')
-    parser.add_argument('--H2_SIZE', type=int, default=80,
+    parser.add_argument('--H2_SIZE', type=int, default=160,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=40,
+    parser.add_argument('--H3_SIZE', type=int, default=80,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
@@ -87,7 +87,7 @@ def get_options():
                         help='Verbose output')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--FRAME_COUNT', type=int, default=1,
+    parser.add_argument('--FRAME_COUNT', type=int, default=3,
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
@@ -107,7 +107,7 @@ def get_options():
                         help='Set simulation seed')
     parser.add_argument('--CTR_FREQ', type=float, default=0.2,
                         help='Control frequency in seconds. Upto 0.001 seconds')
-    parser.add_argument('--MIN_LIDAR_CONST', type=float, default=-0.075,
+    parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.075,
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     parser.add_argument('--L2_LOSS', type=float, default=0.0,
                         help='Scale of L2 loss')
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     np.set_printoptions( precision = 4, linewidth = 100 )
 
     # For interactive plot
-    plt.ion()
+    # plt.ion()
 
     ######################################
     # Simulation Start
@@ -240,7 +240,7 @@ if __name__ == "__main__":
 
     # Initial Camera position
     cam_pos = [0,0,0]
-    cam_dist = 5
+    cam_dist = 10
 
     #-----------------------
     # Start Environment
@@ -338,14 +338,22 @@ if __name__ == "__main__":
         agent_train.decayEps( options, global_step )
         global_step += options.VEH_COUNT
 
+
         ####
         # Find & Apply Action
         ####
         obs_sensor_stack = np.empty((options.VEH_COUNT, sim_env.scene_const.sensor_count, options.FRAME_COUNT))
         obs_goal_stack   = np.empty((options.VEH_COUNT, 2, options.FRAME_COUNT))
 
+
+
         # Get observation stack (which is used in getting the action) 
         _, _, obs_sensor_stack, obs_goal_stack = sim_env.getObservation(old = False)
+        # ic(obs_sensor_stack, obs_goal_stack)
+
+        if options.TESTING == True:
+            ic(sim_env.sensor_queue, obs_sensor_stack)
+            ic(sim_env.goal_queue, obs_goal_stack)
 
         # Get optimal action Keras. 
         action_stack_k = agent_train.sample_action_k(
@@ -355,6 +363,7 @@ if __name__ == "__main__":
                                             },
                                             options,
                                             )
+        # ic(action_stack_k)
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
         # targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
@@ -371,10 +380,14 @@ if __name__ == "__main__":
         # Update Observation
         sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT) )
 
+
         ####
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = sim_env.getObservation( verbosity = options.VERBOSE, frame = -1 )
+
+        # ic(sim_env.sensor_queue, next_dDistance)
+        # ic(sim_env.goal_queue, next_gInfo)
 
         ####
         # Handle Events & Get Rewards
@@ -402,7 +415,8 @@ if __name__ == "__main__":
         #######
         # Test Estimation
         #######
-        if options.TESTING == True:
+        # if options.TESTING == True:
+        if False:
             v = 0
 
             # Get curr & next state
@@ -410,10 +424,10 @@ if __name__ == "__main__":
             _, _, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
 
             # Print curr & next state
-            ic(curr_state_sensor[v], curr_state_goal[v])
-            ic(next_state_sensor[v], next_state_goal[v])
+            # ic(curr_state_sensor[v], curr_state_goal[v])
+            # ic(next_state_sensor[v], next_state_goal[v])
 
-            ic(np.expand_dims(curr_state_sensor, axis = 0).shape)
+            # ic(np.expand_dims(curr_state_sensor, axis = 0).shape)
             # Print estimate
             print(
                 agent_icm.getEstimate( 
@@ -465,14 +479,13 @@ if __name__ == "__main__":
                 # actions converted to value array
                 #actions_mb_val = oneHot2Angle( actions_mb_hot, sim_env.scene_const, options, radians = False, scale = True )
 
-                # ic(states_mb,actions_mb,rewards_mb,next_states_mb,done_mb)
+                # ic(states_sensor_mb, states_goal_mb, actions_mb, rewards_mb, next_states_sensor_mb, next_states_goal_mb, done_mb)
                 # ic( next_states_mb.reshape(-1,sim_env.scene_const.sensor_count+2,options.FRAME_COUNT) )
 
                 # Get Target Q-Value
                 # feed.clear()
                 # feed.update({agent_train.obs_sensor : next_states_sensor_mb, agent_train.obs_goal : next_states_goal_mb})
 
-                # FIXME : 0826 ERROR HERE
                 # Calculate Target Q-value. Uses double network. First, get action from training network
                 # action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
                 action_train_k = agent_train.model_out.predict(
@@ -516,6 +529,7 @@ if __name__ == "__main__":
                     # Just using Target Network.
                     q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
                     q_target_val_k = rewards_mb + options.GAMMA * np.amas( agent_target.model.predict(keras_feed), axis=1)
+                    ic(q_target_val_k)
            
                 # set q_target to reward if episode is done
                 for v_mb in range(0,options.BATCH_SIZE):
@@ -527,6 +541,8 @@ if __name__ == "__main__":
                 keras_feed = {}
                 keras_feed.clear()
                 keras_feed.update({ 'observation_sensor_k' : states_sensor_mb, 'observation_goal_k' : states_goal_mb})
+                # ic(keras_feed)
+                # ic(np.reshape(q_target_val_k,(options.BATCH_SIZE,1)))
                 loss_k = agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(options.BATCH_SIZE,1)) )
 
                 ##############################
