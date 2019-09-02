@@ -241,9 +241,9 @@ class env_py:
             #         # goal_stack      = np.concatenate(self.goal_queue)[2:]
         else:
             sensor_out  = temp_sensor[:,frame,:]
-            goal_out    = temp_sensor[:,frame,:]
-            pos_out     = temp_sensor[:,frame,:]
-            head_out    = temp_sensor[:,frame,:]
+            goal_out    = temp_goal[:,frame,:]
+            pos_out     = temp_pos[:,frame,:]
+            head_out    = temp_head[:,frame,:]
             # sensor_out = np.empty((self.options.VEH_COUNT, self.scene_const.sensor_count, 1))
             # goal_out   = np.empty((self.options.VEH_COUNT, 2, 1))
             # pos_out    = np.empty((self.options.VEH_COUNT, 2, 1))
