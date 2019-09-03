@@ -85,7 +85,7 @@ class dqn:
     # Get optimal action Keras. 
     #   action_feed: dictionary of input to keras
     def getOptimalAction( self, action_feed ):
-        action_stack_k = self.agent_train.sample_action_k( action_feed, self.options )
+        action_stack_k = self.agent_train.sample_action_k( action_feed, self.eps, self.options )
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
         # targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)

@@ -9,9 +9,6 @@ from icecream import ic
 # Class for Neural Network
 class QAgent:
     def __init__(self, options, scene_const, name):
-        # Variables
-        self.eps = options.INIT_EPS
-
         # Inputs
         self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_sensor_k')
         self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal_k')
@@ -23,6 +20,7 @@ class QAgent:
         # Typical Neural Net
         network_structure = 2
         if network_structure == 1:
+            # Dense
             self.h_flat1_k = tf.keras.layers.Flatten()(self.obs_goal_k)
             self.h_flat2_k = tf.keras.layers.Flatten()(self.obs_sensor_k)
             self.h_concat_k = tf.keras.layers.concatenate([self.h_flat1_k, self.h_flat2_k])
@@ -31,6 +29,7 @@ class QAgent:
             self.h_dense3_k = tf.keras.layers.Dense( options.H3_SIZE, activation='relu')( self.h_dense2_k )
             self.h_out_k = tf.keras.layers.Dense( options.ACTION_DIM, activation=None, name='out_large')( self.h_dense3_k )
         elif network_structure == 2:
+            # Dense + dueling network
             self.h_flat1_k = tf.keras.layers.Flatten()(self.obs_goal_k)
             self.h_flat2_k = tf.keras.layers.Flatten()(self.obs_sensor_k)
             self.h_concat_k = tf.keras.layers.concatenate([self.h_flat1_k, self.h_flat2_k])
@@ -89,25 +88,25 @@ class QAgent:
     # Sample action with random rate eps
     # output:
     #   action_index
-    def sample_action(self, feed, options):
-        if random.random() <= self.eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
-            # pick random action
-            action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
-        else:
-            act_values = self.output.eval(feed_dict=feed)
-            if options.TESTING == True or options.VERBOSE == True:
-                ic(np.argmax(act_values,axis=1))
-                ic(act_values)
-                print("\n")
-                pass
+    # def sample_action(self, feed, options):
+    #     if random.random() <= self.eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
+    #         # pick random action
+    #         action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
+    #     else:
+    #         act_values = self.output.eval(feed_dict=feed)
+    #         if options.TESTING == True or options.VERBOSE == True:
+    #             ic(np.argmax(act_values,axis=1))
+    #             ic(act_values)
+    #             print("\n")
+    #             pass
 
-            # Get maximum for each vehicle
-            action_index = np.argmax(act_values, axis=1)
+    #         # Get maximum for each vehicle
+    #         action_index = np.argmax(act_values, axis=1)
 
-        return action_index
+    #     return action_index
 
-    def sample_action_k(self, feed, options):
-        if random.random() <= self.eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
+    def sample_action_k(self, feed, eps, options):
+        if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
             action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
         else:
@@ -130,9 +129,9 @@ class QAgent:
         return trainable_vars_by_name
 
     # update epsilon
-    def decayEps( self, options, global_step ):
-        # Decay epsilon
-        if global_step % options.EPS_ANNEAL_STEPS == 0 and self.eps > options.FINAL_EPS:
-            self.eps = self.eps * options.EPS_DECAY
+    # def decayEps( self, options, global_step ):
+    #     # Decay epsilon
+    #     if global_step % options.EPS_ANNEAL_STEPS == 0 and self.eps > options.FINAL_EPS:
+    #         self.eps = self.eps * options.EPS_DECAY
 
-        return
+    #     return

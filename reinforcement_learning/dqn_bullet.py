@@ -413,7 +413,7 @@ if __name__ == "__main__":
             print('========')
             print('Vehicle #:', v)
             print('\tGlobal Step:' + str(global_step))
-            print('\tEPS: ' + str(q_algo.agent_train.eps))
+            print('\tEPS: ' + str(q_algo.eps))
             print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(sim_env.epi_step_stack[v])) )
             print('\tEpisode Reward: ' + str(sim_env.epi_reward_stack[v])) 
             print('\tDirection: ' + str(case_direction[v]) ) 
@@ -424,7 +424,7 @@ if __name__ == "__main__":
         # Update data
         for v in reset_veh_list:
             data_package.add_reward( sim_env.epi_reward_stack[v] )  # Add reward
-            data_package.add_eps( q_algo.agent_train.eps )                     # Add epsilon used for this reward
+            data_package.add_eps( q_algo.eps )                     # Add epsilon used for this reward
             data_package.add_success_rate( epi_sucess[v] )  # Add success/fail
 
         # Reset rewards for finished vehicles
