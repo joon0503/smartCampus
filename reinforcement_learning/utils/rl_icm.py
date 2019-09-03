@@ -64,7 +64,7 @@ class ICM:
             # Sensor Estimation
             self.out_sensor = tf.keras.layers.Dense( scene_const.sensor_count, activation='sigmoid', name='out_sensor')( self.h_dense3_k )
             # Goal Distance & Angle
-            self.out_goal_dist  = tf.keras.layers.Dense( 1, activation='sigmoid', name='out_goal_dist')( self.h_dense3_k )
+            self.out_goal_dist  = tf.keras.layers.Dense( 1, activation='relu', name='out_goal_dist')( self.h_dense3_k )
             self.out_goal_angle = tf.keras.layers.Dense( 1, activation='tanh', name='out_goal_angle')( self.h_dense3_k )
 
             self.out = tf.keras.layers.concatenate( [self.out_sensor, self.out_goal_angle, self.out_goal_dist] )

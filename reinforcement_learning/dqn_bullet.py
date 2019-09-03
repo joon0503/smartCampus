@@ -323,8 +323,7 @@ if __name__ == "__main__":
         #######
         # Test Estimation
         #######
-        # if options.TESTING == True:
-        if False:
+        if options.TESTING == True:
             v = 0
 
             # Get curr & next state
@@ -337,15 +336,15 @@ if __name__ == "__main__":
 
             # ic(np.expand_dims(curr_state_sensor, axis = 0).shape)
             # Print estimate
-            print(
-                agent_icm.getEstimate( 
-                    {
-                        'icm_input_sensor_frame': np.expand_dims(curr_state_sensor[v], axis = 0),
-                        'icm_input_goal_frame'  : np.expand_dims(curr_state_goal[v], axis = 0),
-                        'icm_input_action'      : action_stack_k[0].reshape((1,1))
-                    }  
-                )
-            )
+            icm_est = agent_icm.getEstimate( 
+                        {
+                            'icm_input_sensor_frame': np.expand_dims(curr_state_sensor[v], axis = 0),
+                            'icm_input_goal_frame'  : np.expand_dims(curr_state_goal[v], axis = 0),
+                            'icm_input_action'      : action_stack_k[0].reshape((1,1))
+                        }  
+                    )
+
+            ic(icm_est)
 
             # agent_icm.plotEstimate( sim_env.scene_const, options, curr_state_sensor, curr_state_goal, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
@@ -387,8 +386,8 @@ if __name__ == "__main__":
                     }
                 )
 
-                # next_statse have BATCH_SIZE x SENSOR_COUNT x FRAME_COUNT. Hence, [:,:,-1] pick up the latest frame
-                icm_target = np.hstack([next_states_sensor_mb[:,:,-1], next_states_goal_mb[:,:,-1]])
+                # next_statse have BATCH_SIZE x SENSOR_COUNT x FRAME_COUNT. Hence, [:,:,-1] pick up the latest frame.
+                icm_target = np.hstack([next_states_sensor_mb[:,:,-1], next_states_goal_mb[:,:,-1]])    # BATCH_SIZE x (SENSOR_COUNT + 2)
 
                 # Train
                 loss_icm_k = agent_icm.model.train_on_batch( feed_icm, icm_target )
