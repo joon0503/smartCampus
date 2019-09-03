@@ -236,17 +236,6 @@ if __name__ == "__main__":
     feed_icm        = {}
     global_step     = 0
 
-    # Export weights
-    # if options.EXPORT == True:
-    #     print("Exporting weights...")
-    #     val = tf.trainable_variables(scope='Training')
-    #     for v in val:
-    #         fixed_name = str(v.name).replace('/','_')
-    #         fixed_name = str(v.name).replace(':','_')
-    #         # np.savetxt( './model_weights/' + fixed_name + '.txt', sess.run([v])[0], delimiter=',')
-    #     sys.exit() 
-
-
     ########################
     # END TF SETUP
     ########################
@@ -259,13 +248,9 @@ if __name__ == "__main__":
     ###########################        
     # Initialize Variables
     ###########################        
-   
-    # Some variables
-    # action_stack        = np.zeros(options.VEH_COUNT)                              # action_stack[k] is the array of optinos.ACTION_DIM with each element representing the index
-    epi_counter         = 0                                                        # Counts # of finished episodes
-    eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
+    epi_counter         = 0                                                             # Counts # of finished episodes
     last_saved_epi      = 0                                                             # variable used for checking when to save
-    case_direction      = np.zeros(options.VEH_COUNT)                               # store tested direction
+    case_direction      = np.zeros(options.VEH_COUNT)                                   # store tested direction
 
     # Initialize Scene
     _, _, _ = sim_env.initScene( list(range(0,options.VEH_COUNT)), RANDOMIZE )
@@ -282,7 +267,6 @@ if __name__ == "__main__":
 
         global_step += options.VEH_COUNT
 
-
         ####
         # Find & Apply Action
         ####
@@ -291,7 +275,6 @@ if __name__ == "__main__":
 
         # Get observation stack (which is used in getting the action) 
         _, _, obs_sensor_stack, obs_goal_stack = sim_env.getObservation(old = False)
-        # ic(obs_sensor_stack, obs_goal_stack)
 
         if options.TESTING == True:
             ic(sim_env.sensor_queue, obs_sensor_stack)
@@ -316,9 +299,6 @@ if __name__ == "__main__":
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = sim_env.getObservation( verbosity = options.VERBOSE, frame = -1 )
-
-        # ic(sim_env.sensor_queue, next_dDistance)
-        # ic(sim_env.goal_queue, next_gInfo)
 
         ####
         # Handle Events & Get Rewards
