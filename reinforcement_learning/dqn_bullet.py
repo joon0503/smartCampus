@@ -369,7 +369,7 @@ if __name__ == "__main__":
         if global_step >= options.MAX_EXPERIENCE and options.TESTING == False:
             for tf_train_counter in range(0,options.VEH_COUNT):
                 ##############################
-                # Train Algorithm
+                # Train Control Algorithm
                 ##############################
                 loss_k, states_sensor_mb, next_states_sensor_mb, states_goal_mb, next_states_goal_mb, actions_mb = q_algo.trainOneStep()
 

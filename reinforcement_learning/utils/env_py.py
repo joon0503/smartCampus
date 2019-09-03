@@ -335,8 +335,8 @@ class env_py:
             veh_status[v]   = self.scene_const.EVENT_FINE
             # Update rewards
             #reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
-            # reward_stack[v] = -(options.DIST_MUL + 1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
-            reward_stack[v] = -(self.options.DIST_MUL)*next_gInfo[v][1]**2
+            reward_stack[v] = -(options.DIST_MUL + 1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
+            # reward_stack[v] = -(self.options.DIST_MUL)*next_gInfo[v][1]**2
 
         # Update cumulative rewards
         self.epi_step_stack = self.epi_step_stack + 1
