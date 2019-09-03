@@ -7,11 +7,12 @@
 import numpy as np
 import time
 import os
+import warnings
 from utils.rl_dqn import QAgent
 from utils.experience_replay import Memory
 
 class dqn:
-    def __init__(self, sim_env):
+    def __init__(self, sim_env, load = True):
 
         # Target and Training agent
         self.agent_train     = QAgent(sim_env.options,sim_env.scene_const, 'Training')
@@ -38,15 +39,42 @@ class dqn:
             print("=================================================")
             self.replay_memory = Memory(sim_env.options.MAX_EXPERIENCE, disable_PER = False, absolute_error_upperbound = 2000)
 
+        if self.options.NO_SAVE == False and load == True:
+            self.loadNetwork()
+        else:
+            warnings.warn("Warning: Loading network weight may have failed!")
 
         return
 
+    # update miscellaneous
+    # For now
+    #   1. decay eps
+    #   2. update target
+    def updateMiscellaneous( self, global_step ):
+        # Decay epsilon
+        self.decayEps( global_step )
+
+        # Update target
+        self.updateTarget( global_step )
+
+        return
+
+    # Update target
+    def updateTarget(self, global_step):
+        # Update target network
+        if global_step % self.options.TARGET_UPDATE_STEP == 0:
+            print('-----------------------------------------')
+            print("Updating Target network.")
+            print('-----------------------------------------')
+            self.agent_target.model.set_weights( self.agent_train.model.get_weights() )
+
+        return
 
     # update epsilon
-    def decayEps( self, options, global_step ):
+    def decayEps( self, global_step ):
         # Decay epsilon
-        if global_step % options.EPS_ANNEAL_STEPS == 0 and self.eps > options.FINAL_EPS:
-            self.eps = self.eps * options.EPS_DECAY
+        if global_step % self.options.EPS_ANNEAL_STEPS == 0 and self.eps > self.options.FINAL_EPS:
+            self.eps = self.eps * self.options.EPS_DECAY
 
         return
 
@@ -83,18 +111,7 @@ class dqn:
         actions_mb_hot = np.zeros((self.options.BATCH_SIZE,self.options.ACTION_DIM))
         actions_mb_hot[np.arange(self.options.BATCH_SIZE),np.asarray(actions_mb, dtype=int)] = 1
 
-        # actions converted to value array
-        #actions_mb_val = oneHot2Angle( actions_mb_hot, sim_env.scene_const, options, radians = False, scale = True )
-
-        # ic(states_sensor_mb, states_goal_mb, actions_mb, rewards_mb, next_states_sensor_mb, next_states_goal_mb, done_mb)
-        # ic( next_states_mb.reshape(-1,sim_env.scene_const.sensor_count+2,options.FRAME_COUNT) )
-
-        # Get Target Q-Value
-        # feed.clear()
-        # feed.update({agent_train.obs_sensor : next_states_sensor_mb, agent_train.obs_goal : next_states_goal_mb})
-
         # Calculate Target Q-value. Uses double network. First, get action from training network
-        # action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
         action_train_k = self.agent_train.model_out.predict(
                                             {
                                                 'observation_sensor_k' : next_states_sensor_mb,
@@ -103,12 +120,8 @@ class dqn:
                                             batch_size = self.options.VEH_COUNT
         )
         action_train_k = np.argmax( action_train_k, axis=1)
-        # ic(np.argmax(action_train_k,axis=1))
 
         if self.options.disable_DN == False:
-            # feed.clear()
-            # feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
-
             keras_feed = {}
             keras_feed.clear()
             keras_feed.update(
@@ -119,124 +132,22 @@ class dqn:
 
             )
             # Using Target + Double network
-            # ic( agent_target.output.eval( feed_dict = feed), agent_target.output.eval( feed_dict = feed).shape  )
-            # ic( agent_target.h_s1.eval( feed_dict = feed), agent_target.h_s1.eval( feed_dict = feed).shape  )
-            # ic( agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train] )
-            # q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
             q_target_val_k = rewards_mb + self.options.GAMMA * self.agent_target.model_out.predict(keras_feed)[np.arange(0,self.options.BATCH_SIZE),action_train_k]
-        else:
-            keras_feed.clear()
-            keras_feed.update(
-                {
-                    'observation_sensor_k' : next_states_sensor_mb,
-                    'observation_goal_k'   : next_states_goal_mb
-                }
-
-            )
-            # Just using Target Network.
-            q_target_val = rewards_mb + self.options.GAMMA * np.amax( self.agent_target.output.eval(feed_dict=feed), axis=1)
-            q_target_val_k = rewards_mb + self.options.GAMMA * np.amas( self.agent_target.model.predict(keras_feed), axis=1)
-            ic(q_target_val_k)
     
         # set q_target to reward if episode is done
         for v_mb in range(0,self.options.BATCH_SIZE):
             if done_mb[v_mb] == 1:
-                # q_target_val[v_mb] = rewards_mb[v_mb]
                 q_target_val_k[v_mb] = rewards_mb[v_mb]
 
         # Train Keras Model
         keras_feed = {}
         keras_feed.clear()
         keras_feed.update({ 'observation_sensor_k' : states_sensor_mb, 'observation_goal_k' : states_goal_mb})
-        # ic(keras_feed)
-        # ic(np.reshape(q_target_val_k,(options.BATCH_SIZE,1)))
+
+        # Loss
         loss_k = self.agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(self.options.BATCH_SIZE,1)) )
 
-
-        # # Obtain the mini batch. (Batch Memory is '2D array' with BATCH_SIZE X size(experience)
-        # tree_idx, batch_memory, ISWeights_mb = self.replay_memory.sample(self.options.BATCH_SIZE)
-
-        # # Get state/action/next state from obtained memory. Size same as queues
-        # states_sensor_mb        = np.array([each[0][0] for each in batch_memory])           # BATCH_SIZE x SENSOR_COUNT
-        # states_goal_mb          = np.array([each[0][1] for each in batch_memory])           # BATCH_SIZE x 2
-        # actions_mb              = np.array([each[0][2] for each in batch_memory])           # BATCH_SIZE x ACTION_DIM
-        # rewards_mb              = np.array([each[0][3] for each in batch_memory])           # 1 x BATCH_SIZE
-        # next_states_sensor_mb   = np.array([each[0][4] for each in batch_memory])   
-        # next_states_goal_mb     = np.array([each[0][5] for each in batch_memory])   
-        # done_mb                 = np.array([each[0][6] for each in batch_memory])   
-
-        # # actions mb is list of numbers. Need to change it into one hot encoding
-        # actions_mb_hot = np.zeros((self.options.BATCH_SIZE,self.options.ACTION_DIM))
-        # actions_mb_hot[np.arange(self.options.BATCH_SIZE),np.asarray(actions_mb, dtype=int)] = 1
-
-        # # actions converted to value array
-        # #actions_mb_val = oneHot2Angle( actions_mb_hot, sim_env.scene_const, options, radians = False, scale = True )
-
-        # # ic(states_mb,actions_mb,rewards_mb,next_states_mb,done_mb)
-        # # ic( next_states_mb.reshape(-1,sim_env.scene_const.sensor_count+2,options.FRAME_COUNT) )
-
-        # # Get Target Q-Value
-        # # feed.clear()
-        # # feed.update({agent_train.obs_sensor : next_states_sensor_mb, agent_train.obs_goal : next_states_goal_mb})
-
-        # # Calculate Target Q-value. Uses double network. First, get action from training network
-        # # action_train = np.argmax( agent_train.output.eval(feed_dict=feed), axis=1 )
-        # self.action_train = self.agent_train.model_out.predict(
-        #                                     {
-        #                                         'observation_sensor_k' : next_states_sensor_mb,
-        #                                         'observation_goal_k'   : next_states_goal_mb
-        #                                     },
-        #                                     batch_size = self.options.VEH_COUNT
-        # )
-        # action_train_k = np.argmax( action_train_k, axis=1)
-        # # ic(np.argmax(action_train_k,axis=1))
-
-        # if options.disable_DN == False:
-        #     # feed.clear()
-        #     # feed.update({agent_target.obs_sensor : next_states_sensor_mb, agent_target.obs_goal : next_states_goal_mb})
-
-        #     keras_feed = {}
-        #     keras_feed.clear()
-        #     keras_feed.update(
-        #         {
-        #             'observation_sensor_k' : next_states_sensor_mb,
-        #             'observation_goal_k'   : next_states_goal_mb
-        #         }
-
-        #     )
-        #     # Using Target + Double network
-        #     # ic( agent_target.output.eval( feed_dict = feed), agent_target.output.eval( feed_dict = feed).shape  )
-        #     # ic( agent_target.h_s1.eval( feed_dict = feed), agent_target.h_s1.eval( feed_dict = feed).shape  )
-        #     # ic( agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train] )
-        #     # q_target_val = rewards_mb + options.GAMMA * agent_target.output.eval(feed_dict=feed)[np.arange(0,options.BATCH_SIZE),action_train]
-        #     q_target_val_k = rewards_mb + options.GAMMA * self.agent_target.model_out.predict(keras_feed)[np.arange(0,self.options.BATCH_SIZE),action_train_k]
-        # else:
-        #     keras_feed.clear()
-        #     keras_feed.update(
-        #         {
-        #             'observation_sensor_k' : next_states_sensor_mb,
-        #             'observation_goal_k'   : next_states_goal_mb
-        #         }
-
-        #     )
-        #     # Just using Target Network.
-        #     q_target_val = rewards_mb + options.GAMMA * np.amax( agent_target.output.eval(feed_dict=feed), axis=1)
-        #     q_target_val_k = rewards_mb + options.GAMMA * np.amas( agent_target.model.predict(keras_feed), axis=1)
-    
-        # # set q_target to reward if episode is done
-        # for v_mb in range(0,options.BATCH_SIZE):
-        #     if done_mb[v_mb] == 1:
-        #         # q_target_val[v_mb] = rewards_mb[v_mb]
-        #         q_target_val_k[v_mb] = rewards_mb[v_mb]
-
-        # # Train Keras Model
-        # keras_feed = {}
-        # keras_feed.clear()
-        # keras_feed.update({ 'observation_sensor_k' : states_sensor_mb, 'observation_goal_k' : states_goal_mb})
-        # loss_k = self.agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(options.BATCH_SIZE,1)) )
-
         return loss_k, states_sensor_mb, next_states_sensor_mb, states_goal_mb, next_states_goal_mb, actions_mb
-        # return loss_k
 
     # Load network wegiths
     def loadNetwork( self ):
