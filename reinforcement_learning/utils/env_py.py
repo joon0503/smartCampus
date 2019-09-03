@@ -220,43 +220,13 @@ class env_py:
             goal_out    = np.swapaxes( goal_out, 1, 2)
             pos_out     = np.swapaxes( pos_out, 1, 2)
             head_out    = np.swapaxes( head_out, 1, 2)
-            #     goal_out   = np.empty((self.options.VEH_COUNT, 2, self.options.FRAME_COUNT))
-            #     pos_out    = np.empty((self.options.VEH_COUNT, 2, self.options.FRAME_COUNT))
-            #     head_out   = np.empty((self.options.VEH_COUNT, 3, self.options.FRAME_COUNT))
-
-            # for v in range(0,self.options.VEH_COUNT):
-            #     if old == True:
-            #         # sensor_stack    = np.concatenate(self.sensor_queue)[0:self.scene_const.sensor_count * self.options.FRAME_COUNT]
-            #         # goal_stack      = np.concatenate(self.goal_queue)[0:2*self.options.FRAME_COUNT]
-            #         sensor_out[v]    = np.concatenate(self.sensor_queue)[0:self.options.FRAME_COUNT-1,:].transpose()
-            #         goal_out[v]      = np.concatenate(self.goal_queue)[0:self.options.FRAME_COUNT-1,:].transpose()
-            #         pos_out[v]       = np.concatenate(self.veh_pos_queue)[0:self.options.FRAME_COUNT-1,:].transpose()
-            #         head_out[v]      = np.concatenate(self.veh_heading_queue)[0:self.options.FRAME_COUNT-1,:].transpose()
-            #     else:
-            #         sensor_out[v]    = np.concatenate(self.sensor_queue)[1:,:].transpose()
-            #         goal_out[v]      = np.concatenate(self.goal_queue)[1:,:].transpose()
-            #         pos_out[v]       = np.concatenate(self.veh_pos_queue)[1:,:].transpose()
-            #         head_out[v]      = np.concatenate(self.veh_heading_queue)[1:,:].transpose()
-            #         # sensor_stack    = np.concatenate(self.sensor_queue)[self.scene_const.sensor_count:]
-            #         # goal_stack      = np.concatenate(self.goal_queue)[2:]
         else:
             sensor_out  = temp_sensor[:,frame,:]
             goal_out    = temp_goal[:,frame,:]
             pos_out     = temp_pos[:,frame,:]
             head_out    = temp_head[:,frame,:]
-            # sensor_out = np.empty((self.options.VEH_COUNT, self.scene_const.sensor_count, 1))
-            # goal_out   = np.empty((self.options.VEH_COUNT, 2, 1))
-            # pos_out    = np.empty((self.options.VEH_COUNT, 2, 1))
-            # head_out   = np.empty((self.options.VEH_COUNT, 3, 1))
 
-            # for v in range(0,self.options.VEH_COUNT):
-            #     sensor_out[v]    = np.concatenate(self.sensor_queue)[frame,:].transpose()
-            #     goal_out[v]      = np.concatenate(self.goal_queue)[frame,:].transpose()
-            #     pos_out[v]       = np.concatenate(self.veh_pos_queue)[frame,:].transpose()
-            #     head_out[v]      = np.concatenate(self.veh_heading_queue)[frame,:].transpose()
 
-        # out = np.transpose(np.hstack((sensor_stack.reshape(self.options.FRAME_COUNT,-1), goal_stack.reshape(self.options.FRAME_COUNT,-1))))
-        # return np.transpose(sensor_stack.reshape(self.options.FRAME_COUNT,-1)), np.transpose(goal_stack.reshape(self.options.FRAME_COUNT,-1))
         return pos_out, head_out, sensor_out, goal_out
 
     # Update the observation queue

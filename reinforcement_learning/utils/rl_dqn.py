@@ -85,26 +85,6 @@ class QAgent:
     ## END Constructing Neural Network
     ######################################:
 
-    # Sample action with random rate eps
-    # output:
-    #   action_index
-    # def sample_action(self, feed, options):
-    #     if random.random() <= self.eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
-    #         # pick random action
-    #         action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
-    #     else:
-    #         act_values = self.output.eval(feed_dict=feed)
-    #         if options.TESTING == True or options.VERBOSE == True:
-    #             ic(np.argmax(act_values,axis=1))
-    #             ic(act_values)
-    #             print("\n")
-    #             pass
-
-    #         # Get maximum for each vehicle
-    #         action_index = np.argmax(act_values, axis=1)
-
-    #     return action_index
-
     def sample_action_k(self, feed, eps, options):
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action
@@ -127,11 +107,3 @@ class QAgent:
         trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)
         trainable_vars_by_name = {var.name[len(self.scope):]: var for var in trainable_vars }   # This makes a dictionary with key being the name of varialbe without scope
         return trainable_vars_by_name
-
-    # update epsilon
-    # def decayEps( self, options, global_step ):
-    #     # Decay epsilon
-    #     if global_step % options.EPS_ANNEAL_STEPS == 0 and self.eps > options.FINAL_EPS:
-    #         self.eps = self.eps * options.EPS_DECAY
-
-    #     return
