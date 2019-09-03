@@ -83,12 +83,8 @@ class dqn:
 
 
     # Get optimal action Keras. 
-    def getOptimalAction( self, obs_sensor_stack, obs_goal_stack ):
-        action_feed = {}
-        action_feed.clear()
-        action_feed.update({'observation_sensor_k': obs_sensor_stack})
-        action_feed.update({'observation_goal_k': obs_goal_stack})
-
+    #   action_feed: dictionary of input to keras
+    def getOptimalAction( self, action_feed ):
         action_stack_k = self.agent_train.sample_action_k( action_feed, self.options )
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right

@@ -276,7 +276,11 @@ if __name__ == "__main__":
             ic(sim_env.goal_queue, obs_goal_stack)
 
         # Get optimal action q_algo
-        targetSteer_k, action_stack_k = q_algo.getOptimalAction(obs_sensor_stack, obs_goal_stack)
+        action_feed = {}
+        action_feed.clear()
+        action_feed.update({'observation_sensor_k': obs_sensor_stack})
+        action_feed.update({'observation_goal_k': obs_goal_stack})
+        targetSteer_k, action_stack_k = q_algo.getOptimalAction( action_feed )
 
         # Apply Action
         sim_env.applyAction( targetSteer_k )
