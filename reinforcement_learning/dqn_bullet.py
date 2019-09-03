@@ -173,12 +173,16 @@ if __name__ == "__main__":
     # SET 'GLOBAL' Variables
     ##############################
 
-    # Strings
+    # Start time
     START_TIME       = datetime.datetime.now()
     START_TIME_STR   = re.sub( r'\ |:', '_', str( START_TIME) )
 
     # Randomize obstacle position at initScene
     RANDOMIZE = True
+
+    ##############################
+    # Input parsing
+    ##############################
 
     # print versions
     printVersions()
@@ -186,9 +190,7 @@ if __name__ == "__main__":
     # Parse options
     _, options = get_options()
 
-    ########
     # Set Seed
-    ########
     np.random.seed( options.SEED )
     random.seed( options.SEED )
     tf.set_random_seed( options.SEED )
@@ -207,9 +209,7 @@ if __name__ == "__main__":
     cam_pos = [0,0,0]
     cam_dist = 10
 
-    #-----------------------
     # Start Environment
-    #-----------------------
     sim_env                                     = env_py( options, scene_constants() )
     sim_env.scene_const.clientID, handle_dict   = sim_env.start()
 
@@ -232,13 +232,8 @@ if __name__ == "__main__":
     agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
     # Some initial local variables
-    feed            = {}
     feed_icm        = {}
     global_step     = 0
-
-    ########################
-    # END TF SETUP
-    ########################
 
     ###########################        
     # DATA VARIABLES
