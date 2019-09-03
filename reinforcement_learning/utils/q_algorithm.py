@@ -4,12 +4,15 @@
 # This file contains the class for q_algorithm. 
 # This uses QAgent class and replay memory among other things to implement the overall algorith,
 #####################################
-import numpy as np
-import time
 import os
+import time
 import warnings
-from utils.rl_dqn import QAgent
+
+import numpy as np
+
 from utils.experience_replay import Memory
+from utils.rl_dqn import QAgent
+
 
 class dqn:
     def __init__(self, sim_env, load = True):

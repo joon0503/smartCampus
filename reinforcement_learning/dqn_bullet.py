@@ -19,8 +19,8 @@ import tensorflow as tf
 from icecream import ic
 
 from utils.env_py import *
-from utils.q_algorithm import dqn
 from utils.experience_replay import Memory, SumTree
+from utils.q_algorithm import dqn
 from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.scene_constants_pb import scene_constants
