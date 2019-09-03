@@ -55,15 +55,15 @@ class dqn:
     #   2. update target
     def updateMiscellaneous( self, global_step ):
         # Decay epsilon
-        self.decayEps( global_step )
+        self.__decayEps( global_step )
 
         # Update target
-        self.updateTarget( global_step )
+        self.__updateTarget( global_step )
 
         return
 
     # Update target
-    def updateTarget(self, global_step):
+    def __updateTarget(self, global_step):
         # Update target network
         if global_step % self.options.TARGET_UPDATE_STEP == 0:
             print('-----------------------------------------')
@@ -74,7 +74,7 @@ class dqn:
         return
 
     # update epsilon
-    def decayEps( self, global_step ):
+    def __decayEps( self, global_step ):
         # Decay epsilon
         if global_step % self.options.EPS_ANNEAL_STEPS == 0 and self.eps > self.options.FINAL_EPS:
             self.eps = self.eps * self.options.EPS_DECAY
