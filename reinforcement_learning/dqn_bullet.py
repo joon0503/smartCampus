@@ -155,19 +155,33 @@ def get_options():
 
     return parser, options
 
+# Print version for main tools used in the script
+def printVersions():
+    print('===============================================')
+    print('TENSOR FLOW VERSION : ' + tf.VERSION)
+    print('KERAS VERSION       : ' + tf.keras.__version__)
+    print('PYTHON VERSION      : ' + sys.version)
+    print('===============================================')
+
+    return
+
 ########################
 # MAIN
 ########################
 if __name__ == "__main__":
-    print('=================VERSION==============================')
-    print('TENSOR FLOW VERSION : ' + tf.VERSION)
-    print('KERAS VERSION       : ' + tf.keras.__version__)
-    print('PYTHON VERSION      : ' + sys.version)
-    print('=================OPTIONS==============================')
-
+    ##############################
     # SET 'GLOBAL' Variables
+    ##############################
+
+    # Strings
     START_TIME       = datetime.datetime.now()
     START_TIME_STR   = re.sub( r'\ |:', '_', str( START_TIME) )
+
+    # Randomize obstacle position at initScene
+    RANDOMIZE = True
+
+    # print versions
+    printVersions()
 
     # Parse options
     _, options = get_options()
@@ -188,8 +202,6 @@ if __name__ == "__main__":
     ######################################
     # Simulation Start
     ######################################
-    # Randomize obstacle position at initScene
-    RANDOMIZE = True
 
     # Initial Camera position
     cam_pos = [0,0,0]
@@ -216,42 +228,23 @@ if __name__ == "__main__":
     ##############
     # TF Setup
     ##############
-    q_algo          = dqn( sim_env )
+    q_algo          = dqn( sim_env, load = True )
     agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
-    # saving and loading networks
-    if options.NO_SAVE == False:
-        # loadNetworkKeras()
-        q_algo.loadNetwork()
-    
     # Some initial local variables
     feed            = {}
     feed_icm        = {}
     global_step     = 0
 
-    # The replay memory.
-    if options.enable_PER == False:
-        # Don't use PER
-        print("=================================================")
-        print("NOT using PER!")
-        print("=================================================")
-        replay_memory = Memory(options.MAX_EXPERIENCE)
-    else:
-        # Use PER
-        print("=================================================")
-        print("Using PER!")
-        print("=================================================")
-        replay_memory = Memory(options.MAX_EXPERIENCE, disable_PER = False, absolute_error_upperbound = 2000)
-
     # Export weights
-    if options.EXPORT == True:
-        print("Exporting weights...")
-        val = tf.trainable_variables(scope='Training')
-        for v in val:
-            fixed_name = str(v.name).replace('/','_')
-            fixed_name = str(v.name).replace(':','_')
-            # np.savetxt( './model_weights/' + fixed_name + '.txt', sess.run([v])[0], delimiter=',')
-        sys.exit() 
+    # if options.EXPORT == True:
+    #     print("Exporting weights...")
+    #     val = tf.trainable_variables(scope='Training')
+    #     for v in val:
+    #         fixed_name = str(v.name).replace('/','_')
+    #         fixed_name = str(v.name).replace(':','_')
+    #         # np.savetxt( './model_weights/' + fixed_name + '.txt', sess.run([v])[0], delimiter=',')
+    #     sys.exit() 
 
 
     ########################
@@ -268,7 +261,7 @@ if __name__ == "__main__":
     ###########################        
    
     # Some variables
-    action_stack        = np.zeros(options.VEH_COUNT)                              # action_stack[k] is the array of optinos.ACTION_DIM with each element representing the index
+    # action_stack        = np.zeros(options.VEH_COUNT)                              # action_stack[k] is the array of optinos.ACTION_DIM with each element representing the index
     epi_counter         = 0                                                        # Counts # of finished episodes
     eps_tracker         = np.zeros(options.MAX_EPISODE+options.VEH_COUNT+1)
     last_saved_epi      = 0                                                             # variable used for checking when to save
@@ -287,8 +280,6 @@ if __name__ == "__main__":
             cam_pos, cam_dist = controlCamera( cam_pos, cam_dist )  
             time.sleep(0.01)
 
-        # Decay epsilon
-        q_algo.agent_train.decayEps( options, global_step )
         global_step += options.VEH_COUNT
 
 
@@ -297,8 +288,6 @@ if __name__ == "__main__":
         ####
         obs_sensor_stack = np.empty((options.VEH_COUNT, sim_env.scene_const.sensor_count, options.FRAME_COUNT))
         obs_goal_stack   = np.empty((options.VEH_COUNT, 2, options.FRAME_COUNT))
-
-
 
         # Get observation stack (which is used in getting the action) 
         _, _, obs_sensor_stack, obs_goal_stack = sim_env.getObservation(old = False)
@@ -397,7 +386,6 @@ if __name__ == "__main__":
             experience = observation_sensor[v], observation_goal[v], action_stack_k[v], reward_stack[v], next_observation_sensor[v], next_observation_goal[v], epi_done[v]
            
             # Save new memory 
-            replay_memory.store(experience)
             q_algo.replay_memory.store(experience)
 
         # Start training
@@ -439,12 +427,7 @@ if __name__ == "__main__":
         ###############
         # Miscellaneous
         ###############
-        # Update Target
-        if global_step % options.TARGET_UPDATE_STEP == 0:
-            print('-----------------------------------------')
-            print("Updating Target network.")
-            print('-----------------------------------------')
-            q_algo.agent_target.model.set_weights( q_algo.agent_train.model.get_weights() )
+        q_algo.updateMiscellaneous( global_step )
 
         # Print Rewards
         for v in reset_veh_list:
