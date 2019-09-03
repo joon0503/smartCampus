@@ -160,48 +160,48 @@ def get_options():
 # TENSORFLOW HELPER
 ##################################
 
-def saveNetworkKeras():
-    print('-----------------------------------------')
-    print("Saving network...")
-    print('-----------------------------------------')
-    if not os.path.exists('./checkpoints-vehicle'):
-        os.makedirs('./checkpoints-vehicle')
-    agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+# def saveNetworkKeras():
+#     print('-----------------------------------------')
+#     print("Saving network...")
+#     print('-----------------------------------------')
+#     if not os.path.exists('./checkpoints-vehicle'):
+#         os.makedirs('./checkpoints-vehicle')
+#     agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
 
-    # Save checkpoint
-    with open('./checkpoints-vehicle/checkpoint.txt','w') as check_file:
-        check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5')
+#     # Save checkpoint
+#     with open('./checkpoints-vehicle/checkpoint.txt','w') as check_file:
+#         check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5')
 
-    return
+#     return
 
-def loadNetworkKeras():
-    weight_path = None
+# def loadNetworkKeras():
+#     weight_path = None
 
-    # If file is provided
-    if options.WEIGHT_FILE != None:
-        weight_path = options.WEIGHT_FILE
-    elif os.path.isfile('./checkpoints-vehicle/checkpoint.txt'):
-        with open('./checkpoints-vehicle/checkpoint.txt') as check_file:
-            weight_file = check_file.readline()
-            weight_path = './checkpoints-vehicle/' + weight_file 
+#     # If file is provided
+#     if options.WEIGHT_FILE != None:
+#         weight_path = options.WEIGHT_FILE
+#     elif os.path.isfile('./checkpoints-vehicle/checkpoint.txt'):
+#         with open('./checkpoints-vehicle/checkpoint.txt') as check_file:
+#             weight_file = check_file.readline()
+#             weight_path = './checkpoints-vehicle/' + weight_file 
 
-    if weight_path == None:
-        print("\n\n=================================================")
-        print("=================================================")
-        print("Could not find old network weights")
-        print("=================================================")
-        print("=================================================\n\n")
-    else:
-        agent_train.model.load_weights( weight_path )
-        agent_target.model.load_weights( weight_path )
-        print("\n\n=================================================")
-        print("=================================================")
-        print("Successfully loaded:", weight_path)
-        print("=================================================")
-        print("=================================================\n\n")
+#     if weight_path == None:
+#         print("\n\n=================================================")
+#         print("=================================================")
+#         print("Could not find old network weights")
+#         print("=================================================")
+#         print("=================================================\n\n")
+#     else:
+#         agent_train.model.load_weights( weight_path )
+#         agent_target.model.load_weights( weight_path )
+#         print("\n\n=================================================")
+#         print("=================================================")
+#         print("Successfully loaded:", weight_path)
+#         print("=================================================")
+#         print("=================================================\n\n")
 
-    time.sleep(2)
-    return
+#     time.sleep(2)
+#     return
 
 ########################
 # MAIN
@@ -265,13 +265,13 @@ if __name__ == "__main__":
     # TF Setup
     ##############
     q_algo          = dqn( sim_env )
-    agent_train     = QAgent(options,sim_env.scene_const, 'Training')
-    agent_target    = QAgent(options,sim_env.scene_const, 'Target')
+    # agent_train     = QAgent(options,sim_env.scene_const, 'Training')
+    # agent_target    = QAgent(options,sim_env.scene_const, 'Target')
     agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
     # saving and loading networks
     if options.NO_SAVE == False:
-        loadNetworkKeras()
+        # loadNetworkKeras()
         q_algo.loadNetwork()
     
     # Some initial local variables
@@ -338,7 +338,7 @@ if __name__ == "__main__":
             time.sleep(0.01)
 
         # Decay epsilon
-        agent_train.decayEps( options, global_step )
+        # agent_train.decayEps( options, global_step )
         q_algo.agent_train.decayEps( options, global_step )
         global_step += options.VEH_COUNT
 
@@ -596,7 +596,7 @@ if __name__ == "__main__":
             print('-----------------------------------------')
             print("Updating Target network.")
             print('-----------------------------------------')
-            agent_target.model.set_weights( agent_train.model.get_weights() )
+            # agent_target.model.set_weights( agent_train.model.get_weights() )
             q_algo.agent_target.model.set_weights( q_algo.agent_train.model.get_weights() )
 
         # Print Rewards
@@ -625,7 +625,7 @@ if __name__ == "__main__":
         if options.TESTING == False:
             if options.NO_SAVE == False and epi_counter - last_saved_epi >= options.SAVER_RATE:
                 q_algo.saveNetworkKeras(START_TIME_STR, epi_counter, global_step)
-                saveNetworkKeras()
+                # saveNetworkKeras()
                 print('-----------------------------------------')
                 print("Saving data...") 
                 print('-----------------------------------------')
