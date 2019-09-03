@@ -16,7 +16,6 @@ from utils.rl_dqn import QAgent
 
 class dqn:
     def __init__(self, sim_env, load = True):
-
         # Target and Training agent
         self.agent_train     = QAgent(sim_env.options,sim_env.scene_const, 'Training')
         self.agent_target    = QAgent(sim_env.options,sim_env.scene_const, 'Target')
@@ -120,18 +119,17 @@ class dqn:
         )
         action_train_k = np.argmax( action_train_k, axis=1)
 
-        if self.options.disable_DN == False:
-            keras_feed = {}
-            keras_feed.clear()
-            keras_feed.update(
-                {
-                    'observation_sensor_k' : next_states_sensor_mb,
-                    'observation_goal_k'   : next_states_goal_mb
-                }
+        keras_feed = {}
+        keras_feed.clear()
+        keras_feed.update(
+            {
+                'observation_sensor_k' : next_states_sensor_mb,
+                'observation_goal_k'   : next_states_goal_mb
+            }
 
-            )
-            # Using Target + Double network
-            q_target_val_k = rewards_mb + self.options.GAMMA * self.agent_target.model_out.predict(keras_feed)[np.arange(0,self.options.BATCH_SIZE),action_train_k]
+        )
+        # Using Target + Double network
+        q_target_val_k = rewards_mb + self.options.GAMMA * self.agent_target.model_out.predict(keras_feed)[np.arange(0,self.options.BATCH_SIZE),action_train_k]
     
         # set q_target to reward if episode is done
         for v_mb in range(0,self.options.BATCH_SIZE):

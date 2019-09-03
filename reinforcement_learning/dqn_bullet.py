@@ -78,8 +78,6 @@ def get_options():
                         help='Use saved tensorflow network')
     parser.add_argument('--TESTING','-t', action='store_true',
                         help='No training. Just testing. Use it with eps=1.0')
-    parser.add_argument('--disable_DN', action='store_true',
-                        help='Disable the usage of double network.')
     parser.add_argument('--enable_PER', action='store_true', default = False,
                         help='Enable the usage of PER.')
     parser.add_argument('--enable_GUI', action='store_true', default = False,
