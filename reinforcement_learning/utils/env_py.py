@@ -42,7 +42,7 @@ class env_py:
         # Initilialize Queue with empty data
         for i in range(0,self.options.VEH_COUNT):
             for _ in range(0,self.options.FRAME_COUNT + 1):
-                self.sensor_queue[i].append( np.empty( self.scene_const.sensor_count) )
+                self.sensor_queue[i].append( np.empty( self.scene_const.sensor_count*2 ) )
                 self.goal_queue[i].append( 0 )
                 self.veh_pos_queue[i].append( 0 )
                 self.veh_heading_queue[i].append( 0 )
@@ -197,7 +197,7 @@ class env_py:
         # ic(np.concatenate(self.sensor_queue))
         # ic(np.concatenate(self.sensor_queue).shape)
         # ic(self.sensor_queue)
-        temp_sensor = np.concatenate(self.sensor_queue).reshape(self.options.VEH_COUNT, self.options.FRAME_COUNT+1,self.scene_const.sensor_count)
+        temp_sensor = np.concatenate(self.sensor_queue).reshape(self.options.VEH_COUNT, self.options.FRAME_COUNT+1,self.scene_const.sensor_count*2)
         temp_goal   = np.concatenate(self.goal_queue).reshape(self.options.VEH_COUNT, self.options.FRAME_COUNT+1,2)
         temp_pos    = np.concatenate(self.veh_pos_queue).reshape(self.options.VEH_COUNT, self.options.FRAME_COUNT+1,2)
         temp_head   = np.concatenate(self.veh_heading_queue).reshape(self.options.VEH_COUNT, self.options.FRAME_COUNT+1,3)

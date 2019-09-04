@@ -386,8 +386,8 @@ if __name__ == "__main__":
                     }
                 )
 
-                # next_statse have BATCH_SIZE x SENSOR_COUNT x FRAME_COUNT. Hence, [:,:,-1] pick up the latest frame.
-                icm_target = np.hstack([next_states_sensor_mb[:,:,-1], next_states_goal_mb[:,:,-1]])    # BATCH_SIZE x (SENSOR_COUNT + 2)
+                # next_statse have BATCH_SIZE x SENSOR_COUNT *2x FRAME_COUNT. Hence, [:,:,-1] pick up the latest frame and 0:sensor_count to only pick up hit fraction and not the detection state
+                icm_target = np.hstack([next_states_sensor_mb[:,0:sim_env.scene_const.sensor_count,-1], next_states_goal_mb[:,:,-1]])    # BATCH_SIZE x (SENSOR_COUNT + 2)
 
                 # Train
                 loss_icm_k = agent_icm.model.train_on_batch( feed_icm, icm_target )

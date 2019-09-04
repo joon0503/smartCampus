@@ -10,7 +10,7 @@ from icecream import ic
 class QAgent:
     def __init__(self, options, scene_const, name):
         # Inputs
-        self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_sensor_k')
+        self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count*2, options.FRAME_COUNT), name='observation_sensor_k')
         self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal_k')
 
         ########

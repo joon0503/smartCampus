@@ -13,21 +13,28 @@ from icecream import ic
 
 # Get sensor data
 # Output
-#   out : 2d array with measurement values 0-1
+#   out_distance : 2d array with measurement values 0-1, SIZE : VEH_COUNT x SENSOR_COUNT
+#   out_state    : 2d array with measurement state 0 OR 1, SIZE : VEH_COUNT x SENSOR_COUNT
+#   out          : concat of above two. SIZE : VEH_COUNT x SENSOR_COUNT*2
 def getSensorData( scene_const, options, vehicle_handle ):
     # Initilize variables
-    out = np.zeros((options.VEH_COUNT, scene_const.sensor_count)) - 1
+    out_distance = np.zeros((options.VEH_COUNT, scene_const.sensor_count)) - 1
+    out_state    = np.zeros((options.VEH_COUNT, scene_const.sensor_count)) - 1
 
     # Loop
     for k in range(0, options.VEH_COUNT):
         # Execute Ray test
         results = p.rayTestBatch(scene_const.rayFrom,scene_const.rayTo, 4, parentObjectUniqueId=vehicle_handle[k], parentLinkIndex=8)
 
-        # Extract hit fraction
+        # Extract hit fraction & detection state
         for j in range(0,scene_const.sensor_count):
-            out[k][j] = results[j][2]
+            out_distance[k][j] = results[j][2]
+            if results[j][0] == -1:
+                out_state[k][j] = 1
+            else:
+                out_state[k][j] = 0
 
-    return out 
+    return np.hstack((out_distance,out_state))
 
 # Get state of the vehicles
 # Input
@@ -35,7 +42,7 @@ def getSensorData( scene_const, options, vehicle_handle ):
 # Output
 #   veh_pos : VEH_COUNT x 2, (x,y)
 #   veh_heading : VEH_COUNT x 3, uses euler which is converted from quaternion
-#   sensorData : VEH_COUNT x scene_const.sensor_count
+#   sensorData : VEH_COUNT x scene_const.sensor_count*2
 #   gInfo : VEH_COUNT x 2, [goal_angle, goal_distance]
 #       goal_angle : referenced at vehicle heading. left -> -ve, right -> +ve
 def getVehicleState( scene_const, options, handle_dict ):

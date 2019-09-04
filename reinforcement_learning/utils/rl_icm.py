@@ -44,7 +44,7 @@ class ICM:
             raise NameError('Supplied activation function is not supported!')
 
         # KERAS
-        self.observation_k  = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='icm_input_sensor_frame')
+        self.observation_k  = tf.keras.layers.Input( shape = ( scene_const.sensor_count*2, options.FRAME_COUNT), name='icm_input_sensor_frame')
         self.goal_k         = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='icm_input_goal_frame')
         self.action_k       = tf.keras.layers.Input( shape = (1,), name='icm_input_action')
 
