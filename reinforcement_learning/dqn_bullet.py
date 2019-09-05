@@ -269,7 +269,7 @@ if __name__ == "__main__":
         # Get observation stack (which is used in getting the action) 
         _, _, obs_sensor_stack, obs_goal_stack = sim_env.getObservation(old = False)
 
-        if options.TESTING == True:
+        if options.TESTING == True and options.VERBOSE == True:
             ic(sim_env.sensor_queue, obs_sensor_stack)
             ic(sim_env.goal_queue, obs_goal_stack)
 
@@ -343,8 +343,8 @@ if __name__ == "__main__":
                             'icm_input_action'      : action_stack_k[0].reshape((1,1))
                         }  
                     )
-
-            ic(icm_est)
+            if options.VERBOSE == True:
+                ic(icm_est)
 
             # agent_icm.plotEstimate( sim_env.scene_const, options, curr_state_sensor, curr_state_goal, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
