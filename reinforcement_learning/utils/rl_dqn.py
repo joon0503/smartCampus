@@ -10,7 +10,8 @@ from icecream import ic
 class QAgent:
     def __init__(self, options, scene_const, name):
         # Inputs
-        self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count*2, options.FRAME_COUNT), name='observation_sensor_k')
+        self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_sensor_k')
+        self.obs_state      = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_state')
         self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal_k')
 
         ########
@@ -18,7 +19,7 @@ class QAgent:
         ########
 
         # Typical Neural Net
-        network_structure = 2
+        network_structure = 3
         if network_structure == 1:
             # Dense
             self.h_flat1_k = tf.keras.layers.Flatten()(self.obs_goal_k)
@@ -42,13 +43,24 @@ class QAgent:
             self.h_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.expand_dims(x[:,0], axis=1) + (x[:,1:] - tf.keras.backend.mean( x[:,1:], axis = 1, keepdims=True)), name = 'out_large'  )(tf.keras.layers.concatenate([self.h_val_est,self.h_adv_est]))
         else:
             # CNN + dueling network
+
+            # CNN for sensor measurement
             self.h_s1_k   = tf.keras.layers.Conv1D(filters = 10, kernel_size = 5, strides = 1, padding = 'valid', activation = 'relu')(self.obs_sensor_k)
             self.h_s1_k_p = tf.keras.layers.MaxPool1D(pool_size = 2, strides = 2)(self.h_s1_k)
             self.h_s2_k   = tf.keras.layers.Conv1D(filters = 20, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu')(self.h_s1_k_p)
             self.h_s2_k_p = tf.keras.layers.MaxPool1D(pool_size = 2, strides = 2)(self.h_s2_k)
+
+            # CNN for detection state
+            self.h_s1_d   = tf.keras.layers.Conv1D(filters = 10, kernel_size = 5, strides = 1, padding = 'valid', activation = 'relu')(self.obs_state)
+            self.h_s1_d_p = tf.keras.layers.MaxPool1D(pool_size = 2, strides = 2)(self.h_s1_d)
+            self.h_s2_d   = tf.keras.layers.Conv1D(filters = 20, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu')(self.h_s1_d_p)
+            self.h_s2_d_p = tf.keras.layers.MaxPool1D(pool_size = 2, strides = 2)(self.h_s2_d)
+
             self.h_flat   = tf.keras.layers.Flatten()(self.h_s2_k_p)
+            self.h_flat_d = tf.keras.layers.Flatten()(self.h_s2_d_p)
             self.h_flat_g = tf.keras.layers.Flatten()(self.obs_goal_k)
-            self.h_concat_k = tf.keras.layers.concatenate([ self.h_flat, self.h_flat_g])
+
+            self.h_concat_k = tf.keras.layers.concatenate([ self.h_flat, self.h_flat_d, self.h_flat_g])
             self.h_val = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_concat_k)
             self.h_adv = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_concat_k)
             self.h_val_est = tf.keras.layers.Dense( 1, activation = None)(self.h_val)
@@ -67,7 +79,7 @@ class QAgent:
         # Max Q-value
         self.h_action_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.max( x, axis = 1, keepdims = True) )(self.h_out_k)
 
-        self.model = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k], outputs = self.h_action_out_k)
+        self.model = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state], outputs = self.h_action_out_k)
 
         keras_opt = tf.keras.optimizers.Adam(lr = options.LR)
         self.model.compile( optimizer= keras_opt,

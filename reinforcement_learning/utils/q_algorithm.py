@@ -112,7 +112,8 @@ class dqn:
         # Calculate Target Q-value. Uses double network. First, get action from training network
         action_train_k = self.agent_train.model_out.predict(
                                             {
-                                                'observation_sensor_k' : next_states_sensor_mb,
+                                                'observation_sensor_k' : next_states_sensor_mb[:,0:self.scene_const.sensor_count,:],
+                                                'observation_state'    : next_states_sensor_mb[:,self.scene_const.sensor_count:,:],
                                                 'observation_goal_k'   : next_states_goal_mb
                                             },
                                             batch_size = self.options.VEH_COUNT
@@ -123,7 +124,8 @@ class dqn:
         keras_feed.clear()
         keras_feed.update(
             {
-                'observation_sensor_k' : next_states_sensor_mb,
+                'observation_sensor_k' : next_states_sensor_mb[:,0:self.scene_const.sensor_count,:],
+                'observation_state'    : next_states_sensor_mb[:,self.scene_const.sensor_count:,:],
                 'observation_goal_k'   : next_states_goal_mb
             }
 
@@ -139,7 +141,13 @@ class dqn:
         # Train Keras Model
         keras_feed = {}
         keras_feed.clear()
-        keras_feed.update({ 'observation_sensor_k' : states_sensor_mb, 'observation_goal_k' : states_goal_mb})
+        keras_feed.update(
+            { 
+                'observation_sensor_k' : states_sensor_mb[:,0:self.scene_const.sensor_count,:], 
+                'observation_state'    : states_sensor_mb[:,self.scene_const.sensor_count:,:], 
+                'observation_goal_k'   : states_goal_mb
+            }
+        )
 
         # Loss
         loss_k = self.agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(self.options.BATCH_SIZE,1)) )

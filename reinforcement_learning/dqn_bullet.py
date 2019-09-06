@@ -276,7 +276,8 @@ if __name__ == "__main__":
         # Get optimal action q_algo
         action_feed = {}
         action_feed.clear()
-        action_feed.update({'observation_sensor_k': obs_sensor_stack})
+        action_feed.update({'observation_sensor_k': obs_sensor_stack[:,0:sim_env.scene_const.sensor_count,:]})
+        action_feed.update({'observation_state': obs_sensor_stack[:,sim_env.scene_const.sensor_count:,:]})
         action_feed.update({'observation_goal_k': obs_goal_stack})
         targetSteer_k, action_stack_k = q_algo.getOptimalAction( action_feed )
 
