@@ -80,6 +80,8 @@ def get_options():
                         help='No training. Just testing. Use it with eps=1.0')
     parser.add_argument('--enable_PER', action='store_true', default = False,
                         help='Enable the usage of PER.')
+    parser.add_argument('--enable_ICM', action='store_true', default = False,
+                        help='Enable the prediction network.')
     parser.add_argument('--enable_GUI', action='store_true', default = False,
                         help='Enable the GUI.'),
     parser.add_argument('--VERBOSE', action='store_true', default = False,
@@ -227,7 +229,8 @@ if __name__ == "__main__":
     # TF Setup
     ##############
     q_algo          = dqn( sim_env, load = True )
-    agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
+    if options.enable_ICM == True:
+        agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
     # Some initial local variables
     feed_icm        = {}
@@ -303,6 +306,10 @@ if __name__ == "__main__":
         ####
         reward_stack, veh_status, epi_done, epi_sucess = sim_env.getRewards( next_dDistance, next_veh_pos, next_gInfo, next_veh_heading)
 
+        if sim_env.options.VERBOSE == True and sim_env.options.TESTING == True:
+            ic('REWARDS:', reward_stack)
+
+
         # List of resetting vehicles
         reset_veh_list = [ v for v in range(0,options.VEH_COUNT) if veh_status[v] != sim_env.scene_const.EVENT_FINE ]
 
@@ -324,7 +331,7 @@ if __name__ == "__main__":
         #######
         # Test Estimation
         #######
-        if options.TESTING == True:
+        if options.TESTING == True and options.enable_ICM == True:
             v = 0
 
             # Get curr & next state
@@ -376,22 +383,23 @@ if __name__ == "__main__":
                 ##############################
                 # Train forward model
                 ##############################
-                feed_icm.clear()
+                if options.enable_ICM == True:
+                    feed_icm.clear()
 
-                # Feed
-                feed_icm.update(
-                    { 
-                        'icm_input_sensor_frame' : states_sensor_mb,
-                        'icm_input_goal_frame'   : states_goal_mb,
-                        'icm_input_action'       : actions_mb*(1/(options.ACTION_DIM-1)),         # action_stack is 0 to ACTION_DIM, scale to 0-1
-                    }
-                )
+                    # Feed
+                    feed_icm.update(
+                        { 
+                            'icm_input_sensor_frame' : states_sensor_mb,
+                            'icm_input_goal_frame'   : states_goal_mb,
+                            'icm_input_action'       : actions_mb*(1/(options.ACTION_DIM-1)),         # action_stack is 0 to ACTION_DIM, scale to 0-1
+                        }
+                    )
 
-                # next_statse have BATCH_SIZE x SENSOR_COUNT *2x FRAME_COUNT. Hence, [:,:,-1] pick up the latest frame and 0:sensor_count to only pick up hit fraction and not the detection state
-                icm_target = np.hstack([next_states_sensor_mb[:,0:sim_env.scene_const.sensor_count,-1], next_states_goal_mb[:,:,-1]])    # BATCH_SIZE x (SENSOR_COUNT + 2)
+                    # next_statse have BATCH_SIZE x SENSOR_COUNT *2x FRAME_COUNT. Hence, [:,:,-1] pick up the latest frame and 0:sensor_count to only pick up hit fraction and not the detection state
+                    icm_target = np.hstack([next_states_sensor_mb[:,0:sim_env.scene_const.sensor_count,-1], next_states_goal_mb[:,:,-1]])    # BATCH_SIZE x (SENSOR_COUNT + 2)
 
-                # Train
-                loss_icm_k = agent_icm.model.train_on_batch( feed_icm, icm_target )
+                    # Train
+                    loss_icm_k = agent_icm.model.train_on_batch( feed_icm, icm_target )
 
                 # Save LOSS
                 data_package.add_loss( loss_k )
