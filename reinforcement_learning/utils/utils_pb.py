@@ -123,7 +123,10 @@ def detectCollision(dDistance, scene_const ):
 def detectReachedGoal(vehPos, gInfo, currHeading, scene_const ):
     # Distance less than 0.5m, angle less than 10 degrees
     #if abs(gInfo[1]*scene_const.goal_distance - 2.075) < 1.0 and abs(currHeading*90)<5: 
-    if abs(gInfo[1]*scene_const.goal_distance) < scene_const.detect_range: 
+    # if options.VERBOSE == True and options.TESTING == True:
+    #     ic('Distance to Goal:', gInfo[1]*scene_const.goal_distance, scene_const.detect_range) 
+
+    if abs(gInfo[1]*scene_const.goal_distance) < scene_const.detect_range:
         return True
     else:
         return False

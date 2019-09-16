@@ -181,7 +181,7 @@ class dqn:
             print("=================================================")
             print("=================================================\n\n")
 
-        time.sleep(2)
+        time.sleep(5)
         return
 
     # Save network weights

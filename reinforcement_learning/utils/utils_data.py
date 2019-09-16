@@ -89,7 +89,7 @@ class data_pack:
 
     def plot_loss(self, save_path = './result_data/avg_loss_value_data/' ):
         # Plot Average Step Loss
-        plt.figure(0)
+        plt.figure(1)
         fig, ax2 = plt.subplots()
         ax2.plot(self.avg_loss)
         
