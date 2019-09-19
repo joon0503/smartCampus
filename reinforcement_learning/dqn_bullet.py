@@ -45,7 +45,7 @@ def get_options():
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
-    parser.add_argument('--FINAL_EPS', type=float, default=1e-1,
+    parser.add_argument('--FINAL_EPS', type=float, default=1e-3,
                         help='finial probability for randomly sampling action')
     parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
