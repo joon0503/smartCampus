@@ -25,7 +25,7 @@ from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.scene_constants_pb import scene_constants
 from utils.utils_data import data_pack
-from utils.utils_pb import (controlCamera, detectCollision, detectReachedGoal,
+from utils.utils_pb import (controlCamera, detectReachedGoal,
                             drawDebugLines, getObs, initQueue, resetQueue)
 
 
@@ -165,43 +165,6 @@ def printVersions():
 
     return
 
-# Add noise to the detection state
-# Input
-#   obs_sensor_stack : VEH_COUNT x SENSOR_COUNT*2 x FRAME_COUNT
-# Output
-#   obs_sensor_stack_noise : SIZE : VEH_COUNT x SENSOR_COUNT*2 x FRAME_COUNT
-#                            The detection state of the measurement data is modified with noise.
-#
-# Noise Adding Algorithm
-#   50% of chance 
-#       -do not include noise
-#   50% of chance 
-#       -include noise. We pick a single sensor, and scale its distance to randomly between min% to 100% of its real value. 
-#        set corresponding sensor's detection to 1 (open). 
-def addNoise( options, scene_const, obs_sensor_stack ):
-    # Split distance and detection state
-    obs_dist    = obs_sensor_stack[:,0:scene_const.sensor_count,:]
-    obs_detect  = obs_sensor_stack[:,scene_const.sensor_count:,:]
-
-    # Probability of sensoring being modified
-    noise_p = 0.2
-
-    # Generate random binary mask 
-    sensor_mask = np.random.choice( 2, size=(options.VEH_COUNT, scene_const.sensor_count, options.FRAME_COUNT), p = [1-noise_p, noise_p]  )  
-
-    # Set detection state to open (1)
-    obs_detect[sensor_mask != 0 ] = 1
-
-    # Modify detected distance
-    dist_mask = np.random.random( (options.VEH_COUNT, scene_const.sensor_count, options.FRAME_COUNT) )
-    dist_mask[sensor_mask == 0] = 1
-    obs_dist = obs_dist * dist_mask
-
-    # ic(sensor_mask)
-    # ic(dist_mask)
-    # ic( np.concatenate((obs_dist,obs_detect), axis = 1) )
-    return np.concatenate((obs_dist,obs_detect), axis = 1)
-
 
 ########################
 # MAIN
@@ -310,6 +273,7 @@ if __name__ == "__main__":
 
         # Get observation stack (which is used in getting the action) 
         _, _, obs_sensor_stack, obs_goal_stack = sim_env.getObservation(old = False)
+        # obs_sensor_stack = addNoise(options, sim_env.scene_const, obs_sensor_stack)
 
         if options.TESTING == True and options.VERBOSE == True:
             ic(sim_env.sensor_queue, obs_sensor_stack)
@@ -339,6 +303,7 @@ if __name__ == "__main__":
         # Get Next State
         ####
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = sim_env.getObservation( verbosity = options.VERBOSE, frame = -1 )
+        # next_dDistance = addNoise(options, sim_env.scene_const, next_dDistance)
 
         ####
         # Handle Events & Get Rewards

@@ -7,7 +7,7 @@ import pybullet as p
 import pybullet_data
 from icecream import ic
 
-from utils.utils_pb import (controlCamera, detectCollision, detectReachedGoal,
+from utils.utils_pb import (controlCamera, detectReachedGoal,
                             getObs, getVehicleState, initQueue, resetQueue)
 
 #########################################

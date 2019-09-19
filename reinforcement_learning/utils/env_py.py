@@ -16,6 +16,43 @@ from utils.utils_pb_scene_2LC import (genScene, initScene_2LC, printRewards,
                                       printSpdInfo, removeScene)
 
 
+# Add noise to the detection state
+# Input
+#   obs_sensor_stack : VEH_COUNT x SENSOR_COUNT*2
+# Output
+#   obs_sensor_stack_noise : SIZE : VEH_COUNT x SENSOR_COUNT*2
+#                            The detection state of the measurement data is modified with noise.
+#
+# Noise Adding Algorithm
+#   50% of chance 
+#       -do not include noise
+#   50% of chance 
+#       -include noise. We pick a single sensor, and scale its distance to randomly between min% to 100% of its real value. 
+#        set corresponding sensor's detection to 1 (open). 
+def addNoise( options, scene_const, obs_sensor_stack ):
+    # Split distance and detection state
+    obs_dist    = obs_sensor_stack[:,0:scene_const.sensor_count]
+    obs_detect  = obs_sensor_stack[:,scene_const.sensor_count:]
+
+    # Probability of sensoring being modified
+    noise_p = 0.2
+
+    # Generate random binary mask 
+    sensor_mask = np.random.choice( 2, size=(options.VEH_COUNT, scene_const.sensor_count), p = [1-noise_p, noise_p]  )  
+
+    # DO NOT modify if distance is in collision range
+    sensor_mask[ obs_dist <= scene_const.collision_distance/scene_const.sensor_distance] = 0
+
+    # Set detection state to open (1)
+    obs_detect[sensor_mask != 0 ] = 1
+
+    # Modify detected distance
+    dist_mask = np.random.random( (options.VEH_COUNT,scene_const.sensor_count) )
+    dist_mask[sensor_mask == 0] = 1
+    obs_dist = obs_dist * dist_mask
+
+    return np.concatenate((obs_dist,obs_detect), axis=1)
+
 class env_py:
     # Initializer
     def __init__(self, options, scene_const):
@@ -232,10 +269,14 @@ class env_py:
     # Update the observation queue
     # Input
     #   type - 'curr'/'next' 
+    #   add_noise = T/F. If true, add noise
     # Output
     #   None
-    def updateObservation( self, reset_veh_list ):
+    def updateObservation( self, reset_veh_list, add_noise = True ):
         next_veh_pos, next_veh_heading, next_dDistance, next_gInfo = getVehicleState( self.scene_const, self.options, self.handle_dict)
+
+        if add_noise == True:
+            next_dDistance = addNoise( self.options, self.scene_const, next_dDistance )
 
         # Update queue
         for v in reset_veh_list:

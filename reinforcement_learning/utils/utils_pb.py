@@ -107,9 +107,10 @@ def initQueue(options, sensor_queue, goal_queue, veh_pos_queue, veh_heading_queu
 # Output
 #   T/F      : whether collision occured
 #   sensor # : Which sensor triggered collision. -1 if no collision
-def detectCollision(dDistance, scene_const ):
+def detectCollision(dDistance, scene_const):
     for i in range(scene_const.sensor_count):
-        if dDistance[i]*scene_const.sensor_distance < scene_const.collision_distance:
+        # collision if distance is short and sensor is closed
+        if dDistance[i]*scene_const.sensor_distance < scene_const.collision_distance and dDistance[i + scene_const.sensor_count] == 0:
             return True, i
     
     return False, -1    
