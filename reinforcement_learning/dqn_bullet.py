@@ -25,8 +25,7 @@ from utils.rl_dqn import QAgent
 from utils.rl_icm import ICM
 from utils.scene_constants_pb import scene_constants
 from utils.utils_data import data_pack
-from utils.utils_pb import (controlCamera, detectReachedGoal,
-                            drawDebugLines, getObs, initQueue, resetQueue)
+from utils.utils_pb import (controlCamera, drawDebugLines)
 
 
 def get_options():
@@ -112,6 +111,8 @@ def get_options():
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     parser.add_argument('--L2_LOSS', type=float, default=0.0,
                         help='Scale of L2 loss')
+    parser.add_argument('--NOISE_PROB', type=float, default=0.2,
+                        help='Probability of sensor value being modified (if enabled)')
     parser.add_argument('--FIX_INPUT_STEP', type=int, default=6,
                         help='Fix input steps')
     parser.add_argument('--X_COUNT', type=int, default=6,

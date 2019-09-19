@@ -35,7 +35,7 @@ def addNoise( options, scene_const, obs_sensor_stack ):
     obs_detect  = obs_sensor_stack[:,scene_const.sensor_count:]
 
     # Probability of sensoring being modified
-    noise_p = 0.2
+    noise_p = options.NOISE_PROB
 
     # Generate random binary mask 
     sensor_mask = np.random.choice( 2, size=(options.VEH_COUNT, scene_const.sensor_count), p = [1-noise_p, noise_p]  )  
