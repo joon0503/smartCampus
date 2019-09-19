@@ -103,7 +103,7 @@ class QAgent:
             action_index = np.random.randint( options.ACTION_DIM, size=options.VEH_COUNT )
         else:
             act_values = self.model_out.predict(feed, batch_size=options.VEH_COUNT)
-            if options.TESTING == True or options.VERBOSE == True:
+            if options.TESTING == True and options.VERBOSE == True:
                 ic('Sample Action K')
                 ic(np.argmax(act_values,axis=1))
                 ic(act_values)
