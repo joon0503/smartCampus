@@ -7,9 +7,6 @@ import pybullet as p
 import pybullet_data
 from icecream import ic
 
-from utils.utils_pb import (controlCamera, detectReachedGoal,
-                            getObs, getVehicleState, initQueue, resetQueue)
-
 #########################################
 # Files for generating the scene
 #########################################
