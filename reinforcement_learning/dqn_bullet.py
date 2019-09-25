@@ -361,6 +361,9 @@ if __name__ == "__main__":
 
             # agent_icm.plotEstimate( sim_env.scene_const, options, curr_state_sensor, curr_state_goal, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
+            # Generate trajectory
+            # q_algo.genTrajectory( next_state_sensor, next_state_goal )
+
         ###########
         # START LEARNING
         ###########

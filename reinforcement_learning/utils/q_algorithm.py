@@ -202,3 +202,36 @@ class dqn:
             check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5')
 
         return
+
+
+    # Generate future trajectory
+    # Inputs
+    #   next_state_sensor : VEH_COUNT x FRAME_COUNT x SENSOR_COUNT
+    #   next_state_goal   : VEH_COUNT x FRAME_COUNT x 2
+    # Outputs
+    #   trajectory        : 2(x,y)^T x max_horizon 
+    def genTrajectory(self, input_sensor, input_goal, max_horizon):
+        # Set curr variable
+        curr_state_sensor = input_sensor
+        curr_state_goal   = input_goal
+
+        for t in range(0,max_horizon):
+            # Get optimal action q_algo
+            action_feed = {}
+            action_feed.clear()
+            action_feed.update({'observation_sensor_k': input_sensor[:,0:self.sim_env.scene_const.sensor_count,:]})
+            action_feed.update({'observation_state': input_sensor[:,self.sim_env.scene_const.sensor_count:,:]})
+            action_feed.update({'observation_goal_k': input_goal})
+            targetSteer_k, action_stack_k = self.getOptimalAction( action_feed )
+
+            # Increment Vehicle with obtained action
+
+
+            # curr_state = input state
+
+
+            # Estimate lidar distance / goal angle & distance / lidar detection
+
+        # Return the vehicle trajectory
+
+        return
