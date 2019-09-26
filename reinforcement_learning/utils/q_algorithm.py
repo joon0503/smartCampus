@@ -219,15 +219,14 @@ class dqn:
             # Get optimal action q_algo
             action_feed = {}
             action_feed.clear()
-            action_feed.update({'observation_sensor_k': input_sensor[:,0:self.sim_env.scene_const.sensor_count,:]})
-            action_feed.update({'observation_state': input_sensor[:,self.sim_env.scene_const.sensor_count:,:]})
-            action_feed.update({'observation_goal_k': input_goal})
+            action_feed.update({'observation_sensor_k': curr_state_sensor[:,0:self.sim_env.scene_const.sensor_count,:]})
+            action_feed.update({'observation_state': curr_state_sensor[:,self.sim_env.scene_const.sensor_count:,:]})
+            action_feed.update({'observation_goal_k': curr_state_goal})
             targetSteer_k, action_stack_k = self.getOptimalAction( action_feed )
 
             # Increment Vehicle with obtained action
 
-
-            # curr_state = input state
+            # update curr_state
 
 
             # Estimate lidar distance / goal angle & distance / lidar detection
