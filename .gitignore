@@ -3,3 +3,9 @@ __pycache__/
 result_data/
 trash/
 .idea
+image_dir/
+*.ttt
+reinforcement_learning/case_*
+git_commands
+model*png
+.vscode/

@@ -7,7 +7,27 @@
 # This particular script generates lane-change scenario with obstacle.
 #######
 
+try:
+    import vrep
+except:
+    print ('--------------------------------------------------------------')
+    print ('"vrep.py" could not be imported. This means very probably that')
+    print ('either "vrep.py" or the remoteApi library could not be found.')
+    print ('Make sure both are in the same folder as this file,')
+    print ('or appropriately adjust the file "vrep.py"')
+    print ('--------------------------------------------------------------')
+    print ('')
+
 import time
+import sys
+import ctypes
+import math
+import numpy as np
+
+# Importing utils
+sys.path.insert(0,'../reinforcement_learning/utils')
+
+from scene_constants_2LC import *
 
 
 
@@ -72,22 +92,143 @@ def errorExit():
     sys.exit()
     return
 
+##############################
+# Helper Generate a Test Scenario
+##############################
 
-try:
-    import vrep
-except:
-    print ('--------------------------------------------------------------')
-    print ('"vrep.py" could not be imported. This means very probably that')
-    print ('either "vrep.py" or the remoteApi library could not be found.')
-    print ('Make sure both are in the same folder as this file,')
-    print ('or appropriately adjust the file "vrep.py"')
-    print ('--------------------------------------------------------------')
-    print ('')
+# Generate straight case
+# input
+def genStraight( lane_width, lane_len, obs_w, x_pos, i, getInit = False ):
+    # Case Parameters
+    wall_h      = 2.5
 
-import sys
-import ctypes
-import math
-import numpy as np
+    if getInit == True:
+        return -1*lane_len*0.5 + 5
+
+    
+    # Floor
+    createObject([lane_width, lane_len, 0.1],[x_pos, 0,-0.1],'floor' + str(i), scene_handle)               
+
+    # Walls
+    createObject([0.1, lane_len, wall_h],[x_pos - lane_width*0.5, 0, wall_h*0.5],'wallLeft' + str(i), scene_handle)                     # left
+    createObject([0.1, lane_len, wall_h],[x_pos + lane_width*0.5, 0, wall_h*0.5],'wallRight' + str(i), scene_handle)                    # right
+    createObject([lane_width, 0.2 , wall_h],[x_pos,lane_len*0.5, wall_h*0.5],'wallEnd' + str(i), scene_handle)                          # End
+    createObject([lane_width, 0.2 , wall_h],[x_pos,-1*lane_len*0.5, wall_h*0.5],'wallBack' + str(i), scene_handle)                          # back
+
+    # Goal Point
+    createDummy([x_pos, 0.5*lane_len - 5, 0.3], 'GoalPoint' + str(i), parentHandle=scene_handle)                        # Create Goal Point
+
+    # Obstacles
+    createObject([lane_width*obs_w, 5, 2], [x_pos + lane_width*0.25, 0, 1.1], 'obstacle' + str(i) + str(1), scene_handle)                # create obstacle
+
+
+
+    return
+
+# Generate a case of T intersection
+#   lane_width : width of lane
+#   lane_len   : length of lane
+#   obs_w : width of obs w.r.t. lane width. Ranges 0 to 1
+#   x_pos : x position of the case
+#   i : index for naming
+#   turn_len : length of Tee
+#   goal direction : 0/1/2 - direction of the goal point
+#               0 : left
+#               1 : straight
+#               2 : right
+#   openWall - T/F
+#       T : does not block
+#       F : block opposite direction
+#   getInit : True - return initial vehicle position / False - actually generate case
+#   obs_pat : array with 3 eleemnts, 1 means obs, 0 means no obs
+# output
+#   veh_y : if true, just returns the initial y position of the test case
+def genTee( lane_width, turn_len, lane_len, obs_w, obs_pat, x_pos, i, getInit = False, direction = -1, openWall = True):
+    ##############################
+    # Case Parameters
+    ##############################
+    wall_h      = 2.5
+
+    # Returns init pos
+    if getInit == True:
+        return -1*lane_len*0.5 + 5
+
+    ##############################
+    # Floor
+    ##############################
+    # Staight
+    createObject([lane_width, lane_len, 0.1],[x_pos, 0,-0.1],'floor' + str(i), scene_handle)                                    
+
+    # Tee
+    createObject([turn_len, lane_width, 0.1],[x_pos, 0.5*(lane_len - lane_width),-0.1],'floor' + str(i) + str(2), scene_handle)          
+
+    ##############################
+    # Walls
+    ##############################
+    if openWall == True:
+        delta_left      = -1*lane_width
+        delta_right     = -1*lane_width
+    else:
+        if direction == 0:
+            delta_left      = -1*lane_width
+            delta_right     = 0
+        elif direction == 1:
+            delta_left      = 0
+            delta_right     = 0
+        elif direction == 2:
+            delta_left      = 0
+            delta_right     = -1*lane_width
+        else:
+            raise ValueError('Unspecified direction argument!')
+
+    # Left
+    createObject([0.1, lane_len, wall_h],[x_pos - lane_width*0.5, delta_left, wall_h*0.5],'wallLeft' + str(i), scene_handle)                   
+
+    # Right
+    createObject([0.1, lane_len, wall_h],[x_pos + lane_width*0.5, delta_right, wall_h*0.5],'wallRight' + str(i), scene_handle)               
+
+    # Up
+    createObject([turn_len, 0.2 , wall_h],[x_pos,lane_len*0.5, wall_h*0.5],'wallUp' + str(i), scene_handle)                       
+
+    # Rest
+    rest_len = 0.5*(turn_len - lane_width)
+    createObject([ rest_len, 0.2 , wall_h],[x_pos - lane_width*0.5 - rest_len*0.5, lane_len*0.5 - lane_width, wall_h*0.5],'wallRest' + str(i) + str(1), scene_handle)                   
+    createObject([ rest_len, 0.2 , wall_h],[x_pos + lane_width*0.5 + rest_len*0.5, lane_len*0.5 - lane_width, wall_h*0.5],'wallRest' + str(i) + str(2), scene_handle)                   
+
+    # Wall at the back
+    createObject([lane_width, 0.2 , wall_h],[x_pos,-1*lane_len*0.5, wall_h*0.5],'wallBack' + str(i), scene_handle)                        
+
+    # Walls at the end
+    #createObject([lane_width, 0.2 , wall_h],[x_pos,-1*lane_len*0.5, wall_h*0.5],'wallEnd_left' + str(i), scene_handle)                        
+    createObject([0.2, lane_width , wall_h],[x_pos + lane_width*0.5 + rest_len, 0.5*lane_len - 0.5*lane_width, wall_h*0.5],'wallEnd_right' + str(i), scene_handle)                        
+    createObject([0.2, lane_width , wall_h],[x_pos - lane_width*0.5 - rest_len, 0.5*lane_len - 0.5*lane_width, wall_h*0.5],'wallEnd_left' + str(i), scene_handle)                        
+
+    ##############################
+    # Goal Point
+    ##############################
+    if direction == 0:
+        createDummy([x_pos - turn_len*0.5 + 3, 0.5*(lane_len - lane_width), 0.3], 'GoalPoint' + str(i), parentHandle=scene_handle)                        # Create Goal Point
+    elif direction == 1:
+        createDummy([x_pos, 0.5*(lane_len - lane_width), 0.3], 'GoalPoint' + str(i), parentHandle=scene_handle)                        # Create Goal Point
+    elif direction == 2:
+        createDummy([x_pos + turn_len*0.5 - 3, 0.5*(lane_len - lane_width), 0.3], 'GoalPoint' + str(i), parentHandle=scene_handle)                        # Create Goal Point
+    else:
+        raise ValueError('Unspecified direction argument!')
+
+    ##############################
+    # Obstacles
+    ##############################
+    if obs_pat[0] == 1: # left
+        createObject([lane_width*obs_w, 5, 2], [x_pos - 0.5*(1-obs_w)*lane_width, 0, 1.1], 'obstacle' + str(i) + str('_0'), scene_handle)                # create obstacle
+    if obs_pat[1] == 1: # middle
+        createObject([lane_width*obs_w, 5, 2], [x_pos, 0, 1.1], 'obstacle' + str(i) + str('_1'), scene_handle)                                           # create obstacle
+    if obs_pat[2] == 1: # right
+        createObject([lane_width*obs_w, 5, 2], [x_pos + 0.5*(1-obs_w)*lane_width, 0, 1.1], 'obstacle' + str(i) + str('_2'), scene_handle)                # create obstacle
+
+    return
+
+
+
 
 #################
 #MAIN
@@ -100,9 +241,37 @@ if clientID!=-1:
 else:
     print ('Failed connecting to remote API server')
     sys.exit()
-  
 
-COPY_NUM = 10
+
+#######################
+# Paremters
+#######################
+
+# Parameters 
+COPY_NUM        = 12
+
+# Scene Parameters
+scene_const = scene_constants()
+
+# Reset vars
+SENSOR_COUNT    = scene_const.sensor_count
+lane_width      = scene_const.lane_width
+lane_len        = scene_const.lane_len
+obs_w           = scene_const.obs_w
+turn_len        = scene_const.turn_len
+case_width      = scene_const.case_width              
+
+# Obstacle parameters
+obs_pattern = [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 1, 0],
+    [0, 1, 1],
+    [1, 0, 1]
+]
+
+# Handle
 err_code,dyros_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle", vrep.simx_opmode_blocking) 
 
 for i in range(0,COPY_NUM):
@@ -110,12 +279,9 @@ for i in range(0,COPY_NUM):
     err_code1, vehicle_handle = vrep.simxCopyPasteObjects(clientID,[dyros_handle], vrep.simx_opmode_blocking)
     vehicle_handle = vehicle_handle[0]
 
-    # Position dyros_vehicle
-#    err_code,vehicle_handle = vrep.simxGetObjectHandle(clientID,"dyros_vehicle0", vrep.simx_opmode_blocking) 
-    print(i*20)
-
+    #######################
     # Create Sensors
-    SENSOR_COUNT = 19
+    #######################
     RAD_DT = math.pi/(SENSOR_COUNT-1)
 
     sensor_handle_array = [0]
@@ -133,61 +299,30 @@ for i in range(0,COPY_NUM):
         sensor_handle_array = np.append(sensor_handle_array,sensor_handle)   
 
 
-
+    #######################
     # Start Simulation in Synchronous mode
+    #######################
     vrep.simxSynchronous(clientID,True)
     vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking)
-    
+
+    #######################
     # Set position of vehicle
-    err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[0 + i*20,0,0.2],vrep.simx_opmode_oneshot)
+    #######################
+    veh_y = genStraight( lane_width, lane_len, obs_w, i*case_width, i, getInit = True )
+    err_code = vrep.simxSetObjectPosition(clientID,vehicle_handle,-1,[ i*case_width, veh_y, 0.2],vrep.simx_opmode_oneshot)
     err_code = vrep.simxSetObjectOrientation(clientID,vehicle_handle,-1,[0,0,math.radians(90)],vrep.simx_opmode_oneshot)
 
+    
+    #######################
     # Create Dummy for organizing each lane
-    createDummy([0,0,10], 'Scene' + str(i), parentHandle=-1)
+    #######################
+    createDummy([i*case_width,0,1], 'Scene' + str(i), parentHandle=-1)
     err_code, scene_handle = vrep.simxGetObjectHandle( clientID, "Scene" + str(i), vrep.simx_opmode_blocking) 
 
-    # Create Goal point
-    #createDummy([0+i*20,60,0.3], 'GoalPoint' + str(i), parentHandle=scene_handle)
-
-    # Create road and walls
-    lane_width = 12
-    lane_width2 = 16
-
-    if int(i/4)==0:
-        createObject([lane_width, 150 + (i)*lane_width, 0.1],[-1.25 + i*20,0+i*lane_width/2,-0.1],'floor' + str(i), scene_handle)
-        createObject([0.1, 150+4+(i)*lane_width, 2.5],[-5 + i*20,0+(i)*lane_width/2,1.25],'wallLeft' + str(i), scene_handle)
-        createObject([0.1, 150+(i+1)*lane_width, 2.5],[3 + i*20,0+(i+1)*lane_width/2,1.25],'wallRight' + str(i), scene_handle)
-
-        createObject([80, lane_width, 0.1], [-35.25+i*20, 81+i*lane_width, -0.1], 'leftFloor'+ str(i), scene_handle)
-        createObject([80-(lane_width-2.25), 0.1, 2.5],[-35.25+i*20-(lane_width-2.25)/2, 81-(5-1.25)+i*lane_width,1.25], 'wallLeftExt' + str(i), scene_handle)
-        createObject([80, 0.1, 2.5],[-35.25+i*20, 81+(3+1.25)+i*lane_width,1.25], 'wallRightExt' + str(i), scene_handle)
-        createObject([0.2, lane_width, 2.5], [-70.25+i*20, 81+i*lane_width, 1.25], 'wallEnd' + str(i), scene_handle)
-
-        createDummy([0 -60 + i * 20, 81+i*lane_width, 0.3], 'GoalPoint' + str(i), parentHandle=scene_handle)
-
-    elif int(((COPY_NUM-1)-i)/4)==0:
-        createObject([lane_width, 150 + ((COPY_NUM-1)-i)*lane_width, 0.1],[-1.25 + i*20,0+((COPY_NUM-1)-i)*lane_width/2,-0.1],'floor' + str(i), scene_handle)
-        createObject([0.1, 150+((COPY_NUM)-i)*lane_width, 2.5],[-5 + i*20,0+((COPY_NUM)-i)*lane_width/2,1.25],'wallLeft' + str(i), scene_handle)                  # create wall left
-        createObject([0.1, 150+4+((COPY_NUM-1)-i)*lane_width, 2.5],[3 + i*20,0+((COPY_NUM-1)-i)*lane_width/2,1.25],'wallRight' + str(i), scene_handle)                  # create wall right
-
-        createObject([80, lane_width, 0.1], [-105.25 + i*20 + 150 - lane_width, 81 + ((COPY_NUM-1)-i)*lane_width, -0.1], 'rightFloor'+str(i), scene_handle)
-        createObject([80, 0.1, 2.5],[-105.25+i*20+150-lane_width, 81+(3+1.25)+((COPY_NUM-1)-i)*lane_width,1.25], 'wallLeftExt' + str(i), scene_handle)
-        createObject([80-(lane_width-1.75), 0.1, 2.5],[-105.25+i*20+150-lane_width+(lane_width-1.75)/2, 81-(5-1.25)+((COPY_NUM-1)-i)*lane_width,1.25], 'wallRightExt' + str(i), scene_handle)
-        createObject([0.2, lane_width, 2.5],[-70.25 + i*20 + 150 - lane_width, 81 + ((COPY_NUM-1)-i)*lane_width, 1.25],'wallEnd' + str(i), scene_handle)      # create end wall
-
-        createDummy([0 +60 + i * 20, 81+((COPY_NUM-1)-i)*lane_width, 0.3], 'GoalPoint' + str(i), parentHandle=scene_handle)
-
-    else :
-        createObject([lane_width, 150 + 100, 0.1],[-1.25 + i*20, 0+50,-0.1],'floor' + str(i), scene_handle)  # create floor
-        createObject([0.1, 150+100, 2.5],[-5 + i*20,0+50,1.25],'wallLeft' + str(i), scene_handle)                  # create wall left
-        createObject([0.1, 150+100, 2.5],[3 + i*20,0+50,1.25],'wallRight' + str(i), scene_handle)                  # create wall right
-        createObject([lane_width, 0.2 , 2.5],[-1.25 + i*20,70+100, 1.25],'wallEnd' + str(i), scene_handle)      # create end wall
-
-        createDummy([0 + i * 20, 160, 0.3], 'GoalPoint' + str(i), parentHandle=scene_handle)
-        createObject([3, 5, 2], [1.5 + i * 20, 80, 1.1], 'obstacle' + str(i) + str(2), scene_handle)  # create obstacle
-
-    createObject([3, 5, 2], [1.5 + i * 20, 30, 1.1], 'obstacle' + str(i), scene_handle)  # create obstacle
-    createObject([lane_width, 0.2 , 2.5],[-1.25 + i*20,-10, 1.25],'wallBack' + str(i), scene_handle)    # create back wall
+    #######################
+    # Gen Case
+    #######################
+    genTee( lane_width, turn_len, lane_len, obs_w, obs_pattern[i%6], i*case_width, i, direction = i % 3, openWall = i % 2)
 
     # Set parent of vehicle
     vrep.simxSetObjectParent(clientID,vehicle_handle, scene_handle, True, vrep.simx_opmode_blocking)
