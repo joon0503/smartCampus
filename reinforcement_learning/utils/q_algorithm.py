@@ -7,6 +7,7 @@
 import os
 import time
 import warnings
+from icecream import ic
 
 import numpy as np
 
@@ -26,6 +27,7 @@ class dqn:
         # Options and Scene Consts
         self.options = sim_env.options
         self.scene_const = sim_env.scene_const
+        self.sim_env = sim_env
 
         # The replay memory.
         if sim_env.options.enable_PER == False:
@@ -181,7 +183,7 @@ class dqn:
             print("=================================================")
             print("=================================================\n\n")
 
-        time.sleep(5)
+        time.sleep(1)
         return
 
     # Save network weights
@@ -204,33 +206,50 @@ class dqn:
         return
 
 
-    # Generate future trajectory
     # Inputs
     #   next_state_sensor : VEH_COUNT x FRAME_COUNT x SENSOR_COUNT
     #   next_state_goal   : VEH_COUNT x FRAME_COUNT x 2
     # Outputs
     #   trajectory        : 2(x,y)^T x max_horizon 
-    def genTrajectory(self, input_sensor, input_goal, max_horizon):
+    def genTrajectory(self, next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal, max_horizon):
         # Set curr variable
-        curr_state_sensor = input_sensor
-        curr_state_goal   = input_goal
+        oldPosition = next_veh_pos
+        oldHeading  = next_veh_heading
+        oldSensor   = next_state_sensor
+        oldPosition = oldPosition[:, :, self.options.FRAME_COUNT - 1]
+        oldHeading  = oldHeading[:, 2, self.options.FRAME_COUNT - 1]
+        oldSensor   = oldSensor[:, :, self.options.FRAME_COUNT - 1]
+        # Define variable for estimations of new sensor info
+        newStateStack   = np.zeros([self.options.VEH_COUNT, self.scene_const.sensor_count*2, max_horizon])
+        newGoalStack     = np.zeros([self.options.VEH_COUNT, 2, max_horizon])
+        newPositionStack = np.zeros([self.options.VEH_COUNT, 2, max_horizon])
 
+        prevPosition    = oldPosition
+        prevHeading     = oldHeading
         for t in range(0,max_horizon):
             # Get optimal action q_algo
             action_feed = {}
             action_feed.clear()
-            action_feed.update({'observation_sensor_k': curr_state_sensor[:,0:self.sim_env.scene_const.sensor_count,:]})
-            action_feed.update({'observation_state': curr_state_sensor[:,self.sim_env.scene_const.sensor_count:,:]})
-            action_feed.update({'observation_goal_k': curr_state_goal})
+            action_feed.update({'observation_sensor_k': next_state_sensor[:,0:self.scene_const.sensor_count,:]})
+            action_feed.update({'observation_state': next_state_sensor[:,self.scene_const.sensor_count:,:]})
+            action_feed.update({'observation_goal_k': next_state_goal})
             targetSteer_k, action_stack_k = self.getOptimalAction( action_feed )
 
-            # Increment Vehicle with obtained action
+            # Update curr_state using dynamics model
+            newPosition, newHeading = self.sim_env.getVehicleEstimation(prevPosition, prevHeading, targetSteer_k)
 
-            # update curr_state
+            # Estimate of LIDAR distance / LIDAR detection
+            newSensor, newSensorState = self.sim_env.predictLidar(oldPosition, oldHeading, oldSensor, newPosition, newHeading)
+            # Estimate goal angle & distance
+            newGoalStack[:,:,t] =self.sim_env.getGoalEstimation(newPosition, newHeading)
 
+            # Stack state (LIDAR distance, goal angle & distance, LIDAR state)
+            newStateStack[:, :, t] = np.concatenate((newSensor,newSensorState), axis=1)
 
-            # Estimate lidar distance / goal angle & distance / lidar detection
+            # Update prevPosition by newPosiiton
+            newPositionStack[:, :, t] = newPosition
+            prevPosition = newPosition
+            prevHeading  = newHeading
 
         # Return the vehicle trajectory
-
-        return
+        return newPositionStack

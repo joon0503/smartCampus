@@ -3,6 +3,7 @@
 
 import os
 import sys
+import math
 from collections import deque
 
 import numpy as np
@@ -396,3 +397,119 @@ class env_py:
                 self.epi_step_stack[v] = 0
 
         return
+
+
+
+
+    # Get estimated position and heading of vehicle
+    def getVehicleEstimation(self, oldPosition, oldHeading, targetSteer_k):
+        vLength=2.1
+        vel=self.options.INIT_SPD
+        delT=self.options.CTR_FREQ*self.options.FIX_INPUT_STEP
+
+        newPosition=np.zeros([self.options.VEH_COUNT,2])
+        newHeading=np.zeros([self.options.VEH_COUNT])
+
+        for v in range(0,self.options.VEH_COUNT):
+            newPosition[v,0]=oldPosition[v,0]+vel*np.cos(oldHeading[v])*delT
+            newPosition[v,1]=oldPosition[v,1]+vel*np.sin(oldHeading[v])*delT
+            newHeading[v]=oldHeading[v]+vel/vLength*math.tan(targetSteer_k[v])*delT
+
+        return newPosition, newHeading
+
+    # Get estimated goal length and heading
+    def getGoalEstimation(self, veh_pos, veh_heading):
+        gInfo = np.zeros([self.options.VEH_COUNT,2])
+        goal_handle     = self.handle_dict['dummy']
+
+        for k in range(0,self.options.VEH_COUNT):
+            # To compute gInfo, get goal position
+            g_pos, _ = p.getBasePositionAndOrientation( goal_handle[k] )
+
+            # Calculate the distance
+            # ic(g_pos[0:2],veh_pos[k])
+            delta_distance = np.array(g_pos[0:2]) - np.array(veh_pos[k])  # delta x, delta y
+            gInfo[k][1] = np.linalg.norm(delta_distance) / self.scene_const.goal_distance
+
+            # calculate angle. 90deg + angle (assuming heading north) - veh_heading
+            gInfo[k][0] = math.atan(abs(delta_distance[0]) / abs(
+                delta_distance[1]))  # delta x / delta y, and scale by pi 1(left) to -1 (right)
+            if delta_distance[0] < 0:
+                # Goal is left of the vehicle, then -1
+                gInfo[k][0] = gInfo[k][0] * -1
+
+            # Scale with heading
+            gInfo[k][0] = -1 * (math.pi * 0.5 - gInfo[k][0] - veh_heading[k]) / (math.pi / 2)
+
+        return gInfo
+
+    # Predict next LIDAR state
+    def predictLidar(self, oldPosition, oldHeading, oldSensor, newPosition, newHeading):
+        oldSensorState = oldSensor[:,self.scene_const.sensor_count:]
+        # oldSensor=oldSensor[:,0:self.scene_const.sensor_count-1]
+        oldSensor=oldSensor[:,0:self.scene_const.sensor_count]
+
+        seqAngle=np.array([(self.scene_const.sensor_count-1-i)*np.pi/(self.scene_const.sensor_count-1) for i in range(self.scene_const.sensor_count)])
+        newSensor=np.zeros((self.options.VEH_COUNT,self.scene_const.sensor_count))
+        newSensorState=np.ones((self.options.VEH_COUNT,self.scene_const.sensor_count)) # 0:closed & 1:open
+
+        for v in range(0,self.options.VEH_COUNT):
+            oldC,oldS=np.cos(oldHeading[v]-np.pi/2),np.sin(oldHeading[v]-np.pi/2)
+            oldRot=np.array([[oldC,oldS],[-oldS,oldC]])
+            newC,newS=np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
+            newRot=np.array([[newC,newS],[-newS,newC]])
+
+            # Transformation oldSensor w.r.t vehicle's next position and heading.
+            temp1=self.scene_const.sensor_distance*np.transpose([oldSensor[v],oldSensor[v]])
+            temp2=np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
+            oldLidarXY = np.multiply(temp1,temp2)
+            oldLidarXY = np.tile(oldPosition[v, :], [self.scene_const.sensor_count, 1]) \
+                        + np.matmul(oldLidarXY, np.transpose(oldRot))
+            oldTransXY = oldLidarXY-np.tile(newPosition[v,:], [self.scene_const.sensor_count,1])
+            oldTransXY = np.matmul(oldTransXY,np.transpose(newRot))
+
+            # Compute newSensor w.r.t vehicle's next position and heading
+            newTransXY = self.scene_const.sensor_distance*np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
+
+            # Remove out-range points, i.e. y<0
+            reducedLidarXY=np.array([])
+            for i in range(0,self.scene_const.sensor_count):
+                if oldTransXY[i,1]>=0:
+                    reducedLidarXY = np.append(reducedLidarXY, oldTransXY[i,:])
+            length=reducedLidarXY.shape[0]
+            reducedLidarXY=np.reshape(reducedLidarXY, (-1,2))
+
+            # Find intersection between line1(newPosition,newTransXY) & line2(two among reducedLidarXY)
+            newLidarXY=np.zeros([self.scene_const.sensor_count,2])
+            flag=np.ones([self.scene_const.sensor_count])
+            length=reducedLidarXY.shape[0]
+            for i in range(0,self.scene_const.sensor_count):
+                for j in range(0,length-1):
+                    l=j+1
+                    # If intersection is found, then pass
+                    if flag[i]==0:
+                        pass
+
+                    A=np.array([[newTransXY[i][1],-newTransXY[i][0]],[reducedLidarXY[l][1]-reducedLidarXY[j][1],-reducedLidarXY[l][0]+reducedLidarXY[j][0]]])
+                    det=A[0][0]*A[1][1]-A[0][1]*A[1][0]
+                    if det==0:
+                        pass
+                    b=np.array([0,np.dot(A[1,:],reducedLidarXY[j,:])])
+                    try:
+                        x=np.linalg.solve(A,b)
+                    except:
+                        pass
+
+                    # check the point between two pair points
+                    # if np.dot(A[1,:],newTransXY[i]-x)*np.dot(A[1,:],-x)<=0 \
+                    #         and np.dot(A[0,:],reducedLidarXY[j]-x)*np.dot(A[0,:],reducedLidarXY[l]-x)<=0:
+                    if np.dot(A[0, :], reducedLidarXY[j] - x) * np.dot(A[0, :], reducedLidarXY[l] - x) <= 0:
+                        newLidarXY[i,:]=x
+                        newSensorState[v,i]=oldSensorState[v,j]*oldSensorState[v,l] # closed if there exist at least closed point
+                        flag[i]=0
+
+            # Compute newSensorOut
+            newLidarXY=newLidarXY+1.5*self.scene_const.collision_distance*np.transpose([np.cos(seqAngle),np.sin(seqAngle)])*np.transpose([flag,flag])
+            newSensor[v,:]=np.linalg.norm(newLidarXY,ord=2,axis=1)/self.scene_const.sensor_distance
+
+        return newSensor, newSensorState

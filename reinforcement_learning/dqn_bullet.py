@@ -341,7 +341,10 @@ if __name__ == "__main__":
 
             # Get curr & next state
             _, _, curr_state_sensor, curr_state_goal     = sim_env.getObservation( old = False)
-            _, _, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
+
+            # Get curr & next state
+            # _, _, curr_state_sensor, curr_state_goal     = sim_env.getObservation( old = False)
+            # _, _, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
 
             # Print curr & next state
             # ic(curr_state_sensor[v], curr_state_goal[v])
@@ -362,7 +365,12 @@ if __name__ == "__main__":
             # agent_icm.plotEstimate( sim_env.scene_const, options, curr_state_sensor, curr_state_goal, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
             # Generate trajectory
-            # q_algo.genTrajectory( next_state_sensor, next_state_goal )
+
+        # Generate Trajectory
+        max_horizon=5
+        next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
+        gen_traj = q_algo.genTrajectory(next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal, max_horizon)
+        # ic('GENERATED TRAJECTORY', gen_traj)
 
         ###########
         # START LEARNING
