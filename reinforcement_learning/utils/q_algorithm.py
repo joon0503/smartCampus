@@ -197,7 +197,8 @@ class dqn:
         print('-----------------------------------------')
         if not os.path.exists('./checkpoints-vehicle'):
             os.makedirs('./checkpoints-vehicle')
-        self.agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+        # self.agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+        self.agent_train.model.save('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
 
         # Save checkpoint
         with open('./checkpoints-vehicle/checkpoint.txt','w') as check_file:
