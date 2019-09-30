@@ -83,6 +83,8 @@ def get_options():
                         help='Enable the prediction network.')
     parser.add_argument('--enable_GUI', action='store_true', default = False,
                         help='Enable the GUI.'),
+    parser.add_argument('--enable_TRAJ', action='store_true', default = False,
+                        help='Generate and print estimated trajectory.'),
     parser.add_argument('--VERBOSE', action='store_true', default = False,
                         help='Verbose output')
     parser.add_argument('--disable_duel', action='store_true',
@@ -367,10 +369,11 @@ if __name__ == "__main__":
             # Generate trajectory
 
         # Generate Trajectory
-        max_horizon=5
-        next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
-        gen_traj = q_algo.genTrajectory(next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal, max_horizon)
-        # ic('GENERATED TRAJECTORY', gen_traj)
+        if options.enable_TRAJ == True:
+            max_horizon=5
+            next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
+            gen_traj = q_algo.genTrajectory(next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal, max_horizon)
+            ic('GENERATED TRAJECTORY', gen_traj)
 
         ###########
         # START LEARNING

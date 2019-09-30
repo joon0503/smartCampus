@@ -219,8 +219,9 @@ class dqn:
         oldPosition = oldPosition[:, :, self.options.FRAME_COUNT - 1]
         oldHeading  = oldHeading[:, 2, self.options.FRAME_COUNT - 1]
         oldSensor   = oldSensor[:, :, self.options.FRAME_COUNT - 1]
+
         # Define variable for estimations of new sensor info
-        newStateStack   = np.zeros([self.options.VEH_COUNT, self.scene_const.sensor_count*2, max_horizon])
+        newStateStack    = np.zeros([self.options.VEH_COUNT, self.scene_const.sensor_count*2, max_horizon])
         newGoalStack     = np.zeros([self.options.VEH_COUNT, 2, max_horizon])
         newPositionStack = np.zeros([self.options.VEH_COUNT, 2, max_horizon])
 

@@ -398,28 +398,29 @@ class env_py:
 
         return
 
-
-
-
     # Get estimated position and heading of vehicle
     def getVehicleEstimation(self, oldPosition, oldHeading, targetSteer_k):
-        vLength=2.1
-        vel=self.options.INIT_SPD
-        delT=self.options.CTR_FREQ*self.options.FIX_INPUT_STEP
+        vLength = 2.1
+        vel     = self.options.INIT_SPD
+        delT    = self.options.CTR_FREQ*self.options.FIX_INPUT_STEP
 
-        newPosition=np.zeros([self.options.VEH_COUNT,2])
-        newHeading=np.zeros([self.options.VEH_COUNT])
+        newPosition = np.zeros([self.options.VEH_COUNT,2])
+        newHeading  = np.zeros([self.options.VEH_COUNT])
 
-        for v in range(0,self.options.VEH_COUNT):
-            newPosition[v,0]=oldPosition[v,0]+vel*np.cos(oldHeading[v])*delT
-            newPosition[v,1]=oldPosition[v,1]+vel*np.sin(oldHeading[v])*delT
-            newHeading[v]=oldHeading[v]+vel/vLength*math.tan(targetSteer_k[v])*delT
+        newPosition[:,0] = oldPosition[:,0] + vel * np.cos(oldHeading)*delT
+        newPosition[:,1] = oldPosition[:,1] + vel * np.sin(oldHeading)*delT
+        newHeading       = oldHeading + vel/vLength*np.tan(targetSteer_k)*delT
+
+        # for v in range(0,self.options.VEH_COUNT):
+            # newPosition[v,0]=oldPosition[v,0]+vel*np.cos(oldHeading[v])*delT
+            # newPosition[v,1]=oldPosition[v,1]+vel*np.sin(oldHeading[v])*delT
+            # newHeading[v]=oldHeading[v]+vel/vLength*math.tan(targetSteer_k[v])*delT
 
         return newPosition, newHeading
 
     # Get estimated goal length and heading
     def getGoalEstimation(self, veh_pos, veh_heading):
-        gInfo = np.zeros([self.options.VEH_COUNT,2])
+        gInfo           = np.zeros([self.options.VEH_COUNT,2])
         goal_handle     = self.handle_dict['dummy']
 
         for k in range(0,self.options.VEH_COUNT):
@@ -428,12 +429,11 @@ class env_py:
 
             # Calculate the distance
             # ic(g_pos[0:2],veh_pos[k])
-            delta_distance = np.array(g_pos[0:2]) - np.array(veh_pos[k])  # delta x, delta y
-            gInfo[k][1] = np.linalg.norm(delta_distance) / self.scene_const.goal_distance
+            delta_distance  = np.array(g_pos[0:2]) - np.array(veh_pos[k])  # delta x, delta y
+            gInfo[k][1]     = np.linalg.norm(delta_distance) / self.scene_const.goal_distance
 
             # calculate angle. 90deg + angle (assuming heading north) - veh_heading
-            gInfo[k][0] = math.atan(abs(delta_distance[0]) / abs(
-                delta_distance[1]))  # delta x / delta y, and scale by pi 1(left) to -1 (right)
+            gInfo[k][0] = math.atan(abs(delta_distance[0]) / abs(delta_distance[1]))  # delta x / delta y, and scale by pi 1(left) to -1 (right)
             if delta_distance[0] < 0:
                 # Goal is left of the vehicle, then -1
                 gInfo[k][0] = gInfo[k][0] * -1
@@ -445,23 +445,23 @@ class env_py:
 
     # Predict next LIDAR state
     def predictLidar(self, oldPosition, oldHeading, oldSensor, newPosition, newHeading):
-        oldSensorState = oldSensor[:,self.scene_const.sensor_count:]
+        oldSensorState  = oldSensor[:,self.scene_const.sensor_count:]
         # oldSensor=oldSensor[:,0:self.scene_const.sensor_count-1]
-        oldSensor=oldSensor[:,0:self.scene_const.sensor_count]
+        oldSensor       = oldSensor[:,0:self.scene_const.sensor_count]
 
-        seqAngle=np.array([(self.scene_const.sensor_count-1-i)*np.pi/(self.scene_const.sensor_count-1) for i in range(self.scene_const.sensor_count)])
-        newSensor=np.zeros((self.options.VEH_COUNT,self.scene_const.sensor_count))
-        newSensorState=np.ones((self.options.VEH_COUNT,self.scene_const.sensor_count)) # 0:closed & 1:open
+        seqAngle        = np.array([(self.scene_const.sensor_count-1-i)*np.pi/(self.scene_const.sensor_count-1) for i in range(self.scene_const.sensor_count)])
+        newSensor       = np.zeros((self.options.VEH_COUNT,self.scene_const.sensor_count))
+        newSensorState  = np.ones((self.options.VEH_COUNT,self.scene_const.sensor_count)) # 0:closed & 1:open
 
         for v in range(0,self.options.VEH_COUNT):
-            oldC,oldS=np.cos(oldHeading[v]-np.pi/2),np.sin(oldHeading[v]-np.pi/2)
-            oldRot=np.array([[oldC,oldS],[-oldS,oldC]])
-            newC,newS=np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
-            newRot=np.array([[newC,newS],[-newS,newC]])
+            oldC,oldS   = np.cos(oldHeading[v]-np.pi/2),np.sin(oldHeading[v]-np.pi/2)
+            oldRot      = np.array([[oldC,oldS],[-oldS,oldC]])
+            newC,newS   = np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
+            newRot      = np.array([[newC,newS],[-newS,newC]])
 
             # Transformation oldSensor w.r.t vehicle's next position and heading.
-            temp1=self.scene_const.sensor_distance*np.transpose([oldSensor[v],oldSensor[v]])
-            temp2=np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
+            temp1   = self.scene_const.sensor_distance*np.transpose([oldSensor[v],oldSensor[v]])
+            temp2   = np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
             oldLidarXY = np.multiply(temp1,temp2)
             oldLidarXY = np.tile(oldPosition[v, :], [self.scene_const.sensor_count, 1]) \
                         + np.matmul(oldLidarXY, np.transpose(oldRot))
