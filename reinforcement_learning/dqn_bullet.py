@@ -123,6 +123,8 @@ def get_options():
                         help='Number of threads for parallel simulation.')
     parser.add_argument('--WEIGHT_FILE', type=str, default=None,
                         help='Relative path to the weight file to load. Only works for KERAS.')
+    parser.add_argument('--DUMP_OPTIONS', action='store_true', default = False,
+                        help='Dump options and scene_const files.')
     options = parser.parse_args()
 
     # Check Inputs
@@ -168,6 +170,20 @@ def printVersions():
 
     return
 
+# Dump options & scene_const
+def dumpOptions( options, scene_const ):
+    fileName = 'genTraj_options_file'
+
+    out_dict = {'options' : options, 'scene_const' : scene_const}
+    outFile = open( fileName, 'wb')
+    pickle.dump(out_dict, outFile)
+    outFile.close()
+
+    infile = open(fileName,'rb')
+    new_dict = pickle.load(infile)
+    infile.close()
+    print(new_dict)
+    return
 
 ########################
 # MAIN
@@ -216,6 +232,11 @@ if __name__ == "__main__":
     # Start Environment
     sim_env                                     = env_py( options, scene_constants() )
     sim_env.scene_const.clientID, handle_dict   = sim_env.start()
+
+    # Check Dump
+    if options.DUMP_OPTIONS == True:
+        dumpOptions(options, sim_env.scene_const)
+        sys.exit()
 
     # Print Infos
     sim_env.printInfo()
