@@ -73,21 +73,22 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
 
         # Add new data to oldSensor0
         temp = np.zeros((options.VEH_COUNT,scene_const.sensor_count*2,options.FRAME_COUNT))
-        temp[:,:,0:options.FRAME_COUNT-1]   = oldSensor0[:,:,1:]
-        temp[:,:,options.FRAME_COUNT]       = newSensorCombined
+        temp[:,:,0:options.FRAME_COUNT-1]     = oldSensor0[:,:,1:]
+        temp[:,:,options.FRAME_COUNT-1]       = newSensorCombined
         oldSensor0 = temp
         # oldSensor0 = np.concatenate((oldSensor0, newSensorCombined)) 
 
+
         # Estimate goal angle & distance
-        oldGoal = getGoalEstimation(options, scene_const, newPosition, newHeading)
-        newGoalStack[:,:,t] = getGoalEstimation(options, scene_const, newPosition, newHeading)
+        newGoal = getGoalEstimation(options, scene_const, newPosition, newHeading, oldGoal[:,:,options.FRAME_COUNT-1])
+        oldGoal[:,:,0:options.FRAME_COUNT-1] = oldGoal[:,:,1:options.FRAME_COUNT]
+        oldGoal[:,:,options.FRAME_COUNT-1]   = newGoal
 
-        # Stack state (LIDAR distance, goal angle & distance, LIDAR state)
-        newStateStack[:, :, t] = newSensorCombined
-
-
-        # Update prevPosition by newPosiiton
-        newPositionStack[:, :, t] = newPosition
+        # Save data for plotting
+        newGoalStack[:,:,t]         = newGoal 
+        newStateStack[:, :, t]      = newSensorCombined
+        newPositionStack[:, :, t]   = newPosition
+        
         prevPosition = newPosition
         prevHeading  = newHeading
 
@@ -139,7 +140,7 @@ def getGoalEstimation(options, scene_const, veh_pos, veh_heading, g_pos):
 
         # Calculate the distance
         # ic(g_pos[0:2],veh_pos[k])
-        delta_distance  = np.array(g_pos[0:2]) - np.array(veh_pos[k])  # delta x, delta y
+        delta_distance  = np.array(g_pos[k]) - np.array(veh_pos[k])  # delta x, delta y
         gInfo[k][1]     = np.linalg.norm(delta_distance) / scene_const.goal_distance
 
         # calculate angle. 90deg + angle (assuming heading north) - veh_heading
@@ -276,11 +277,12 @@ def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file' )
 # MAIN
 #######################
 
+np.set_printoptions(linewidth = 100)
 weightFilePath = './checkpoints-vehicle/2019-09-30_11_17_17.948153_e25_gs1674.h5'
 
 # Load options & Network
 sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath )
-ic(sample_options.FRAME_COUNT)
+# ic(sample_options.FRAME_COUNT)
 
 #   next_veh_pos      : VEH_COUNT x 2
 #   next_veh_heading  : VEH_COUNT x 1
@@ -288,8 +290,11 @@ ic(sample_options.FRAME_COUNT)
 #   next_state_goal   : VEH_COUNT x 2 (heading,distance) x FRAME_COUNT
 sample_veh_pos      = np.zeros((sample_options.VEH_COUNT,2))
 sample_veh_heading  = np.zeros(sample_options.VEH_COUNT)
-sample_state_sensor = np.zeros((sample_options.VEH_COUNT, sample_scene_const.sensor_count*2, sample_options.FRAME_COUNT))
-sample_state_goal   = np.zeros((sample_options.VEH_COUNT, 2, sample_options.FRAME_COUNT))
-max_horizon         = 2
+sample_state_sensor = np.ones((sample_options.VEH_COUNT, sample_scene_const.sensor_count*2, sample_options.FRAME_COUNT))
+sample_state_goal   = np.ones((sample_options.VEH_COUNT, 2, sample_options.FRAME_COUNT))*100
+max_horizon         = 5
 
-genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon)
+ic(sample_state_sensor, sample_state_sensor.shape)
+
+traj_est = genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon)
+ic(traj_est)
