@@ -7,6 +7,7 @@
 import os
 import time
 import warnings
+from icecream import ic
 
 import numpy as np
 
@@ -26,6 +27,7 @@ class dqn:
         # Options and Scene Consts
         self.options = sim_env.options
         self.scene_const = sim_env.scene_const
+        self.sim_env = sim_env
 
         # The replay memory.
         if sim_env.options.enable_PER == False:
@@ -181,7 +183,7 @@ class dqn:
             print("=================================================")
             print("=================================================\n\n")
 
-        time.sleep(5)
+        time.sleep(1)
         return
 
     # Save network weights
@@ -195,7 +197,8 @@ class dqn:
         print('-----------------------------------------')
         if not os.path.exists('./checkpoints-vehicle'):
             os.makedirs('./checkpoints-vehicle')
-        self.agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+        # self.agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+        self.agent_train.model.save('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
 
         # Save checkpoint
         with open('./checkpoints-vehicle/checkpoint.txt','w') as check_file:
@@ -203,34 +206,3 @@ class dqn:
 
         return
 
-
-    # Generate future trajectory
-    # Inputs
-    #   next_state_sensor : VEH_COUNT x FRAME_COUNT x SENSOR_COUNT
-    #   next_state_goal   : VEH_COUNT x FRAME_COUNT x 2
-    # Outputs
-    #   trajectory        : 2(x,y)^T x max_horizon 
-    def genTrajectory(self, input_sensor, input_goal, max_horizon):
-        # Set curr variable
-        curr_state_sensor = input_sensor
-        curr_state_goal   = input_goal
-
-        for t in range(0,max_horizon):
-            # Get optimal action q_algo
-            action_feed = {}
-            action_feed.clear()
-            action_feed.update({'observation_sensor_k': curr_state_sensor[:,0:self.sim_env.scene_const.sensor_count,:]})
-            action_feed.update({'observation_state': curr_state_sensor[:,self.sim_env.scene_const.sensor_count:,:]})
-            action_feed.update({'observation_goal_k': curr_state_goal})
-            targetSteer_k, action_stack_k = self.getOptimalAction( action_feed )
-
-            # Increment Vehicle with obtained action
-
-            # update curr_state
-
-
-            # Estimate lidar distance / goal angle & distance / lidar detection
-
-        # Return the vehicle trajectory
-
-        return

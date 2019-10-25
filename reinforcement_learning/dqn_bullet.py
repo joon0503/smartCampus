@@ -83,6 +83,8 @@ def get_options():
                         help='Enable the prediction network.')
     parser.add_argument('--enable_GUI', action='store_true', default = False,
                         help='Enable the GUI.'),
+    parser.add_argument('--enable_TRAJ', action='store_true', default = False,
+                        help='Generate and print estimated trajectory.'),
     parser.add_argument('--VERBOSE', action='store_true', default = False,
                         help='Verbose output')
     parser.add_argument('--disable_duel', action='store_true',
@@ -121,6 +123,8 @@ def get_options():
                         help='Number of threads for parallel simulation.')
     parser.add_argument('--WEIGHT_FILE', type=str, default=None,
                         help='Relative path to the weight file to load. Only works for KERAS.')
+    parser.add_argument('--DUMP_OPTIONS', action='store_true', default = False,
+                        help='Dump options and scene_const files.')
     options = parser.parse_args()
 
     # Check Inputs
@@ -166,6 +170,20 @@ def printVersions():
 
     return
 
+# Dump options & scene_const
+def dumpOptions( options, scene_const ):
+    fileName = 'genTraj_options_file'
+
+    out_dict = {'options' : options, 'scene_const' : scene_const}
+    outFile = open( fileName, 'wb')
+    pickle.dump(out_dict, outFile)
+    outFile.close()
+
+    infile = open(fileName,'rb')
+    new_dict = pickle.load(infile)
+    infile.close()
+    print(new_dict)
+    return
 
 ########################
 # MAIN
@@ -214,6 +232,11 @@ if __name__ == "__main__":
     # Start Environment
     sim_env                                     = env_py( options, scene_constants() )
     sim_env.scene_const.clientID, handle_dict   = sim_env.start()
+
+    # Check Dump
+    if options.DUMP_OPTIONS == True:
+        dumpOptions(options, sim_env.scene_const)
+        sys.exit()
 
     # Print Infos
     sim_env.printInfo()
@@ -341,7 +364,10 @@ if __name__ == "__main__":
 
             # Get curr & next state
             _, _, curr_state_sensor, curr_state_goal     = sim_env.getObservation( old = False)
-            _, _, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
+
+            # Get curr & next state
+            # _, _, curr_state_sensor, curr_state_goal     = sim_env.getObservation( old = False)
+            # _, _, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
 
             # Print curr & next state
             # ic(curr_state_sensor[v], curr_state_goal[v])
@@ -362,7 +388,13 @@ if __name__ == "__main__":
             # agent_icm.plotEstimate( sim_env.scene_const, options, curr_state_sensor, curr_state_goal, action_stack[v], next_veh_heading[v], agent_train, save=True, ref = 'vehicle')
 
             # Generate trajectory
-            # q_algo.genTrajectory( next_state_sensor, next_state_goal )
+
+        # Generate Trajectory
+        if options.enable_TRAJ == True:
+            max_horizon=5
+            next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal     = sim_env.getObservation( old = True )
+            gen_traj = q_algo.genTrajectory(next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal, max_horizon)
+            ic('GENERATED TRAJECTORY', gen_traj)
 
         ###########
         # START LEARNING

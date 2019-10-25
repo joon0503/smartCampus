@@ -68,7 +68,9 @@ class scene_constants:
     case_y          = 25            # distance between each case
     veh_init_y      = -3            # initial vehicle y position
     wall_cnt        = 9             # number of walls
-    wall_h          = 0.5           # height of walls
+    wall_h          = 1.5           # height of walls
+
+    # Scaling
     veh_scale       = 2.0           # vehicle scale
 
 

@@ -51,38 +51,36 @@ def createGoal(size, pos):
 
 
 def createTee(x_pos, y_pos, direction, scene_const, openWall=True):
-    wall_h = 0.5
-
     wall_handle_list = []
 
     # Walls left & right
-    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_len, wall_h], [
+    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_len, scene_const.wall_h], [
                             x_pos - scene_const.lane_width*0.5, y_pos, 0]))      # left
-    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_len, wall_h], [
+    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_len, scene_const.wall_h], [
                             x_pos + scene_const.lane_width*0.5, y_pos, 0]))      # right
 
     # Walls front & back
-    wall_handle_list.append(createWall([0.5*scene_const.turn_len, 0.02, wall_h], [
+    wall_handle_list.append(createWall([0.5*scene_const.turn_len, 0.02, scene_const.wall_h], [
                             x_pos, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width, 0]))               # front
-    wall_handle_list.append(createWall([0.5*scene_const.lane_width, 0.02, wall_h], [
+    wall_handle_list.append(createWall([0.5*scene_const.lane_width, 0.02, scene_const.wall_h], [
                             x_pos, y_pos - 1*scene_const.lane_len*0.5, 0]))              # back
 
     # Walls at intersection
     wall_len = 0.5*(scene_const.turn_len - scene_const.lane_width)
-    wall_handle_list.append(createWall([0.5*wall_len, 0.02, wall_h], [
+    wall_handle_list.append(createWall([0.5*wall_len, 0.02, scene_const.wall_h], [
                             x_pos + 0.5*scene_const.lane_width + 0.5*wall_len, y_pos + scene_const.lane_len*0.5, 0]))
-    wall_handle_list.append(createWall([0.5*wall_len, 0.02, wall_h], [
+    wall_handle_list.append(createWall([0.5*wall_len, 0.02, scene_const.wall_h], [
                             x_pos - 0.5*scene_const.lane_width - 0.5*wall_len, y_pos + scene_const.lane_len*0.5, 0]))
 
     # Walls at the end
-    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_width, wall_h], [
+    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_width, scene_const.wall_h], [
                             x_pos - 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0]))
-    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_width, wall_h], [
+    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_width, scene_const.wall_h], [
                             x_pos + 0.5*scene_const.turn_len, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, 0]))
 
     # Create Obstacle
     obs_width = scene_const.obs_w * scene_const.lane_width
-    wall_handle_list.append(createWall([0.5*obs_width, 0.5*obs_width, wall_h], [x_pos + 0.5*(
+    wall_handle_list.append(createWall([0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_pos + 0.5*(
         1-scene_const.obs_w)*scene_const.lane_width, scene_const.lane_len*0.3, 0]))      # right
 
     # Create Goal point

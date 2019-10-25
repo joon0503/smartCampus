@@ -81,7 +81,7 @@ class QAgent:
 
         self.model = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state], outputs = self.h_action_out_k)
 
-        keras_opt = tf.keras.optimizers.Adam(lr = options.LR)
+        keras_opt = tf.keras.optimizers.Adam(lr = options.LR, clipvalue = 10)
         self.model.compile( optimizer= keras_opt,
                             loss = 'mean_squared_error' 
         )
