@@ -10,15 +10,28 @@ import tensorflow as tf
 # from utils.scene_constants_pb import scene_constants
 # import scene_constants_pb
 
+
+
+
+
+# Generate Trajectory given vehicle information
+
 # Inputs
 #   options           : given
 #   scene_const       : given
-
 #   next_veh_pos      : VEH_COUNT x 2
+#               UNITS :     meter
+#           STRUCTURE :     [x1, y1; x2, y2; x3, y3...]
 #   next_veh_heading  : VEH_COUNT x 1
+#               UNITS :     radians
+#           STRUCTURE :     0 for facing north. CCW : +, CW -    
 #   next_state_sensor : VEH_COUNT x SENSOR_COUNT*2 x FRAME_COUNT
+#               UNITS :     Normlized (0-1) & Binary (0 or 1)
+#           STRUCTURE :     (:, 0 ~ sensor_count-1, :) - distance
+#           STRUCTURE :     (:, sensor_count ~ 2*sensor_count-1, :) - sensor state
 #   next_state_goal   : VEH_COUNT x 2 (heading,distance) x FRAME_COUNT
-
+#               UNITS :     heading : radians / distance : normalized (0-1)
+#   network_model     : keras network
 #   max_horizon       : integer
 
 # Outputs
@@ -271,30 +284,19 @@ def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file' )
     return sample_options, sample_scene_const, model
 
 
-
-
 #######################
-# MAIN
+# EXAMPLE 
 #######################
 
-np.set_printoptions(linewidth = 100)
-weightFilePath = './checkpoints-vehicle/2019-09-30_11_17_17.948153_e25_gs1674.h5'
+# weightFilePath = './checkpoints-vehicle/2019-09-30_11_17_17.948153_e25_gs1674.h5'
 
-# Load options & Network
-sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath )
-# ic(sample_options.FRAME_COUNT)
+# # Load options & Network
+# sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath )
 
-#   next_veh_pos      : VEH_COUNT x 2
-#   next_veh_heading  : VEH_COUNT x 1
-#   next_state_sensor : VEH_COUNT x SENSOR_COUNT*2 x FRAME_COUNT
-#   next_state_goal   : VEH_COUNT x 2 (heading,distance) x FRAME_COUNT
-sample_veh_pos      = np.zeros((sample_options.VEH_COUNT,2))
-sample_veh_heading  = np.zeros(sample_options.VEH_COUNT)
-sample_state_sensor = np.ones((sample_options.VEH_COUNT, sample_scene_const.sensor_count*2, sample_options.FRAME_COUNT))
-sample_state_goal   = np.ones((sample_options.VEH_COUNT, 2, sample_options.FRAME_COUNT))*100
-max_horizon         = 5
+# sample_veh_pos      = np.zeros((sample_options.VEH_COUNT,2))
+# sample_veh_heading  = np.zeros(sample_options.VEH_COUNT)
+# sample_state_sensor = np.ones((sample_options.VEH_COUNT, sample_scene_const.sensor_count*2, sample_options.FRAME_COUNT))
+# sample_state_goal   = np.ones((sample_options.VEH_COUNT, 2, sample_options.FRAME_COUNT))*100
+# max_horizon         = 5
 
-ic(sample_state_sensor, sample_state_sensor.shape)
-
-traj_est = genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon)
-ic(traj_est)
+# traj_est = genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon)
