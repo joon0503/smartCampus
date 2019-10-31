@@ -85,11 +85,13 @@ def get_options():
                         help='Enable the GUI.'),
     parser.add_argument('--enable_TRAJ', action='store_true', default = False,
                         help='Generate and print estimated trajectory.'),
+    parser.add_argument('--ADD_NOISE', action='store_true', default = False,
+                        help='Add noise to the sensor measurement.'),
     parser.add_argument('--VERBOSE', action='store_true', default = False,
                         help='Verbose output')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--FRAME_COUNT', type=int, default=3,
+    parser.add_argument('--FRAME_COUNT', type=int, default=4,
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
@@ -99,7 +101,7 @@ def get_options():
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=6,
                         help='Number of vehicles to use for simulation')
-    parser.add_argument('--INIT_SPD', type=int, default=15,
+    parser.add_argument('--INIT_SPD', type=int, default=10,
                         help='Initial speed of vehicle in  km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=20,
                         help='Multiplier for rewards based on the distance to the goal')
@@ -167,6 +169,7 @@ def printVersions():
     print('KERAS VERSION       : ' + tf.keras.__version__)
     print('PYTHON VERSION      : ' + sys.version)
     print('PyBullet Version:   : ' + str(p.getAPIVersion()) )
+    print('Numpy Version       : ' + str(np.version.version))
     print('===============================================')
 
     return
@@ -321,7 +324,7 @@ if __name__ == "__main__":
         sim_env.step()
 
         # Update Observation
-        sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT) )
+        sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT), add_noise = sim_env.options.ADD_NOISE )
 
 
         ####
