@@ -166,6 +166,7 @@ def printVersions():
     print('TENSOR FLOW VERSION : ' + tf.VERSION)
     print('KERAS VERSION       : ' + tf.keras.__version__)
     print('PYTHON VERSION      : ' + sys.version)
+    print('PyBullet Version:   : ' + str(p.getAPIVersion()) )
     print('===============================================')
 
     return
