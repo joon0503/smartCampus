@@ -89,6 +89,8 @@ class dqn:
         action_stack_k = self.agent_train.sample_action_k( action_feed, self.eps, self.options )
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
+        # Recall action_stack_k is index with 0 means left, and ACTION_DIM-1 mean right.
+        # Hence, if action_index = 0, targetSteer = max_steer and action_index=ACTION_DIM-1 means targetSteer = -1*max_steer
         # targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
         targetSteer_k = self.scene_const.max_steer - action_stack_k * abs(self.scene_const.max_steer - self.scene_const.min_steer)/(self.options.ACTION_DIM-1)
 

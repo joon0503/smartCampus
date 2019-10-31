@@ -46,7 +46,7 @@ class scene_constants:
     clientID            = []
 
     # Maximum steering angle in degrees
-    max_steer           = 0.5
+    max_steer           = 15
     min_steer           = -1*max_steer
 
     # Collision occurs if readings are less than this number. in meters

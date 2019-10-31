@@ -97,6 +97,8 @@ class QAgent:
     ## END Constructing Neural Network
     ######################################:
 
+    # Outputs
+    # action_index : VEH_COUNT x 1 array, each index represent action applied to each vehicle. Action ranges from 0 ~ ACTION_DIM-1. 0 means left, ACTION_DIM means right
     def sample_action_k(self, feed, eps, options):
         if random.random() <= eps and options.TESTING == False:             # pick random action if < eps AND testing disabled.
             # pick random action

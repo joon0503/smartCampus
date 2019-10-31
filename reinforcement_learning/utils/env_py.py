@@ -295,6 +295,8 @@ class env_py:
         return
 
     # Apply Action
+    # Inputs
+    # targetSteer : target angle in degrees
     def applyAction(self, targetSteer):
         for veh_index in range(self.options.VEH_COUNT):
             p.setJointMotorControlArray( self.handle_dict['vehicle'][veh_index], self.handle_dict['steer'], p.POSITION_CONTROL, targetPositions = np.repeat(targetSteer[veh_index],len(self.handle_dict['steer'])) )
