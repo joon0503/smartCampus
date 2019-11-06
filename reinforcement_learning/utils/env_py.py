@@ -169,7 +169,7 @@ class env_py:
 
         # Generate the scene with updated lane_width, but not vehicles
         if randomize_input == True:
-            self.scene_const.lane_width = np.random.random_sample()*4.5 + 3.5
+            self.scene_const.lane_width = np.random.random_sample()*(self.scene_const.MAX_LANE_WIDTH - self.scene_const.MIN_LANE_WIDTH) + self.scene_const.MIN_LANE_WIDTH
         self.handle_dict = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
 
         # Initilize position
@@ -388,6 +388,8 @@ class env_py:
         for v in range(0,self.options.VEH_COUNT):
             self.epi_reward_stack[v] = self.epi_reward_stack[v] + reward_stack[v]*(self.options.GAMMA**self.epi_step_stack[v])
 
+        if self.options.VERBOSE == True:
+            ic(reward_stack)
         return reward_stack, veh_status, epi_done, epi_sucess
 
 
