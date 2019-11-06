@@ -70,7 +70,7 @@ class dqn:
             print('-----------------------------------------')
             print("Updating Target network.")
             print('-----------------------------------------')
-            self.agent_target.model.set_weights( self.agent_train.model.get_weights() )
+            self.agent_target.model_qa.set_weights( self.agent_train.model_qa.get_weights() )
 
         return
 
@@ -114,7 +114,8 @@ class dqn:
         actions_mb_hot[np.arange(self.options.BATCH_SIZE),np.asarray(actions_mb, dtype=int)] = 1
 
         # Calculate Target Q-value. Uses double network. First, get action from training network
-        action_train_k = self.agent_train.model_out.predict(
+        # Get Q estimate from training model. q_val_train : BATCH_SIZE x ACTION_DIM
+        q_val_train = self.agent_train.model_q_all.predict(
                                             {
                                                 'observation_sensor_k' : next_states_sensor_mb[:,0:self.scene_const.sensor_count,:],
                                                 'observation_state'    : next_states_sensor_mb[:,self.scene_const.sensor_count:,:],
@@ -122,7 +123,20 @@ class dqn:
                                             },
                                             batch_size = self.options.VEH_COUNT
         )
-        action_train_k = np.argmax( action_train_k, axis=1)
+        # ic(q_val_train)
+        # ic(actions_mb_hot)
+        # q_temp = self.agent_train.model_qa.predict(
+        #                                     {
+        #                                         'observation_sensor_k' : next_states_sensor_mb[:,0:self.scene_const.sensor_count,:],
+        #                                         'observation_state'    : next_states_sensor_mb[:,self.scene_const.sensor_count:,:],
+        #                                         'observation_goal_k'   : next_states_goal_mb,
+        #                                         'action_k'             : actions_mb_hot 
+        #                                     },
+        #                                     batch_size = self.options.VEH_COUNT
+        # )
+        # ic(q_temp)
+        # Get action from training model
+        action_train_k = np.argmax( q_val_train, axis=1)
 
         keras_feed = {}
         keras_feed.clear()
@@ -135,12 +149,18 @@ class dqn:
 
         )
         # Using Target + Double network
-        q_target_val_k = rewards_mb + self.options.GAMMA * self.agent_target.model_out.predict(keras_feed)[np.arange(0,self.options.BATCH_SIZE),action_train_k]
-    
+        q_target_val_vec = rewards_mb + self.options.GAMMA * self.agent_target.model_q_all.predict(keras_feed)[np.arange(0,self.options.BATCH_SIZE),action_train_k]
+
         # set q_target to reward if episode is done
         for v_mb in range(0,self.options.BATCH_SIZE):
             if done_mb[v_mb] == 1:
-                q_target_val_k[v_mb] = rewards_mb[v_mb]
+                q_target_val_vec[v_mb] = rewards_mb[v_mb]
+
+
+        # Target is BATCH_SIZE x ACTION_DIM, with Q(s_t,a_t) replaced with \hat{Q}
+        # q_target_val_mtx = q_val_train
+        # q_target_val_mtx[ np.arange(self.options.BATCH_SIZE), action_train_k] = q_target_val_vec
+
 
         # Train Keras Model
         keras_feed = {}
@@ -148,13 +168,18 @@ class dqn:
         keras_feed.update(
             { 
                 'observation_sensor_k' : states_sensor_mb[:,0:self.scene_const.sensor_count,:], 
-                'observation_state'    : states_sensor_mb[:,self.scene_const.sensor_count:,:], 
-                'observation_goal_k'   : states_goal_mb
+                # 'observation_state'    : states_sensor_mb[:,self.scene_const.sensor_count:,:], 
+                'observation_goal_k'   : states_goal_mb,
+                'action_k'             : actions_mb_hot
             }
         )
 
+        if self.options.VERBOSE == True:
+            ic(keras_feed)
+            # ic( np.reshape(q_target_val_mtx,(self.options.BATCH_SIZE,self.options.ACTION_DIM)) )
+
         # Loss
-        loss_k = self.agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(self.options.BATCH_SIZE,1)) )
+        loss_k = self.agent_train.model_qa.train_on_batch( keras_feed, np.reshape(q_target_val_vec,(self.options.BATCH_SIZE,1)) )
 
         return loss_k, states_sensor_mb, next_states_sensor_mb, states_goal_mb, next_states_goal_mb, actions_mb
 
@@ -177,8 +202,8 @@ class dqn:
             print("=================================================")
             print("=================================================\n\n")
         else:
-            self.agent_train.model.load_weights( weight_path )
-            self.agent_target.model.load_weights( weight_path )
+            self.agent_train.model_qa.load_weights( weight_path )
+            self.agent_target.model_qa.load_weights( weight_path )
             print("\n\n=================================================")
             print("=================================================")
             print("Successfully loaded:", weight_path)
@@ -200,7 +225,7 @@ class dqn:
         if not os.path.exists('./checkpoints-vehicle'):
             os.makedirs('./checkpoints-vehicle')
         # self.agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
-        self.agent_train.model.save('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+        self.agent_train.model_qa.save('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
 
         # Save checkpoint
         with open('./checkpoints-vehicle/checkpoint.txt','w') as check_file:

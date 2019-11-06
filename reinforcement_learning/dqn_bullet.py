@@ -101,8 +101,8 @@ def get_options():
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=6,
                         help='Number of vehicles to use for simulation')
-    parser.add_argument('--INIT_SPD', type=int, default=10,
-                        help='Initial speed of vehicle in  km/hr')
+    parser.add_argument('--INIT_SPD', type=int, default=20,
+                        help='Initial speed of vehicle. 100 -> 10m/s = 36km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=20,
                         help='Multiplier for rewards based on the distance to the goal')
     parser.add_argument('--EXPORT', action='store_true', default=False,
@@ -193,6 +193,9 @@ def dumpOptions( options, scene_const ):
 # MAIN
 ########################
 if __name__ == "__main__":
+    # Debugging Options
+    ic.configureOutput(includeContext=True)
+
     ##############################
     # SET 'GLOBAL' Variables
     ##############################
