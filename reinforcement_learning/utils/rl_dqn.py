@@ -11,7 +11,7 @@ class QAgent:
     def __init__(self, options, scene_const, name):
         # Inputs
         self.obs_sensor_k   = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_sensor_k')
-        # self.obs_state      = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_state')
+        self.obs_state      = tf.keras.layers.Input( shape = ( scene_const.sensor_count, options.FRAME_COUNT), name='observation_state')
         self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal_k')
 
         # BATCH_SIZE x ACTION_DIM
@@ -22,7 +22,7 @@ class QAgent:
         ########
 
         # Typical Neural Net
-        network_structure = 2
+        network_structure = 3
         if network_structure == 1:
             # Dense
             self.h_flat1_k = tf.keras.layers.Flatten()(self.obs_goal_k)
@@ -86,8 +86,8 @@ class QAgent:
         # self.h_action_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.max( x, axis = 1, keepdims = True) )(self.h_out_k)
         self.h_action_out_k = tf.keras.layers.dot([self.h_out_k, self.action], axes=[1,1])
 
-        # self.model_q_max = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state], outputs = self.h_action_out_k)
-        self.model_qa = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.action], outputs = self.h_action_out_k)
+        self.model_qa = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state, self.action], outputs = self.h_action_out_k)
+        # self.model_qa = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.action], outputs = self.h_action_out_k)
 
         # keras_opt = tf.keras.optimizers.Adam(lr = options.LR, clipvalue = 10)
         keras_opt = tf.keras.optimizers.Adam(lr = options.LR)
@@ -97,7 +97,7 @@ class QAgent:
         self.model_qa.summary()
 
         # effectively computing twice to get value and maximum
-        self.model_q_all = tf.keras.Model(inputs = [self.obs_goal_k, self.obs_sensor_k], outputs = self.model_qa.get_layer('out_large').output)
+        self.model_q_all = tf.keras.Model(inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state], outputs = self.model_qa.get_layer('out_large').output)
 
         # Figures
         tf.keras.utils.plot_model( self.model_qa, to_file='model_qa.png')
