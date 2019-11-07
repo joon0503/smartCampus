@@ -187,13 +187,20 @@ class dqn:
     def loadNetwork( self ):
         weight_path = None
 
-        # If file is provided
+        # If file is provided. From checkpoint.txt, read the last line, i.e., the latest weight file.
         if self.options.WEIGHT_FILE != None:
             weight_path = self.options.WEIGHT_FILE
         elif os.path.isfile('./checkpoints-vehicle/checkpoint.txt'):
             with open('./checkpoints-vehicle/checkpoint.txt') as check_file:
-                weight_file = check_file.readline()
+                # Get file content
+                weight_file = check_file.readlines()
+
+                # Get last line
+                weight_file = weight_file[len(weight_file)-1].rstrip()
+
                 weight_path = './checkpoints-vehicle/' + weight_file 
+
+                ic(weight_path)
 
         if weight_path == None:
             print("\n\n=================================================")
@@ -228,7 +235,7 @@ class dqn:
         self.agent_train.model_qa.save('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
 
         # Save checkpoint
-        with open('./checkpoints-vehicle/checkpoint.txt','w') as check_file:
+        with open('./checkpoints-vehicle/checkpoint.txt','a+') as check_file:
             check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5')
 
         return
