@@ -236,7 +236,7 @@ class dqn:
 
         # Save checkpoint
         with open('./checkpoints-vehicle/checkpoint.txt','a+') as check_file:
-            check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5')
+            check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5\n')
 
         return
 
