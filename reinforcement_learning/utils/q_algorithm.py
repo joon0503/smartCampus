@@ -168,7 +168,7 @@ class dqn:
         keras_feed.update(
             { 
                 'observation_sensor_k' : states_sensor_mb[:,0:self.scene_const.sensor_count,:], 
-                # 'observation_state'    : states_sensor_mb[:,self.scene_const.sensor_count:,:], 
+                'observation_state'    : states_sensor_mb[:,self.scene_const.sensor_count:,:], 
                 'observation_goal_k'   : states_goal_mb,
                 'action_k'             : actions_mb_hot
             }
