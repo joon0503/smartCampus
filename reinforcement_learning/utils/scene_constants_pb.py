@@ -71,7 +71,7 @@ class scene_constants:
     wall_h          = 1.5           # height of walls
 
     MIN_LANE_WIDTH  = 3.0
-    MAX_LANE_WIDTH  = 15.0
+    MAX_LANE_WIDTH  = 5.0
 
     # Scaling
     veh_scale       = 2.0           # vehicle scale

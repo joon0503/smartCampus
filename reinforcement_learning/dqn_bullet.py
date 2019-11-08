@@ -85,7 +85,7 @@ def get_options():
                         help='Enable the GUI.'),
     parser.add_argument('--enable_TRAJ', action='store_true', default = False,
                         help='Generate and print estimated trajectory.'),
-    parser.add_argument('--ADD_NOISE', action='store_true', default = False,
+    parser.add_argument('--ADD_NOISE', action='store_true', default = True,
                         help='Add noise to the sensor measurement.'),
     parser.add_argument('--VERBOSE', action='store_true', default = False,
                         help='Verbose output')
