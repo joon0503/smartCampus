@@ -42,15 +42,16 @@ def createGoal(size, pos):
 # Create T-Intersection
 # Input
 #   x_pos : x position of the test case
-#   direction : 0/1/2, left/mid,right
 #   scene_const
 #   openWall : T/F
+# Note:
+# randomization is doen in initScene
 # Output
 #   goal_id : id of the goal point
 #   wall_handle_list : array of wall's handle
 
 
-def createTee(x_pos, y_pos, direction, scene_const, openWall=True):
+def createTee(x_pos, y_pos, scene_const, openWall=True):
     wall_handle_list = []
 
     # Walls left & right
@@ -85,17 +86,21 @@ def createTee(x_pos, y_pos, direction, scene_const, openWall=True):
 
     # Create Goal point
     goal_z = 1.0
-    if direction == 0:
-        goal_id = createGoal(0.1, [x_pos - scene_const.turn_len*0.5 + 1.0,
-                                   y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z])
-    elif direction == 1:
-        goal_id = createGoal(
-            0.1, [x_pos, y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z])
-    elif direction == 2:
-        goal_id = createGoal(0.1, [x_pos + scene_const.turn_len*0.5 - 1.0,
-                                   y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z])
-    else:
-        raise ValueError('Undefined direction')
+    goal_y = y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5
+    goal_x      = x_pos
+    goal_id = createGoal( 0.1, [ goal_x, goal_y, goal_z])
+
+
+
+    # if direction == 0:
+    #     goal_id = createGoal(0.1, [x_pos - scene_const.turn_len*0.5 + 1.0,
+    #                                y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z])
+    # elif direction == 1:
+    # elif direction == 2:
+    #     goal_id = createGoal(0.1, [x_pos + scene_const.turn_len*0.5 - 1.0,
+    #                                y_pos + scene_const.lane_len*0.5 + scene_const.lane_width*0.5, goal_z])
+    # else:
+    #     raise ValueError('Undefined direction')
 
     return goal_id, wall_handle_list
 
@@ -123,7 +128,7 @@ def genScene(scene_const, options, handle_dict, reset_case_list, genVehicle=True
 
             if u_index in reset_case_list:
                 # Generate T-intersection for now
-                handle_dict['dummy'][u_index], handle_dict['wall'][u_index] = createTee( i*scene_const.case_x, j*scene_const.case_y, i % 3, scene_const)
+                handle_dict['dummy'][u_index], handle_dict['wall'][u_index] = createTee( i*scene_const.case_x, j*scene_const.case_y, scene_const )
 
                 # Save vehicle handle
                 if genVehicle == True:
