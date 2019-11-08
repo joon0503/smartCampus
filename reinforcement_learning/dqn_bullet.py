@@ -41,7 +41,7 @@ def get_options():
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.9954,
+    parser.add_argument('--GAMMA', type=float, default=0.995,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -95,15 +95,15 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=1714,
+    parser.add_argument('--GOAL_REW', type=int, default=4000,
                         help='Activation function')
-    parser.add_argument('--FAIL_REW', type=int, default=-317,
+    parser.add_argument('--FAIL_REW', type=int, default=-5000,
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=6,
                         help='Number of vehicles to use for simulation')
     parser.add_argument('--INIT_SPD', type=int, default=50,
                         help='Initial speed of vehicle. 100 -> 10m/s = 36km/hr')
-    parser.add_argument('--DIST_MUL', type=int, default=20,
+    parser.add_argument('--DIST_MUL', type=int, default=10,
                         help='Multiplier for rewards based on the distance to the goal')
     parser.add_argument('--EXPORT', action='store_true', default=False,
                         help='Export the weights into a csv file')

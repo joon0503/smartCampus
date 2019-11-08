@@ -242,18 +242,19 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, randomize=F
 # Calculate Approximate Rewards for variaous cases
 def printRewards( scene_const, options ):
     # Some parameters
-    veh_speed = options.INIT_SPD/3.6  # 10km/hr in m/s
+    veh_speed = options.INIT_SPD*0.1  # m/s. This is how current test case works
 
     # Time Steps
     #dt_code = scene_const.dt * options.FIX_INPUT_STEP
 
     # Expected Total Time Steps
-    total_step = (scene_const.goal_distance/veh_speed)*(1/options.CTR_FREQ)
+    control_freq = 0.1  # 0.1 seconds per step
+    total_step = (scene_const.goal_distance/veh_speed) * (1/control_freq)
 
     # Reward at the end
     rew_end = 0
     for i in range(0, int(total_step)):
-        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
+        goal_distance = scene_const.goal_distance - i*control_freq*veh_speed 
         if i != total_step-1:
             rew_end = rew_end -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -262,7 +263,7 @@ def printRewards( scene_const, options ):
     # Reward at Obs
     rew_obs = 0
     for i in range(0, int(total_step*0.5)):
-        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
+        goal_distance = scene_const.goal_distance - i*control_freq*veh_speed 
         if i != int(total_step*0.5)-1:
             rew_obs = rew_obs -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -271,7 +272,7 @@ def printRewards( scene_const, options ):
     # Reward at 75%
     rew_75 = 0
     for i in range(0, int(total_step*0.75)):
-        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
+        goal_distance = scene_const.goal_distance - i*control_freq*veh_speed 
         if i != int(total_step*0.75)-1:
             rew_75 = rew_75 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -280,7 +281,7 @@ def printRewards( scene_const, options ):
     # Reward at 25%
     rew_25 = 0
     for i in range(0, int(total_step*0.25)):
-        goal_distance = scene_const.goal_distance - i*options.CTR_FREQ*veh_speed 
+        goal_distance = scene_const.goal_distance - i*control_freq*veh_speed 
         if i != int(total_step*0.25)-1:
             rew_25 = rew_25 -options.DIST_MUL*(goal_distance/scene_const.goal_distance)**2*(options.GAMMA**i) 
         else:
@@ -297,7 +298,8 @@ def printRewards( scene_const, options ):
     print("======================================")
     print("        REWARD ESTIMATION")
     print("======================================")
-    print("Control Frequency (s)  : ", options.CTR_FREQ)
+    # print("Control Frequency (s)  : ", options.CTR_FREQ)
+    print("Control Frequency (s)  : ", control_freq)
     print("Expected Total Step    : ", total_step)
     print("Expected Reward (25)   : ", rew_25)
     print("Expected Reward (Obs)  : ", rew_obs)
