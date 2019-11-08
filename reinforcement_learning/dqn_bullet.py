@@ -465,12 +465,14 @@ if __name__ == "__main__":
         for v in reset_veh_list:
             print('========')
             print('Vehicle #:', v)
-            print('\tGlobal Step:' + str(global_step))
-            print('\tEPS: ' + str(q_algo.eps))
-            print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(sim_env.epi_step_stack[v])) )
-            print('\tEpisode Reward: ' + str(sim_env.epi_reward_stack[v])) 
-            print('\tDirection: ' + str(case_direction[v]) ) 
-            print('Last Loss: ',data_package.avg_loss[-1])
+            print('\tGlobal Step     : ' + str(global_step))
+            print('\tEPS             : ' + str(q_algo.eps))
+            print('\tEpisode #       : ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) )
+            print('\tStep            : ' + str(int(sim_env.epi_step_stack[v])) )
+            print('\tEpisode Reward  : ' + str(sim_env.epi_reward_stack[v])) 
+            # FIXME: case_direction tells the obstacle position. But scene is updated before printing this.
+            # print('\tObs. Position   : ' + str(case_direction[v]) )        
+            print('\tLast Loss       : ',data_package.avg_loss[-1])
             print('========')
             print('')
 
