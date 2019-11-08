@@ -35,13 +35,13 @@ def get_options():
         )
     parser.add_argument('--MAX_EPISODE', type=int, default=5000,
                         help='max number of episodes iteration\n')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=250,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
     parser.add_argument('--OBSERVATION_DIM', type=int, default=11,
                         help='number of observations one can see')
-    parser.add_argument('--GAMMA', type=float, default=0.995,
+    parser.add_argument('--GAMMA', type=float, default=0.9954,
                         help='discount factor of Q learning')
     parser.add_argument('--INIT_EPS', type=float, default=1.0,
                         help='initial probability for randomly sampling action')
@@ -49,11 +49,11 @@ def get_options():
                         help='finial probability for randomly sampling action')
     parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=5400,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=10800,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=20000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=500,
                         help='Save network after this number of episodes')
@@ -65,7 +65,7 @@ def get_options():
                         help='size of hidden layer 1')
     parser.add_argument('--H2_SIZE', type=int, default=160,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=80,
+    parser.add_argument('--H3_SIZE', type=int, default=160,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
@@ -95,13 +95,13 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=6000,
+    parser.add_argument('--GOAL_REW', type=int, default=1714,
                         help='Activation function')
-    parser.add_argument('--FAIL_REW', type=int, default=-2000,
+    parser.add_argument('--FAIL_REW', type=int, default=-317,
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=6,
                         help='Number of vehicles to use for simulation')
-    parser.add_argument('--INIT_SPD', type=int, default=20,
+    parser.add_argument('--INIT_SPD', type=int, default=50,
                         help='Initial speed of vehicle. 100 -> 10m/s = 36km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=20,
                         help='Multiplier for rewards based on the distance to the goal')

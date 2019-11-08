@@ -11,7 +11,7 @@ class scene_constants:
     # List of constants
 
     # Maximum distance for sensor readings
-    sensor_distance     = 5
+    sensor_distance     = 10
     max_distance        = sensor_distance        # DEPRECATED
 
     # Number of sensors
@@ -53,7 +53,7 @@ class scene_constants:
     collision_distance  = 0.4
 
     # Distance to the goal. Used for normalization
-    goal_distance       = 10
+    goal_distance       = 40
     detect_range        = 0.75
 
     # Simulation Parameters
@@ -62,16 +62,16 @@ class scene_constants:
     # Test Case related
     obs_w           = (1/3)         # obstacle width ratio
     lane_width      = 4             # lane width
-    lane_len        = 10            # total len
-    turn_len        = 10            # total len after tun
-    case_x          = 20            # distance between each case
-    case_y          = 25            # distance between each case
+    lane_len        = 50            # total len
+    turn_len        = 30            # total len after tun
+    case_x          = 100            # distance between each case
+    case_y          = 150            # distance between each case
     veh_init_y      = -3            # initial vehicle y position
     wall_cnt        = 9             # number of walls
     wall_h          = 1.5           # height of walls
 
-    MIN_LANE_WIDTH  = 3.5
-    MAX_LANE_WIDTH  = 5.0
+    MIN_LANE_WIDTH  = 3.0
+    MAX_LANE_WIDTH  = 15.0
 
     # Scaling
     veh_scale       = 2.0           # vehicle scale
