@@ -57,7 +57,7 @@ class scene_constants:
     detect_range        = 0.75
 
     # Simulation Parameters
-    dt = 0.025                      # dt of the vrep simulation
+    # dt = 0.025                      # dt of the vrep simulation
 
     # Test Case related
     obs_w           = (1/3)         # obstacle width ratio
