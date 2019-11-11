@@ -297,11 +297,15 @@ def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file' )
 #######################
 # EXAMPLE 
 #######################
+# Following is the example usage of the functions defined in this file.
+#######################
+
 
 # weightFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/2019-11-07_19_55_36.380100_e5000_gs369576.h5'
+# optionFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/genTraj_options_file'
 
 # # Load options & Network
-# sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath )
+# sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath, optionFilePath )
 
 # sample_veh_pos      = np.zeros((sample_options.VEH_COUNT,2))
 # sample_veh_heading  = np.zeros(sample_options.VEH_COUNT)
