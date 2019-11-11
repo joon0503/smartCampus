@@ -15,7 +15,7 @@ eps_dec=-0.1
 
 for eps in $(seq $eps_start $eps_dec $eps_end)
     do
-        python3 dqn_bullet.py --INIT_EPS $eps
+        python3 dqn_bullet.py --INIT_EPS $eps --INIT_SPD 30
 
 done
 

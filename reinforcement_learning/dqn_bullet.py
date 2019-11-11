@@ -260,7 +260,8 @@ if __name__ == "__main__":
     ##############
     # TF Setup
     ##############
-    q_algo          = dqn( sim_env, load = True )
+    # FIXME: Currently using init_eps as the initial value of the curriculum hardness. Separate this into a new option
+    q_algo          = dqn( sim_env, options.INIT_EPS, load = True )
     if options.enable_ICM == True:
         agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
