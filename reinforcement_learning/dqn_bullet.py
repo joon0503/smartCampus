@@ -454,7 +454,7 @@ if __name__ == "__main__":
             # If just running to get memory, do not increment counter
             epi_counter = 0
 
-        handle_dict, sim_env.scene_const, case_direction = sim_env.initScene( reset_veh_list, RANDOMIZE )
+        handle_dict, sim_env.scene_const, case_direction = sim_env.initScene( reset_veh_list, RANDOMIZE, q_algo.course_eps )
 
         ###############
         # Miscellaneous
@@ -467,6 +467,7 @@ if __name__ == "__main__":
             print('Vehicle #:', v)
             print('\tGlobal Step     : ' + str(global_step))
             print('\tEPS             : ' + str(q_algo.eps))
+            print('\tCourse EPS      : ' + str(q_algo.course_eps))
             print('\tEpisode #       : ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) )
             print('\tStep            : ' + str(int(sim_env.epi_step_stack[v])) )
             print('\tEpisode Reward  : ' + str(sim_env.epi_reward_stack[v])) 

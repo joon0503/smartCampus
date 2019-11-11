@@ -16,7 +16,7 @@ from utils.rl_dqn import QAgent
 
 
 class dqn:
-    def __init__(self, sim_env, load = True):
+    def __init__(self, sim_env, init_course_eps = 1.0, load = True):
         # Target and Training agent
         self.agent_train     = QAgent(sim_env.options,sim_env.scene_const, 'Training')
         self.agent_target    = QAgent(sim_env.options,sim_env.scene_const, 'Target')
@@ -28,6 +28,9 @@ class dqn:
         self.options = sim_env.options
         self.scene_const = sim_env.scene_const
         self.sim_env = sim_env
+
+        # Course eps
+        self.course_eps = init_course_eps
 
         # The replay memory.
         if sim_env.options.enable_PER == False:
@@ -61,6 +64,8 @@ class dqn:
         # Update target
         self.__updateTarget( global_step )
 
+        # Increase course hardness
+        self.__updateCourseEps( global_step )
         return
 
     # Update target
@@ -82,6 +87,17 @@ class dqn:
 
         return
 
+    # update course eps
+    def __updateCourseEps( self, global_step ):
+        # Decay epsilon
+        if global_step % self.options.EPS_ANNEAL_STEPS == 0:
+            self.course_eps = self.course_eps * self.options.EPS_DECAY
+
+        # Jump the obstacle if too close
+        if abs(self.course_eps - 0.75) < 0.01:
+            self.course_eps = 0.5
+
+        return
 
     # Get optimal action Keras. 
     #   action_feed: dictionary of input to keras

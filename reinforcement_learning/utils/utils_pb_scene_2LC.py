@@ -162,10 +162,11 @@ def removeScene(scene_const, options, veh_reset_list, handle_dict):
 # Initialize test cases. Reset position of vehicle and obstacle
 # Input
 # veh_index_list : vehicle reset list
+# course_eps       : parameter for curriculum learning. [0,1]. 1 means easy, 0 means hard
 # Output
 #   direction : info about randomized testcase. 0/1/2 - left/straight/right
 #   goal_pos  : VEH_COUNT x 2 array of goal position
-def initScene_2LC(scene_const, options, veh_index_list, handle_dict, randomize=False):
+def initScene_2LC(scene_const, options, veh_index_list, handle_dict, course_eps = 0, randomize=False):
     # If reset list is empty, just return
     if len(veh_index_list) == 0:
         return None, None 
@@ -189,10 +190,26 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, randomize=F
         if randomize == False:
             p.resetBasePositionAndOrientation(vehicle_handle[veh_index], [ scene_const.case_x * x_index, scene_const.case_y * y_index + scene_const.veh_init_y, 0], [0, 0, 0.707, 0.707])
         else:
-            x_pos = random.uniform(-1*scene_const.lane_width *
-                                   0.5 + 0.6, scene_const.lane_width*0.5 - 0.6)
-            p.resetBasePositionAndOrientation(vehicle_handle[veh_index], [
-                                              scene_const.case_x * x_index + x_pos, scene_const.case_y * y_index + scene_const.veh_init_y, 0], [0, 0, 0.707, 0.707])
+            # randomize x_position between -0.5*lane_width + 0.6 ~ 0.5*lane_width - 0.6
+            x_pos = random.uniform(-1*scene_const.lane_width * 0.5 + 0.6, scene_const.lane_width*0.5 - 0.6)
+
+            # randomize y_position based on curriculum
+            y_pos = (scene_const.lane_len * 0.5) * course_eps
+
+            p.resetBasePositionAndOrientation(
+                vehicle_handle[veh_index], 
+                [ 
+                    scene_const.case_x * x_index + x_pos, 
+                    scene_const.case_y * y_index + scene_const.veh_init_y + y_pos, 
+                    0
+                ], 
+                [
+                    0, 
+                    0, 
+                    0.707, 
+                    0.707
+                ]
+            )
 
         # Reset steering & motor speed. TODO: Perhaps do this with setMotorArray to do it in a single line?
         for s in steer_handle:
@@ -203,6 +220,7 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, randomize=F
                 vehicle_handle[veh_index], m, targetValue=0, targetVelocity=options.INIT_SPD)
 
         # Randomize the obstacle
+        #   y position of obstable at 0.3*lane_len
         if randomize == True:
             obs_width = scene_const.obs_w * scene_const.lane_width
             temp_prob = random.uniform(0, 1)
@@ -225,14 +243,22 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, randomize=F
         if randomize == True:
             # Define varialbes 
             dummy_handle    = handle_dict['dummy']
-            goal_z          = 1.0        
-            x_pos           = random.uniform(-1*scene_const.turn_len*0.5 + 1.0, scene_const.turn_len*0.5 - 1.0)
+            goal_z          = 1.0       
+
+            # Randomize x_position of goal. Based on curriculum 
+            x_pos           = random.uniform(-1*scene_const.turn_len*0.5 + 1.0, scene_const.turn_len*0.5 - 1.0) * (1 - course_eps)
 
             # Remove existing goal point
             p.removeBody( dummy_handle[veh_index] )
 
             # Create new goal point
-            dummy_handle[veh_index] = createGoal(0.1, [x_pos + x_index * scene_const.case_x, y_index * scene_const.case_y + 0.5*scene_const.lane_len + 0.5*scene_const.lane_width, goal_z])
+            dummy_handle[veh_index] = createGoal(0.1, 
+                [
+                    x_pos + x_index * scene_const.case_x, 
+                    y_index * scene_const.case_y + 0.5*scene_const.lane_len + 0.5*scene_const.lane_width, 
+                    goal_z
+                ]
+            )
 
             goal_pos[veh_index,0] = x_pos + x_index * scene_const.case_x
             goal_pos[veh_index,1] = y_index * scene_const.case_y + 0.5*scene_const.lane_len + 0.5*scene_const.lane_width

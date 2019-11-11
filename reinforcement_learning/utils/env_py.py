@@ -163,7 +163,9 @@ class env_py:
             p.disconnect(id)
 
     # Initilize scene. Remove the scene, and regenerate again
-    def initScene( self, veh_reset_list, randomize_input ):
+    # Input
+    # course_eps : course hardness. 0 - hard, 1- easy, determine where the vehicle starts and how far is the goal point
+    def initScene( self, veh_reset_list, randomize_input, course_eps = 0 ):
         # Remove
         removeScene( self.scene_const, self.options, veh_reset_list, self.handle_dict)
 
@@ -173,7 +175,7 @@ class env_py:
         self.handle_dict = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
 
         # Initilize position
-        direction, goal_pos_temp = initScene_2LC( self.scene_const, self.options, veh_reset_list, self.handle_dict, randomize = randomize_input)               # initialize
+        direction, goal_pos_temp = initScene_2LC( self.scene_const, self.options, veh_reset_list, self.handle_dict, course_eps, randomize = randomize_input)               # initialize
 
         # goal_pos_temp is zero if not updated, and nonzero if updated. Hence only change the goal_pos with new values
         if goal_pos_temp is not None: 

@@ -66,15 +66,21 @@ class scene_constants:
     turn_len        = 30            # total len after tun
     case_x          = 100            # distance between each case
     case_y          = 150            # distance between each case
-    veh_init_y      = -3            # initial vehicle y position
+    veh_init_y      = 0            # initial vehicle y position
     wall_cnt        = 9             # number of walls
     wall_h          = 1.5           # height of walls
 
-    MIN_LANE_WIDTH  = 3.0
+    MIN_LANE_WIDTH  = 3.5
     MAX_LANE_WIDTH  = 5.0
 
     # Scaling
     veh_scale       = 2.0           # vehicle scale
+
+    ####
+    # Curriculum Learniung related parameters
+    ####
+
+
 
 
     # Contants for Event Handling
