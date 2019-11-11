@@ -57,20 +57,26 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
     for t in range(0,max_horizon):
         ic(oldSensor, oldSensor.shape)
 
+        # Input to the network
         action_feed = {}
         action_feed.clear()
         action_feed.update({'observation_sensor_k': oldSensor0[:,0:scene_const.sensor_count,:]})
         action_feed.update({'observation_state': oldSensor0[:,scene_const.sensor_count:,:]})
         action_feed.update({'observation_goal_k': oldGoal})
+
+        # Dummy input for action (this is not used)
+        action_feed.update({'action_k': np.zeros((options.VEH_COUNT,options.ACTION_DIM))})
+
         # targetSteer_k, action_stack_k = getOptimalAction( action_feed ) # FIXME
 
         # Get Optimal Action
+        # FIXME: This does not take account the new network structure
         act_values = network_model.predict(action_feed, batch_size=options.VEH_COUNT)
 
-            # Get maximum for each vehicle
+        # Get maximum for each vehicle
         action_stack_k = np.argmax(act_values, axis=1)
 
-            # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
+        # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
         targetSteer_k = scene_const.max_steer - action_stack_k * abs(scene_const.max_steer - scene_const.min_steer)/(options.ACTION_DIM-1)
 
 
@@ -272,23 +278,27 @@ def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file' )
     sample_options     = new_dict['options']
     sample_scene_const = new_dict['scene_const']
 
-    # Load model
+    # Load the full model
     model = tf.keras.models.load_model( weightFilePath, custom_objects={"tf": tf} )
-
     model.summary()
+
+    # Load the model which outputs Q-values for all action
+    model_q_all = tf.keras.Model( inputs = model.input, outputs = model.get_layer('out_large').output ) 
+    model_q_all.summary()
+
 
     # for layer in model.layers:
         # print( layer.get_weights() )
 
 
-    return sample_options, sample_scene_const, model
+    return sample_options, sample_scene_const, model_q_all
 
 
 #######################
 # EXAMPLE 
 #######################
 
-# weightFilePath = './checkpoints-vehicle/2019-09-30_11_17_17.948153_e25_gs1674.h5'
+# weightFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/2019-11-07_19_55_36.380100_e5000_gs369576.h5'
 
 # # Load options & Network
 # sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath )
@@ -300,3 +310,5 @@ def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file' )
 # max_horizon         = 5
 
 # traj_est = genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon)
+
+# ic(traj_est)
