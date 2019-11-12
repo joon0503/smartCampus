@@ -49,15 +49,37 @@ def createGoal(size, pos):
 # Output
 #   goal_id : id of the goal point
 #   wall_handle_list : array of wall's handle
-
+#   valid_dir : 0/1/2 : left,middle,right
 
 def createTee(x_pos, y_pos, scene_const, openWall=True):
     wall_handle_list = []
 
+    # If openWall = True, then randomly choose a valid direction and close walls for other paths
+    if openWall == False:
+        valid_dir = np.random.random(1)
+        if 0 <= valid_dir and valid_dir <= (1/3):
+            # Goal on left
+            left_len  = 0
+            right_len = scene_const.lane_width*2
+            valid_dir = 0
+        elif (1/3) <= valid_dir and valid_dir <= (2/3):
+            # Goal on right
+            left_len  = scene_const.lane_width*2
+            right_len = 0
+            valid_dir = 2
+        elif (2/3) <= valid_dir and valid_dir <= 1:
+            # Goal on straight
+            left_len  = scene_const.lane_width*2
+            right_len = scene_const.lane_width*2
+            valid_dir = 1
+        else:
+            ic(valid_dir)
+            raise ValueError('Invalid direction')
+
     # Walls left & right
-    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_len, scene_const.wall_h], [
+    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_len + left_len, scene_const.wall_h], [
                             x_pos - scene_const.lane_width*0.5, y_pos, 0]))      # left
-    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_len, scene_const.wall_h], [
+    wall_handle_list.append(createWall([0.02, 0.5*scene_const.lane_len + right_len, scene_const.wall_h], [
                             x_pos + scene_const.lane_width*0.5, y_pos, 0]))      # right
 
     # Walls front & back
@@ -102,7 +124,7 @@ def createTee(x_pos, y_pos, scene_const, openWall=True):
     # else:
     #     raise ValueError('Undefined direction')
 
-    return goal_id, wall_handle_list
+    return goal_id, wall_handle_list, valid_dir
 
 # Generate the scene
 # Input
@@ -110,14 +132,16 @@ def createTee(x_pos, y_pos, scene_const, openWall=True):
 #   reset_case_list: list of testcase numbers which we generate the scene
 # Output
 #   handle_dict
+#   valid_dir : 1 x VEH_COUNT, each index 0/1/2 = left/middle/right
 
 def genScene(scene_const, options, handle_dict, reset_case_list, genVehicle=True):
     if len(reset_case_list) == 0:
-        return handle_dict
+        return handle_dict, None
 
     if options.VEH_COUNT % options.X_COUNT != 0:
         raise ValueError('VEH_COUNT=' + str(options.VEH_COUNT) + ' must be multiple of options.X_COUNT=' + str(options.X_COUNT))
 
+    valid_dir = np.empty(options.VEH_COUNT)
     # Generate test cases & vehicles
     for j in range(int(options.VEH_COUNT/options.X_COUNT)):
         for i in range(options.X_COUNT):
@@ -128,7 +152,7 @@ def genScene(scene_const, options, handle_dict, reset_case_list, genVehicle=True
 
             if u_index in reset_case_list:
                 # Generate T-intersection for now
-                handle_dict['dummy'][u_index], handle_dict['wall'][u_index] = createTee( i*scene_const.case_x, j*scene_const.case_y, scene_const )
+                handle_dict['dummy'][u_index], handle_dict['wall'][u_index], valid_dir[u_index] = createTee( i*scene_const.case_x, j*scene_const.case_y, scene_const, openWall = False )
 
                 # Save vehicle handle
                 if genVehicle == True:
@@ -141,7 +165,7 @@ def genScene(scene_const, options, handle_dict, reset_case_list, genVehicle=True
                     p.setJointMotorControl2(handle_dict['vehicle'][u_index], wheel, p.VELOCITY_CONTROL, targetVelocity=0, force=0)
                     p.getJointInfo(handle_dict['vehicle'][u_index], wheel)
 
-    return handle_dict
+    return handle_dict, valid_dir
 
 # Remove the scene
 
@@ -163,10 +187,11 @@ def removeScene(scene_const, options, veh_reset_list, handle_dict):
 # Input
 # veh_index_list : vehicle reset list
 # course_eps       : parameter for curriculum learning. [0,1]. 1 means easy, 0 means hard
+# valid_dir      : 1 x VEH_COUNT, each index 0/1/2 = left/middle/right
 # Output
 #   direction : info about randomized testcase. 0/1/2 - left/straight/right
 #   goal_pos  : VEH_COUNT x 2 array of goal position
-def initScene_2LC(scene_const, options, veh_index_list, handle_dict, course_eps = 0, randomize=False):
+def initScene_2LC(scene_const, options, veh_index_list, handle_dict, valid_dir, course_eps = 0, randomize=False):
     # If reset list is empty, just return
     if len(veh_index_list) == 0:
         return None, None 
@@ -193,8 +218,13 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, course_eps 
             # randomize x_position between -0.5*lane_width + 0.6 ~ 0.5*lane_width - 0.6
             x_pos = random.uniform(-1*scene_const.lane_width * 0.5 + 0.6, scene_const.lane_width*0.5 - 0.6)
 
-            # randomize y_position based on curriculum
-            y_pos = (scene_const.lane_len * 0.5) * course_eps
+            # randomize y_position
+            y_pos = np.random.random(1) * scene_const.lane_len * 0.5
+
+            # If y_pos lies between obstacle, just start closer to the goal point 
+            # TODO : Randomize the starting point even in this case?
+            if y_pos >= scene_const.MIN_OBS_Y_POS and y_pos <= scene_const.MAX_OBS_Y_POS:
+                y_pos = scene_const.MAX_OBS_Y_POS
 
             p.resetBasePositionAndOrientation(
                 vehicle_handle[veh_index], 
@@ -246,7 +276,16 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, course_eps 
             goal_z          = 1.0       
 
             # Randomize x_position of goal. Based on curriculum 
-            x_pos           = random.uniform(-1*scene_const.turn_len*0.5 + 1.0, scene_const.turn_len*0.5 - 1.0) * (1 - course_eps)
+            if valid_dir[veh_index] == 0:
+                x_pos           = random.uniform(-1*scene_const.turn_len*0.5 + 1.0, 0) * (1 - course_eps)
+            elif valid_dir[veh_index] == 1:
+                x_pos           = random.uniform(-1.0, 1.0) * (1 - course_eps)
+            elif valid_dir[veh_index] == 2:
+                x_pos           = random.uniform(0, scene_const.turn_len*0.5 - 1.0) * (1 - course_eps)
+            else:
+                ic(valid_dir, veh_index)
+                raise ValueError('Invalid direction at valid_dir[veh_index]')
+
 
             # Remove existing goal point
             p.removeBody( dummy_handle[veh_index] )

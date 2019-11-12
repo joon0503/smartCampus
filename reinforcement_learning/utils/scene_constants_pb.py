@@ -70,8 +70,12 @@ class scene_constants:
     wall_cnt        = 9             # number of walls
     wall_h          = 1.5           # height of walls
 
-    MIN_LANE_WIDTH  = 3.5
+    MIN_LANE_WIDTH  = 4.0
     MAX_LANE_WIDTH  = 5.0
+
+    # y-axis distance where obstacle lies
+    MAX_OBS_Y_POS   = lane_len * 0.5 * 0.75     
+    MIN_OBS_Y_POS   = lane_len * 0.5 * 0.5
 
     # Scaling
     veh_scale       = 2.0           # vehicle scale

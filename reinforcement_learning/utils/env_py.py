@@ -152,7 +152,7 @@ class env_py:
         p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"), globalScaling=10)
 
         # Generate Scene and get handles
-        self.handle_dict = genScene( self.scene_const, self.options, handle_dict, range(0,self.options.VEH_COUNT) )
+        self.handle_dict, _ = genScene( self.scene_const, self.options, handle_dict, range(0,self.options.VEH_COUNT) )
 
         print("Finished starting simulations.")
         print("=============================================")
@@ -172,10 +172,11 @@ class env_py:
         # Generate the scene with updated lane_width, but not vehicles
         if randomize_input == True:
             self.scene_const.lane_width = np.random.random_sample()*(self.scene_const.MAX_LANE_WIDTH - self.scene_const.MIN_LANE_WIDTH) + self.scene_const.MIN_LANE_WIDTH
-        self.handle_dict = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
+
+        self.handle_dict, valid_dir = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
 
         # Initilize position
-        direction, goal_pos_temp = initScene_2LC( self.scene_const, self.options, veh_reset_list, self.handle_dict, course_eps, randomize = randomize_input)               # initialize
+        direction, goal_pos_temp = initScene_2LC( self.scene_const, self.options, veh_reset_list, self.handle_dict, valid_dir, course_eps, randomize = randomize_input)               # initialize
 
         # goal_pos_temp is zero if not updated, and nonzero if updated. Hence only change the goal_pos with new values
         if goal_pos_temp is not None: 
