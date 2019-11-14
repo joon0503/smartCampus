@@ -4,6 +4,8 @@
 import os
 import sys
 import math
+import matplotlib
+import matplotlib.pyplot as plt
 from collections import deque
 
 import numpy as np
@@ -21,7 +23,7 @@ from utils.utils_pb_scene_2LC import (genScene, initScene_2LC, printRewards,
 # Input
 #   obs_sensor_stack : VEH_COUNT x SENSOR_COUNT*2
 # Output
-#   obs_sensor_stack_noise : SIZE : VEH_COUNT x SENSOR_COUNT*2
+#   obs_sensor_stack_noismath.degrees(e : SIZE : VEH_COUNT x SENSOR_COUNT*2
 #                            The detection state of the measurement data is modified with noise.
 #
 # Noise Adding Algorithm
@@ -90,8 +92,12 @@ class env_py:
         self.epi_step_stack      = np.zeros(self.options.VEH_COUNT, dtype=int)                              # Count number of step for each vehicle in each episode
 
         # Goal position for each testcase (VEH_COUNT x 2) [x1,y1;x2,y2]
-        self.goal_pos            = np.empty((self.options.VEH_COUNT,2), dtype=float)                              # Count number of step for each vehicle in each episode
+        self.goal_pos            = np.empty((self.options.VEH_COUNT,2), dtype=float)                              # Goal position of each vehicle
 
+        # Plotting related variables
+        self.fig = None
+        self.ax  = None
+        self.plot_counter = 0
         return
 
     # Start Simulation & Generate the Scene
@@ -153,6 +159,15 @@ class env_py:
 
         # Generate Scene and get handles
         self.handle_dict, _ = genScene( self.scene_const, self.options, handle_dict, range(0,self.options.VEH_COUNT) )
+
+
+        # Figure for plotting
+        if self.options.DRAW == True:
+            plt.ion()
+            self.fig = plt.figure(num=0, figsize=(2,8))
+            self.ax  = self.fig.add_subplot(1,1,1)
+            plt.show()
+
 
         print("Finished starting simulations.")
         print("=============================================")
@@ -404,6 +419,102 @@ class env_py:
                 self.epi_step_stack[v] = 0
 
         return
+
+    # Plot visualization
+    # Given the handle to figures, it plots the position, heading and LIDAR information w.r.t. ground 
+    # Inputs
+    #   veh_idx : index of the vehicle
+    #   frame   : number of frames to plot. 0 means options.FRAME_COUNT
+    #   save    : T/F, True means save figure
+    # Outputs
+    #   None
+    def plotVehicle(self, veh_idx = 0, frame = 0, save = False):
+        if frame == 0:
+            frame = self.options.FRAME_COUNT
+
+        # Clear figure
+        self.ax.clear()
+        self.ax.set_xlim([-10,10])
+        self.ax.set_ylim([0,35])
+
+        #------------------------
+        # Plot Goal Position
+        #------------------------
+        self.ax.scatter(self.goal_pos[veh_idx][0], self.goal_pos[veh_idx][1], color='blue')
+
+        #------------------------
+        # Plot Vehicle. Stronger color means more recent position
+        #------------------------
+
+        # Color parameters
+        color_start = 0.2
+        color_end   = 1.0
+        color_delta = (color_end - color_start)/frame
+
+        # Plot position
+        for i in range(0,frame):
+            # Saturate color
+            veh_color = (1,0,0,color_start + i*color_delta)
+
+            # Add 1 to counter since we are saving 1 more data points (#0, #1, #2, #3, #4) when Frame is 5, with #4 being the latest data
+            self.ax.scatter( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], color=veh_color)
+
+        #------------------------
+        # Plot LIDAR Information 
+        #------------------------
+        radar_x = []
+        radar_y = []
+        veh_x   = self.veh_pos_queue[veh_idx][-1][0]
+        veh_y   = self.veh_pos_queue[veh_idx][-1][1]
+        veh_heading = self.veh_heading_queue[veh_idx][-1][2]
+        curr_state = self.sensor_queue[veh_idx][-1][0:self.scene_const.sensor_count]
+        curr_detect = self.sensor_queue[veh_idx][-1][self.scene_const.sensor_count:]
+
+        for i in range(0,self.scene_const.sensor_count):
+            # gamma + sensor_min_angle   is the current angle of the left most sensor
+            # radar_x.append( self.scene_const.sensor_distance*curr_state[i]*np.sin( -1*veh_heading*self.scene_const.angle_scale + self.scene_const.sensor_min_angle + i*self.scene_const.sensor_delta ) + veh_x )
+            # radar_y.append( self.scene_const.sensor_distance*curr_state[i]*np.cos( -1*veh_heading*self.scene_const.angle_scale + self.scene_const.sensor_min_angle + i*self.scene_const.sensor_delta ) + veh_y )
+
+            # Angle from y-axis to sensor. CW +, CCW -
+            psi_angle = veh_heading + self.scene_const.sensor_min_angle + i*self.scene_const.sensor_delta 
+
+            # Sensor distance in meter
+            sensor_dist_m = self.scene_const.sensor_distance * curr_state[i]
+
+            # Plot lidar x,y
+            radar_x.append( -1 * sensor_dist_m * np.sin( -1*psi_angle ) + veh_x )
+            radar_y.append( sensor_dist_m * np.cos( -1*psi_angle ) + veh_y )
+
+        # Place marker at LIDAR x,y
+        for i in range(0,self.scene_const.sensor_count):
+            if curr_detect[i] == 1:
+                marker_color = 'green'
+            else:
+                marker_color = 'red'
+
+            self.ax.scatter(radar_x[i],radar_y[i], marker='x', color=marker_color)
+
+        # Lines connecting detected points to each other
+        # self.ax.plot(radar_x,radar_y, color='red')
+
+        # Lines connecting point to vehicle
+        for i in range(0,self.scene_const.sensor_count):
+            if curr_detect[i] == 1:
+                line_color = (0,1,0,0.2)
+            else:
+                line_color = (1,0,0,0.2)
+            self.ax.plot([veh_x, radar_x[i]],[veh_y,radar_y[i]], color=line_color )
+
+
+        # Save the figure if enabled
+        if save == True:
+            self.fig.savefig('./image_dir/plot_' + str(self.plot_counter).zfill(3) + '.png')
+            self.plot_counter = self.plot_counter + 1
+
+
+
+        return
+
 
     # Get estimated position and heading of vehicle
     def getVehicleEstimation(self, oldPosition, oldHeading, targetSteer_k):

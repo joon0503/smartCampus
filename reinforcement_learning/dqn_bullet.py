@@ -127,6 +127,8 @@ def get_options():
                         help='Relative path to the weight file to load. Only works for KERAS.')
     parser.add_argument('--DUMP_OPTIONS', action='store_true', default = False,
                         help='Dump options and scene_const files.')
+    parser.add_argument('--DRAW', action='store_true', default = False,
+                        help='Visualize the first vehicle')
     options = parser.parse_args()
 
     # Check Inputs
@@ -225,8 +227,6 @@ if __name__ == "__main__":
     # Set print options
     np.set_printoptions( precision = 4, linewidth = 100 )
 
-    # For interactive plot
-    # plt.ion()
 
     ######################################
     # Simulation Start
@@ -237,8 +237,8 @@ if __name__ == "__main__":
     cam_dist = 10
 
     # Start Environment
-    sim_env                                     = env_py( options, scene_constants() )
-    sim_env.scene_const.clientID, handle_dict   = sim_env.start()
+    sim_env = env_py( options, scene_constants() )
+    sim_env.scene_const.clientID, handle_dict = sim_env.start()
 
     # Check Dump
     if options.DUMP_OPTIONS == True:
@@ -310,6 +310,9 @@ if __name__ == "__main__":
         if options.TESTING == True and options.VERBOSE == True:
             ic(sim_env.sensor_queue, obs_sensor_stack)
             ic(sim_env.goal_queue, obs_goal_stack)
+
+        if options.DRAW == True:
+            sim_env.plotVehicle(save=True)
 
         # Get optimal action q_algo
         action_feed = {}
