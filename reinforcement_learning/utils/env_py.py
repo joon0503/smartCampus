@@ -163,10 +163,11 @@ class env_py:
 
         # Figure for plotting
         if self.options.DRAW == True:
-            plt.ion()
-            self.fig = plt.figure(num=0, figsize=(2,8))
+            if self.options.manual == True:
+                plt.ion()
+                plt.show()
+            self.fig = plt.figure(num=0, figsize=(4,10))
             self.ax  = self.fig.add_subplot(1,1,1)
-            plt.show()
 
 
         print("Finished starting simulations.")
@@ -434,8 +435,8 @@ class env_py:
 
         # Clear figure
         self.ax.clear()
-        self.ax.set_xlim([-10,10])
-        self.ax.set_ylim([0,35])
+        self.ax.set_xlim([-0.5*self.scene_const.turn_len,0.5*self.scene_const.turn_len])
+        self.ax.set_ylim([0,self.scene_const.lane_len*0.7])
 
         #------------------------
         # Plot Goal Position
@@ -451,13 +452,18 @@ class env_py:
         color_end   = 1.0
         color_delta = (color_end - color_start)/frame
 
-        # Plot position
+        # Plot position and heading of last few frames
         for i in range(0,frame):
             # Saturate color
             veh_color = (1,0,0,color_start + i*color_delta)
 
+            # Plot Position
             # Add 1 to counter since we are saving 1 more data points (#0, #1, #2, #3, #4) when Frame is 5, with #4 being the latest data
             self.ax.scatter( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], color=veh_color)
+
+            # Plot Heading
+            # veh_heading = self.veh_heading_queue[veh_idx][i+1][2]
+            # self.ax.quiver( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], np.sin(veh_heading), np.cos(veh_heading), color = veh_color)
 
         #------------------------
         # Plot LIDAR Information 
