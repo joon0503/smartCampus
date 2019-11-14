@@ -11,7 +11,7 @@ class scene_constants:
     # List of constants
 
     # Maximum distance for sensor readings
-    sensor_distance     = 10
+    sensor_distance     = 20
     max_distance        = sensor_distance        # DEPRECATED
 
     # Number of sensors
