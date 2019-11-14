@@ -226,6 +226,7 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, valid_dir, 
             if y_pos >= scene_const.MIN_OBS_Y_POS and y_pos <= scene_const.MAX_OBS_Y_POS:
                 y_pos = scene_const.MAX_OBS_Y_POS
 
+            # Reset position and heading
             p.resetBasePositionAndOrientation(
                 vehicle_handle[veh_index], 
                 [ 
@@ -240,6 +241,10 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, valid_dir, 
                     0.707
                 ]
             )
+
+            # Reset speed
+            # FIXME: Need to find conversion between INIT_SPD to y-axis velocity. Currently if INIT_SPD is used, it's way too fast
+            p.resetBaseVelocity(vehicle_handle[veh_index],[0,2,0])
 
         # Reset steering & motor speed. TODO: Perhaps do this with setMotorArray to do it in a single line?
         for s in steer_handle:
