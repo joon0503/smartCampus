@@ -5,7 +5,8 @@ import sys
 from utils.scene_constants_pb import scene_constants
 from icecream import ic
 import tensorflow as tf
-
+import matplotlib
+import matplotlib.pyplot as plt
 
 # from utils.scene_constants_pb import scene_constants
 # import scene_constants_pb
@@ -33,11 +34,12 @@ import tensorflow as tf
 #               UNITS :     heading : radians / distance : normalized (0-1)
 #   network_model     : keras network
 #   max_horizon       : integer
+#   debug : T/F, If true, then prints additional information
 
 # Outputs
 #   trajectory        : 2(x,y)^T x max_horizon 
 
-def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal, network_model, max_horizon):
+def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_state_sensor, next_state_goal, network_model, max_horizon, debug = False):
     # Set curr variable
     oldPosition = next_veh_pos
     oldHeading  = next_veh_heading
@@ -52,10 +54,14 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
     newGoalStack     = np.zeros([options.VEH_COUNT, 2, max_horizon])
     newPositionStack = np.zeros([options.VEH_COUNT, 2, max_horizon])
 
+    if debug == True:
+        ic('Main Loop for Computing Prediction...')
+
     prevPosition    = oldPosition
     prevHeading     = oldHeading
     for t in range(0,max_horizon):
-        ic(oldSensor, oldSensor.shape)
+        ic('Horizon', t)
+        # ic(oldSensor, oldSensor.shape)
 
         # Input to the network
         action_feed = {}
@@ -77,9 +83,12 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
         action_stack_k = np.argmax(act_values, axis=1)
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
-        targetSteer_k = scene_const.max_steer - action_stack_k * abs(scene_const.max_steer - scene_const.min_steer)/(options.ACTION_DIM-1)
+        targetSteer_k = math.radians( scene_const.min_steer + action_stack_k * abs(scene_const.max_steer - scene_const.min_steer)/(options.ACTION_DIM-1) )
 
-
+        if debug == True:
+            ic(act_values)
+            ic(action_stack_k)
+            ic(targetSteer_k)
 
         # Update curr_state using dynamics model
         newPosition, newHeading = getVehicleEstimation(options, prevPosition, prevHeading, targetSteer_k)
@@ -111,6 +120,9 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
         prevPosition = newPosition
         prevHeading  = newHeading
 
+        if debug == True:
+            print("\n")
+
     # Return the vehicle trajectory
     return newPositionStack
 
@@ -125,14 +137,14 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
 #   newHeading      : VEH_COUNT x 1
 def getVehicleEstimation(options, oldPosition, oldHeading, targetSteer_k):
     vLength = 2.1
-    vel     = options.INIT_SPD
+    vel     = options.INIT_SPD*0.1
     delT    = options.CTR_FREQ*options.FIX_INPUT_STEP
 
     newPosition = np.zeros([options.VEH_COUNT,2])
     newHeading  = np.zeros([options.VEH_COUNT])
 
-    newPosition[:,0] = oldPosition[:,0] + vel * np.cos(oldHeading)*delT
-    newPosition[:,1] = oldPosition[:,1] + vel * np.sin(oldHeading)*delT
+    newPosition[:,0] = oldPosition[:,0] + vel * np.sin(oldHeading)*delT
+    newPosition[:,1] = oldPosition[:,1] + vel * np.cos(oldHeading)*delT
     newHeading       = oldHeading + vel/vLength*np.tan(targetSteer_k)*delT
 
     # for v in range(0,options.VEH_COUNT):
@@ -268,7 +280,7 @@ def predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPo
 #   scene_const
 #   model
 
-def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file' ):
+def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file'):
     # Load options/scene_const file
     infile = open( optionFilePath ,'rb')
     new_dict = pickle.load(infile)
@@ -299,20 +311,36 @@ def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file' )
 #######################
 # Following is the example usage of the functions defined in this file.
 #######################
+np.set_printoptions(linewidth = 100)
+
+weightFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/2019-11-07_19_55_36.380100_e5000_gs369576.h5'
+optionFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/genTraj_options_file'
+
+# Load options & Network
+sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath, optionFilePath )
+
+sample_veh_pos      = np.zeros((sample_options.VEH_COUNT,2))
+sample_veh_heading  = np.zeros(sample_options.VEH_COUNT)
+sample_state_sensor = np.ones((sample_options.VEH_COUNT, sample_scene_const.sensor_count*2, sample_options.FRAME_COUNT))*0.5
+sample_state_goal   = np.ones((sample_options.VEH_COUNT, 2, sample_options.FRAME_COUNT))*1
+sample_state_goal[0][1][:] = 0  # set goal angle to 0, travel straight
+max_horizon         = 5
+
+DEBUG = True
+
+if DEBUG == True:
+    ic(sample_veh_pos)
+    ic(sample_veh_heading)
+    ic(sample_state_sensor)
+    ic(sample_state_goal)
+    print('\n\n')
 
 
-# weightFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/2019-11-07_19_55_36.380100_e5000_gs369576.h5'
-# optionFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/genTraj_options_file'
+traj_est = genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon, debug = DEBUG)
 
-# # Load options & Network
-# sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath, optionFilePath )
+ic(traj_est)
 
-# sample_veh_pos      = np.zeros((sample_options.VEH_COUNT,2))
-# sample_veh_heading  = np.zeros(sample_options.VEH_COUNT)
-# sample_state_sensor = np.ones((sample_options.VEH_COUNT, sample_scene_const.sensor_count*2, sample_options.FRAME_COUNT))
-# sample_state_goal   = np.ones((sample_options.VEH_COUNT, 2, sample_options.FRAME_COUNT))*100
-# max_horizon         = 5
+fig = plt.figure()
+plt.plot(traj_est[0][0][:], traj_est[0][1][:])
 
-# traj_est = genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon)
-
-# ic(traj_est)
+plt.show()
