@@ -216,7 +216,8 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, valid_dir, 
             p.resetBasePositionAndOrientation(vehicle_handle[veh_index], [ scene_const.case_x * x_index, scene_const.case_y * y_index + scene_const.veh_init_y, 0], [0, 0, 0.707, 0.707])
         else:
             # randomize x_position between -0.5*lane_width + 0.6 ~ 0.5*lane_width - 0.6
-            x_pos = random.uniform(-1*scene_const.lane_width * 0.5 + 0.6, scene_const.lane_width*0.5 - 0.6)
+            # x_pos = (random.uniform()-0.5)-1*scene_const.lane_width * 0.5 + 0.6, scene_const.lane_width*0.5 - 0.6)
+            x_pos = scene_const.MIN_X_POS + np.random.random(1)*(scene_const.MAX_X_POS - scene_const.MIN_X_POS)
 
             # randomize y_position
             y_pos = np.random.random(1) * scene_const.lane_len * 0.5

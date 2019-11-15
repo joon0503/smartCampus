@@ -11,7 +11,7 @@ class scene_constants:
     # List of constants
 
     # Maximum distance for sensor readings
-    sensor_distance     = 20
+    sensor_distance     = 10
     max_distance        = sensor_distance        # DEPRECATED
 
     # Number of sensors
@@ -50,18 +50,18 @@ class scene_constants:
     min_steer           = -1*max_steer
 
     # Collision occurs if readings are less than this number. in meters
-    collision_distance  = 0.4
+    collision_distance  = 1.0   # this means if sensor is 0.1, then collision
 
     # Distance to the goal. Used for normalization
     goal_distance       = 40
-    detect_range        = 0.75
+    detect_range        = 1.0
 
     # Simulation Parameters
     # dt = 0.025                      # dt of the vrep simulation
 
     # Test Case related
-    obs_w           = (1/3)         # obstacle width ratio
-    lane_width      = 4             # lane width
+    obs_w           = (3/8)         # obstacle width ratio
+    lane_width      = 2             # lane width
     lane_len        = 50            # total len
     turn_len        = 30            # total len after tun
     case_x          = 100            # distance between each case
@@ -70,8 +70,11 @@ class scene_constants:
     wall_cnt        = 9             # number of walls
     wall_h          = 1.5           # height of walls
 
+    MIN_X_POS       = 0             # Minimum x-pos at start
+    MAX_X_POS       = 0             # Maximum x-pos at start
+
     MIN_LANE_WIDTH  = 4.0
-    MAX_LANE_WIDTH  = 5.0
+    MAX_LANE_WIDTH  = 4.0
 
     # y-axis distance where obstacle lies
     MAX_OBS_Y_POS   = lane_len * 0.5 * 0.75     
