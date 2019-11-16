@@ -8,8 +8,6 @@ import numpy as np
 
 class scene_constants:
 
-    # List of constants
-
     # Maximum distance for sensor readings
     sensor_distance     = 10
     max_distance        = sensor_distance        # DEPRECATED
@@ -60,7 +58,7 @@ class scene_constants:
     # dt = 0.025                      # dt of the vrep simulation
 
     # Test Case related
-    obs_w           = (3/8)         # obstacle width ratio
+    obs_w           = (2.5/8)         # obstacle width ratio
     lane_width      = 2             # lane width
     lane_len        = 50            # total len
     turn_len        = 30            # total len after tun
@@ -73,12 +71,19 @@ class scene_constants:
     MIN_X_POS       = 0             # Minimum x-pos at start
     MAX_X_POS       = 0             # Maximum x-pos at start
 
-    MIN_LANE_WIDTH  = 4.0
-    MAX_LANE_WIDTH  = 4.0
+    MIN_LANE_WIDTH  = 4.0           # Min / Max width of test case
+    MAX_LANE_WIDTH  = 10.0
 
     # y-axis distance where obstacle lies
-    MAX_OBS_Y_POS   = lane_len * 0.5 * 0.75     
-    MIN_OBS_Y_POS   = lane_len * 0.5 * 0.5
+    MAX_OBS_Y_POS   = lane_len * 0.5 * 0.75         
+    MIN_OBS_Y_POS   = lane_len * 0.5 * 0.25
+
+    # Initial y-axis position 
+    MIN_Y_INIT      = 0 
+    MAX_Y_INIT      = lane_len * 0.5 * 0.25
+
+    # Enable obstacle at Left/Middle/Right
+    OBS_ENABLE      = [1,0,1]
 
     # Scaling
     veh_scale       = 2.0           # vehicle scale

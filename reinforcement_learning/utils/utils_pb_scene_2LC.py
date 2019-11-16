@@ -220,7 +220,7 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, valid_dir, 
             x_pos = scene_const.MIN_X_POS + np.random.random(1)*(scene_const.MAX_X_POS - scene_const.MIN_X_POS)
 
             # randomize y_position
-            y_pos = np.random.random(1) * scene_const.lane_len * 0.5
+            y_pos = scene_const.MIN_Y_INIT + np.random.random(1) * (scene_const.MAX_Y_INIT - scene_const.MIN_Y_INIT)
 
             # If y_pos lies between obstacle, just start closer to the goal point 
             # TODO : Randomize the starting point even in this case?
@@ -259,20 +259,32 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, valid_dir, 
         #   y position of obstable at 0.3*lane_len
         if randomize == True:
             obs_width = scene_const.obs_w * scene_const.lane_width
-            temp_prob = random.uniform(0, 1)
+
+            # Remove old obstacle
             p.removeBody(case_wall_handle[veh_index][8])
-            if temp_prob > (2/3):
+
+            # Create an available option
+            valid_opt = np.arange(3)[np.nonzero(scene_const.OBS_ENABLE)] 
+
+            # Choose one of the valid option and make it into a scalar
+            temp = np.asscalar( np.random.choice( valid_opt, 1) )
+
+            # Create new obstacle 
+            if temp == 2:
                 # right
                 direction[veh_index] = 2
                 case_wall_handle[veh_index][8] = createWall([0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x + 0.5*( 1-scene_const.obs_w)*scene_const.lane_width, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0])       # right
-            elif temp_prob > (1/3):
+
+            if temp == 1:
                 # middle
                 direction[veh_index] = 1
                 case_wall_handle[veh_index][8] = createWall([0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0])       # right
-            else:
+
+            if temp == 0:
                 # left
                 direction[veh_index] = 0
                 case_wall_handle[veh_index][8] = createWall([0.5*obs_width, 0.5*obs_width, scene_const.wall_h], [x_index*scene_const.case_x - 0.5*( 1-scene_const.obs_w)*scene_const.lane_width, scene_const.case_y * y_index + scene_const.lane_len*0.3, 0])      # right
+                
 
 
         # Randomize the goal point                
