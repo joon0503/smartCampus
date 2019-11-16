@@ -290,6 +290,12 @@ def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file'):
     sample_options     = new_dict['options']
     sample_scene_const = new_dict['scene_const']
 
+    print('=========================================')
+    print(str(sample_options))
+    print('=========================================')
+    print(str(sample_scene_const))
+    print('=========================================')
+
     # Load the full model
     model = tf.keras.models.load_model( weightFilePath, custom_objects={"tf": tf} )
     model.summary()
