@@ -60,8 +60,9 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
     prevPosition    = oldPosition
     prevHeading     = oldHeading
     for t in range(0,max_horizon):
-        ic('Horizon', t)
-        # ic(oldSensor, oldSensor.shape)
+        if debug == True:
+            ic('Horizon', t)
+            # ic(oldSensor, oldSensor.shape)
 
         # Input to the network
         action_feed = {}
@@ -124,7 +125,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
             print("\n")
 
     # Return the vehicle trajectory
-    return newPositionStack
+    return newPositionStack, newStateStack
 
 # Get estimated position and heading of vehicle
 # Input
@@ -138,7 +139,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
 def getVehicleEstimation(options, oldPosition, oldHeading, targetSteer_k):
     vLength = 2.1
     vel     = options.INIT_SPD*0.1
-    delT    = options.CTR_FREQ*options.FIX_INPUT_STEP
+    delT    = (1/60)*options.FIX_INPUT_STEP
 
     newPosition = np.zeros([options.VEH_COUNT,2])
     newHeading  = np.zeros([options.VEH_COUNT])
@@ -317,36 +318,36 @@ def genTrajectoryInit( weightFilePath, optionFilePath = 'genTraj_options_file'):
 #######################
 # Following is the example usage of the functions defined in this file.
 #######################
-np.set_printoptions(linewidth = 100)
+# np.set_printoptions(linewidth = 100)
 
-weightFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/2019-11-07_19_55_36.380100_e5000_gs369576.h5'
-optionFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/genTraj_options_file'
+# weightFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/2019-11-07_19_55_36.380100_e5000_gs369576.h5'
+# optionFilePath = './model_weights/checkpoints-vehicle-CNN-state-191108/genTraj_options_file'
 
-# Load options & Network
-sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath, optionFilePath )
+# # Load options & Network
+# sample_options, sample_scene_const, network_model = genTrajectoryInit( weightFilePath, optionFilePath )
 
-sample_veh_pos      = np.zeros((sample_options.VEH_COUNT,2))
-sample_veh_heading  = np.zeros(sample_options.VEH_COUNT)
-sample_state_sensor = np.ones((sample_options.VEH_COUNT, sample_scene_const.sensor_count*2, sample_options.FRAME_COUNT))*0.5
-sample_state_goal   = np.ones((sample_options.VEH_COUNT, 2, sample_options.FRAME_COUNT))*1
-sample_state_goal[0][1][:] = 0  # set goal angle to 0, travel straight
-max_horizon         = 5
+# sample_veh_pos      = np.zeros((sample_options.VEH_COUNT,2))
+# sample_veh_heading  = np.zeros(sample_options.VEH_COUNT)
+# sample_state_sensor = np.ones((sample_options.VEH_COUNT, sample_scene_const.sensor_count*2, sample_options.FRAME_COUNT))*0.5
+# sample_state_goal   = np.ones((sample_options.VEH_COUNT, 2, sample_options.FRAME_COUNT))*1
+# sample_state_goal[0][1][:] = 0  # set goal angle to 0, travel straight
+# max_horizon         = 5
 
-DEBUG = True
+# DEBUG = True
 
-if DEBUG == True:
-    ic(sample_veh_pos)
-    ic(sample_veh_heading)
-    ic(sample_state_sensor)
-    ic(sample_state_goal)
-    print('\n\n')
+# if DEBUG == True:
+#     ic(sample_veh_pos)
+#     ic(sample_veh_heading)
+#     ic(sample_state_sensor)
+#     ic(sample_state_goal)
+#     print('\n\n')
 
 
-traj_est = genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon, debug = DEBUG)
+# traj_est, _ = genTrajectory(sample_options, sample_scene_const, sample_veh_pos, sample_veh_heading, sample_state_sensor, sample_state_goal, network_model, max_horizon, debug = DEBUG)
 
-ic(traj_est)
+# ic(traj_est)
 
-fig = plt.figure()
-plt.plot(traj_est[0][0][:], traj_est[0][1][:])
+# fig = plt.figure()
+# plt.plot(traj_est[0][0][:], traj_est[0][1][:])
 
-plt.show()
+# plt.show()

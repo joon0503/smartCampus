@@ -109,8 +109,8 @@ def get_options():
                         help='Export the weights into a csv file')
     parser.add_argument('--SEED', type=int, default=1,
                         help='Set simulation seed')
-    parser.add_argument('--CTR_FREQ', type=float, default=0.2,
-                        help='Control frequency in seconds. Upto 0.001 seconds')
+    # parser.add_argument('--CTR_FREQ', type=float, default=0.2,
+                        # help='Control frequency in seconds. Upto 0.001 seconds')
     parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.075,
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     parser.add_argument('--L2_LOSS', type=float, default=0.0,
@@ -312,7 +312,7 @@ if __name__ == "__main__":
             ic(sim_env.goal_queue, obs_goal_stack)
 
         if options.DRAW == True:
-            sim_env.plotVehicle(save=True)
+            sim_env.plotVehicle(save=True, predict = 2, network_model = q_algo.agent_train.model_qa)
 
         # Get optimal action q_algo
         action_feed = {}
