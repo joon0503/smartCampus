@@ -555,6 +555,8 @@ class env_py:
             predict_goal  = np.array(self.goal_queue)[veh_idx].T
             predict_goal  = np.expand_dims(predict_goal[:,1:],0)
 
+            ic(predict_state, predict_goal)
+
             traj_est, lidar_est = genTrajectory(
                         self.options,           # option
                         self.scene_const,       # scene_const
@@ -563,9 +565,11 @@ class env_py:
                         predict_state, 
                         predict_goal, 
                         network_model, 
-                        predict
+                        predict,
+                        debug = True
                     )
 
+            ic(traj_est, lidar_est)
             predict_veh_x = traj_est[0,0,:]
             predict_veh_y = traj_est[0,1,:]
 
@@ -590,7 +594,6 @@ class env_py:
             # Plot Predicted LIDAR Information
             # lidar_est : VEH_COUNT x SENSOR_COUNT*2 X PREDICTION_STEP
             # FIXME: lidar_est seems wrong
-            ic(lidar_est)
 
             # For each prediction
             for i in range(0,predict):
@@ -605,7 +608,7 @@ class env_py:
                         marker_color = 'red'
 
                     # FIXME: Disabled plotting lidar for now
-                    # self.ax.scatter(radar_x[j] + veh_x + predict_veh_x[i], radar_y[j] + veh_y + predict_veh_y[i], marker='x', color=marker_color)
+                    self.ax.scatter(radar_x[j] + veh_x + predict_veh_x[i], radar_y[j] + veh_y + predict_veh_y[i], marker='x', color=marker_color)
 
 
         #----------------------------------

@@ -58,7 +58,7 @@ class scene_constants:
     # dt = 0.025                      # dt of the vrep simulation
 
     # Test Case related
-    obs_w           = (2.5/8)         # obstacle width ratio
+    obs_w           = (3/8)         # obstacle width ratio
     lane_width      = 2             # lane width
     lane_len        = 50            # total len
     turn_len        = 30            # total len after tun

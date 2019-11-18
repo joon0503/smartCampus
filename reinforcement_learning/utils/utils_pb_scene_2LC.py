@@ -223,7 +223,6 @@ def initScene_2LC(scene_const, options, veh_index_list, handle_dict, valid_dir, 
             y_pos = scene_const.MIN_Y_INIT + np.random.random(1) * (scene_const.MAX_Y_INIT - scene_const.MIN_Y_INIT)
 
             # If y_pos lies between obstacle, just start closer to the goal point 
-            # TODO : Randomize the starting point even in this case?
             if y_pos >= scene_const.MIN_OBS_Y_POS and y_pos <= scene_const.MAX_OBS_Y_POS:
                 y_pos = scene_const.MAX_OBS_Y_POS
 

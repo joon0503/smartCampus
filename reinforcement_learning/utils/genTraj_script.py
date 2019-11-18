@@ -77,7 +77,6 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
         # targetSteer_k, action_stack_k = getOptimalAction( action_feed ) # FIXME
 
         # Get Optimal Action
-        # FIXME: This does not take account the new network structure
         act_values = network_model.predict(action_feed, batch_size=options.VEH_COUNT)
 
         # Get maximum for each vehicle
