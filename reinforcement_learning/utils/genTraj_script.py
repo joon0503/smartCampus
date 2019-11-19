@@ -53,6 +53,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
     newStateStack    = np.zeros([options.VEH_COUNT, scene_const.sensor_count*2, max_horizon])
     newGoalStack     = np.zeros([options.VEH_COUNT, 2, max_horizon])
     newPositionStack = np.zeros([options.VEH_COUNT, 2, max_horizon])
+    newHeadingStack  = np.zeros([options.VEH_COUNT, 1, max_horizon])
 
     if debug == True:
         ic('Main Loop for Computing Prediction...')
@@ -116,7 +117,8 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
         newGoalStack[:,:,t]         = newGoal 
         newStateStack[:, :, t]      = newSensorCombined
         newPositionStack[:, :, t]   = newPosition
-        
+        newHeadingStack[:, :, t]    = newHeading
+
         prevPosition = newPosition
         prevHeading  = newHeading
 
@@ -124,7 +126,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
             print("\n")
 
     # Return the vehicle trajectory
-    return newPositionStack, newStateStack
+    return newPositionStack, newStateStack, newHeadingStack
 
 # Get estimated position and heading of vehicle
 # Input
@@ -136,7 +138,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
 #   newPosition     : VEH_COUNT x 2
 #   newHeading      : VEH_COUNT x 1
 def getVehicleEstimation(options, oldPosition, oldHeading, targetSteer_k):
-    vLength = 2.1
+    vLength = 0.8
     vel     = options.INIT_SPD*0.1
     delT    = (1/60)*options.FIX_INPUT_STEP
 
@@ -207,9 +209,11 @@ def predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPo
     newSensorState  = np.ones((options.VEH_COUNT,scene_const.sensor_count)) # 0:closed & 1:open
 
     for v in range(0,options.VEH_COUNT):
-        oldC,oldS   = np.cos(oldHeading[v]-np.pi/2),np.sin(oldHeading[v]-np.pi/2)
+        # oldC,oldS   = np.cos(oldHeading[v]-np.pi/2),np.sin(oldHeading[v]-np.pi/2)
+        oldC,oldS   = np.cos(oldHeading[v]),np.sin(oldHeading[v])
         oldRot      = np.array([[oldC,oldS],[-oldS,oldC]])
-        newC,newS   = np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
+        # newC,newS   = np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
+        newC,newS   = np.cos(newHeading[v]),np.sin(newHeading[v])
         newRot      = np.array([[newC,newS],[-newS,newC]])
 
         # Transformation oldSensor w.r.t vehicle's next position and heading.

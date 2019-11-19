@@ -61,7 +61,7 @@ def addNoise( options, scene_const, obs_sensor_stack ):
 # This assumes, vehicle position is at 0,0
 # Inputs
 #   lidar
-#   veh_heading
+#   veh_heading : RADIANS
 # Outputs
 #   radar_x
 #   radar_y 
@@ -554,10 +554,11 @@ class env_py:
 
             predict_goal  = np.array(self.goal_queue)[veh_idx].T
             predict_goal  = np.expand_dims(predict_goal[:,1:],0)
+            predict_goal[0,0,:] = predict_goal[0,0,:]*self.scene_const.sensor_max_angle 
 
-            ic(predict_state, predict_goal)
+            ic(predict_state, predict_goal, veh_heading)
 
-            traj_est, lidar_est = genTrajectory(
+            traj_est, lidar_est, heading_est = genTrajectory(
                         self.options,           # option
                         self.scene_const,       # scene_const
                         np.array([[0,0]]),      # veh position, single vehicle, at origin
@@ -569,7 +570,9 @@ class env_py:
                         debug = True
                     )
 
-            ic(traj_est, lidar_est)
+            ic(traj_est, lidar_est, heading_est)
+            ic(traj_est.shape, lidar_est.shape, heading_est.shape)
+
             predict_veh_x = traj_est[0,0,:]
             predict_veh_y = traj_est[0,1,:]
 
@@ -595,20 +598,27 @@ class env_py:
             # lidar_est : VEH_COUNT x SENSOR_COUNT*2 X PREDICTION_STEP
             # FIXME: lidar_est seems wrong
 
+            # Color parameters
+            color_start = 1.0
+            color_end   = 0.2
+            color_delta = (color_start - color_end)/predict
+
             # For each prediction
             for i in range(0,predict):
-                # Get LIDAR x,y. 
-                # FIXME: Need to get veh_heading from estimation
-                radar_x, radar_y = getLidarXY(self.scene_const, lidar_est[veh_idx][0:self.scene_const.sensor_count], 0 )
+                # Get LIDAR x,y.
+                # FIXME: Why need -1 at heading 
+                radar_x, radar_y = getLidarXY(self.scene_const, lidar_est[veh_idx,0:self.scene_const.sensor_count,i], heading_est[veh_idx,0,i]*-1 )
 
                 for j in range(0,self.scene_const.sensor_count):
                     if lidar_est[veh_idx][self.scene_const.sensor_count + j][i] == 1:
-                        marker_color = 'green'
+                        # Saturate color pink open
+                        marker_color = (1,0,1,color_start - i*color_delta)
                     else:
-                        marker_color = 'red'
+                        # Saturate color yellow close
+                        marker_color = (1,1,0,color_start - i*color_delta)
 
-                    # FIXME: Disabled plotting lidar for now
                     self.ax.scatter(radar_x[j] + veh_x + predict_veh_x[i], radar_y[j] + veh_y + predict_veh_y[i], marker='x', color=marker_color)
+                    # self.ax.scatter(0 + veh_x + predict_veh_x[i], 0 + veh_y + predict_veh_y[i], marker='x', color=marker_color)
 
 
         #----------------------------------
