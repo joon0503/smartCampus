@@ -81,6 +81,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
 
         # Get Optimal Action
         act_values = network_model.predict(action_feed, batch_size=options.VEH_COUNT)
+        ic(act_values)
 
         # Get maximum for each vehicle
         action_stack_k = np.argmax(act_values, axis=1)
@@ -142,8 +143,9 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
 #   newPosition     : VEH_COUNT x 2
 #   newHeading      : VEH_COUNT x 1
 def getVehicleEstimation(options, oldPosition, oldHeading, targetSteer_k):
-    vLength = 0.6
-    vel     = options.INIT_SPD*0.1
+    # FIXME: velocity scaling
+    vLength = 0.8
+    vel     = options.INIT_SPD*0.05
     delT    = (1/60)*options.FIX_INPUT_STEP
 
     newPosition = np.zeros([options.VEH_COUNT,2])
@@ -219,15 +221,15 @@ def predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPo
         oldC,oldS   = np.cos(-oldHeading[v]),np.sin(-oldHeading[v])
         oldRot      = np.array([[oldC,-oldS],[oldS,oldC]])
         # newC,newS   = np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
-        newC,newS   = np.cos(-newHeading[v]),np.sin(-newHeading[v])
+        newC,newS   = np.cos(-newHeading[v]+oldHeading[v]),np.sin(-newHeading[v]+oldHeading[v])
         newRot      = np.array([[newC,-newS],[newS,newC]])
 
         # Transformation oldSensor w.r.t vehicle's next position and heading.
         temp1   = scene_const.sensor_distance*np.transpose([oldSensor[v],oldSensor[v]])
         temp2   = np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
         oldLidarXY = np.multiply(temp1,temp2)
-        oldLidarXY = np.tile(oldPosition[v, :], [scene_const.sensor_count, 1]) \
-                    + np.matmul(oldLidarXY, oldRot)
+        #oldLidarXY = np.tile(oldPosition[v, :], [scene_const.sensor_count, 1]) \
+        #            + np.matmul(oldLidarXY, oldRot)
         oldTransXY = oldLidarXY-np.tile(newPosition[v,:], [scene_const.sensor_count,1])
         oldTransXY = np.matmul(oldTransXY,newRot)
 
@@ -276,13 +278,12 @@ def predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPo
         newSensor[v,:]=np.linalg.norm(newLidarXY,ord=2,axis=1)/scene_const.sensor_distance
 
         newLidarXY = np.matmul(newLidarXY, np.transpose(newRot))
-        newLidarXY = newLidarXY + np.tile(newPosition[v, :]-oldPosition[v, :], [scene_const.sensor_count, 1])
+        #newLidarXY = newLidarXY + np.tile(newPosition[v, :]-oldPosition[v, :], [scene_const.sensor_count, 1])
         newLidarXY = np.matmul(newLidarXY, np.transpose(oldRot))
+        #newLidarXY = newLidarXY - np.tile(newPosition[v, :], [scene_const.sensor_count, 1])
         newSensorXY[v,:,:]=newLidarXY
 
     return newSensor, newSensorState, newSensorXY
-
-
 
 
 

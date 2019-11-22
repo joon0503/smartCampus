@@ -312,7 +312,7 @@ if __name__ == "__main__":
             ic(sim_env.goal_queue, obs_goal_stack)
 
         if options.DRAW == True:
-            sim_env.plotVehicle(save=True, predict = 2, network_model = q_algo.agent_train.model_qa)
+            sim_env.plotVehicle(save=True, predict = 20, network_model = q_algo.agent_train.model_q_all)
 
         # Get optimal action q_algo
         action_feed = {}

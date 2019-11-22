@@ -6,6 +6,8 @@ import sys
 import math
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+from matplotlib.collections import PatchCollection
 from collections import deque
 
 import numpy as np
@@ -130,6 +132,7 @@ class env_py:
         self.fig = None
         self.ax  = None
         self.plot_counter = 0
+        self.ax_array = None
         return
 
     # Start Simulation & Generate the Scene
@@ -197,8 +200,12 @@ class env_py:
         if self.options.DRAW == True:
             plt.ion()
             plt.show()
-        self.fig = plt.figure(num=0, figsize=(4,10))
-        self.ax  = self.fig.add_subplot(1,1,1)
+        # self.fig = plt.figure(num=0, figsize=(6,6))
+        self.fig, self.ax_array = plt.subplots(1,2, figsize=(6,6))
+        # self.ax  = self.ax_array[0]
+        # self.ax2  = self.fig.add_subplot(1,3,2)
+        # self.ax3  = self.fig.add_subplot(1,3,3)
+        # self.ax_array = [self.ax,self.ax2,self.ax3]
 
 
         print("Finished starting simulations.")
@@ -473,14 +480,16 @@ class env_py:
                 raise ValueError('Must provide network to use prediction')
 
         # Clear figure
-        self.ax.clear()
-        self.ax.set_xlim([-0.5*self.scene_const.turn_len,0.5*self.scene_const.turn_len])
-        self.ax.set_ylim([0,self.scene_const.lane_len*0.7])
+        for axis in self.ax_array:
+            axis.clear()
+            axis.set_xlim([-0.5*self.scene_const.turn_len,0.5*self.scene_const.turn_len])
+            axis.set_ylim([0,self.scene_const.lane_len*0.7])
 
         #------------------------
         # Plot Goal Position
         #------------------------
-        self.ax.scatter(self.goal_pos[veh_idx][0], self.goal_pos[veh_idx][1], color='blue')
+        for axis in self.ax_array:
+            axis.scatter(self.goal_pos[veh_idx][0], self.goal_pos[veh_idx][1], color='orange', marker='*')
 
         #------------------------
         # Plot Vehicle. Stronger color means more recent position
@@ -491,22 +500,25 @@ class env_py:
         color_end   = 1.0
         color_delta = (color_end - color_start)/frame
 
-        # Plot position and heading of last few frames
-        for i in range(0,frame):
-            # Saturate color
-            veh_color = (1,0,0,color_start + i*color_delta)
+        for axis in self.ax_array:
+            # Plot position and heading of last few frames
+            for i in range(0,frame):
+                # Saturate color
+                veh_color = (1,0,0,color_start + i*color_delta)
 
-            # Plot Position
-            # Add 1 to counter since we are saving 1 more data points (#0, #1, #2, #3, #4) when Frame is 5, with #4 being the latest data
-            self.ax.scatter( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], color=veh_color)
+                # Plot Position
+                # Add 1 to counter since we are saving 1 more data points (#0, #1, #2, #3, #4) when Frame is 5, with #4 being the latest data
+                axis.scatter( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], color=veh_color)
 
-            # Plot Heading
-            # veh_heading = self.veh_heading_queue[veh_idx][i+1][2]
-            # self.ax.quiver( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], np.sin(veh_heading), np.cos(veh_heading), color = veh_color)
+                # Plot Heading of past data
+                veh_heading = self.veh_heading_queue[veh_idx][i+1][2]
+                # axis.quiver( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], np.sin(veh_heading), np.cos(veh_heading), color = veh_color)
 
         #------------------------
         # Plot LIDAR Information 
         #------------------------
+
+        # Some variables
         radar_x = []
         radar_y = []
         veh_x   = self.veh_pos_queue[veh_idx][-1][0]
@@ -515,27 +527,28 @@ class env_py:
         curr_state = self.sensor_queue[veh_idx][-1][0:self.scene_const.sensor_count]
         curr_detect = self.sensor_queue[veh_idx][-1][self.scene_const.sensor_count:]
 
+        # FIXME: radar x,y position not used
         radar_x, radar_y = getLidarXY( self.scene_const, curr_state, veh_heading)
 
-        # Place marker at LIDAR x,y
+        # Place marker at LIDAR x,y  at figure 0
         for i in range(0,self.scene_const.sensor_count):
             if curr_detect[i] == 1:
                 marker_color = 'green'
             else:
                 marker_color = 'red'
 
-            self.ax.scatter(radar_x[i] + veh_x,radar_y[i] + veh_y, marker='o', color=marker_color)
+            self.ax_array[0].scatter(radar_x[i] + veh_x,radar_y[i] + veh_y, marker='o', color=marker_color)
 
         # Lines connecting detected points to each other
         # self.ax.plot(radar_x,radar_y, color='red')
 
-        # Lines connecting point to vehicle
+        # Lines connecting point to vehicle  at figure 0
         for i in range(0,self.scene_const.sensor_count):
             if curr_detect[i] == 1:
                 line_color = (0,1,0,0.2)
             else:
                 line_color = (1,0,0,0.2)
-            self.ax.plot([veh_x, veh_x + radar_x[i]],[veh_y, veh_y + radar_y[i]], color=line_color )
+            self.ax_array[0].plot([veh_x, veh_x + radar_x[i]],[veh_y, veh_y + radar_y[i]], color=line_color )
 
         #----------------------------------
         # Plot Prediction
@@ -576,30 +589,29 @@ class env_py:
             color_end   = 0.2
             color_delta = (color_start - color_end)/predict
 
-            # Plot position and heading of last few frames
-            for i in range(0,predict):
-                # Saturate color
-                veh_color = (0,0,1,color_start - i*color_delta)
 
-                # Plot Position
-                self.ax.scatter( veh_x + predict_veh_x[i], veh_y + predict_veh_y[i], color=veh_color)
+            # Plot position of estimation
+            for axis in [self.ax_array[1]]:
+                for i in range(0,predict):
+                    # Saturate color
+                    veh_color = (0,0,1,color_start - i*color_delta)
 
-                # Plot Heading
-                # veh_heading = self.veh_heading_queue[veh_idx][i+1][2]
-                # self.ax.quiver( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], np.sin(veh_heading), np.cos(veh_heading), color = veh_color)
-                # Plot prediction
+                    # Plot estimated Position
+                    axis.scatter( veh_x + predict_veh_x[i], veh_y + predict_veh_y[i], color=veh_color)
+
+                    # Plot estimated Heading
+                    # self.ax.quiver( veh_x + predict_veh_x[i], veh_y + predict_veh_y[i], np.sin(heading_est[veh_idx,0,i]), np.cos(heading_est[veh_idx,0,i]), color = veh_color)
 
             # Plot Predicted LIDAR Information
             # lidar_est : VEH_COUNT x SENSOR_COUNT*2 X PREDICTION_STEP
-            # FIXME: lidar_est seems wrong
 
             # Color parameters
             color_start = 1.0
             color_end   = 0.2
             color_delta = (color_start - color_end)/(predict-1)
 
-            # For each prediction
-            for i in range(0,predict):
+            # For each prediction, plot predicted lidar position
+            for i in range(0,predict,2):
                 # Get LIDAR x,y.
                 # FIXME: Why need -1 at heading 
                 radar_x, radar_y = getLidarXY(self.scene_const, lidar_est[veh_idx,0:self.scene_const.sensor_count,i], heading_est[veh_idx,0,i])
@@ -612,10 +624,41 @@ class env_py:
                         # Saturate color pink close
                         marker_color = (1,0,1,color_start - i*color_delta)
 
-                    self.ax.scatter(lidar_x[0,j,i] + veh_x + predict_veh_x[i], lidar_y[0,j,i] + veh_y + predict_veh_y[i]-0.4*(i+1), marker='x', color=marker_color)
+                    # self.ax_array[2].scatter(lidar_x[0,j,i] + veh_x + predict_veh_x[i], lidar_y[0,j,i] + veh_y + predict_veh_y[i], marker='x', color=marker_color)
                     # self.ax.scatter(0 + veh_x + predict_veh_x[i], 0 + veh_y + predict_veh_y[i], marker='x', color=marker_color)
 
+            # Lines connecting predicted lidar x,y to predicted vehicle position
+            for p in range(0,predict,2):
+                for s in range(0,self.scene_const.sensor_count):
+                    if lidar_est[veh_idx,self.scene_const.sensor_count + s,p] == 1:
+                        # Open
+                        line_color = (0,1,0,0.2)
+                    else:
+                        # Close
+                        line_color = (1,0,0,0.2)
 
+                    # self.ax_array[2]([veh_x + predict_veh_x[p], veh_x + lidar_x[0,s,p]],[veh_y + predict_veh_y[p], veh_y + lidar_y[0,s,p]], color=line_color )
+
+            # Lines connecting lidar x,y to each other
+            for p in range(0,predict,2):
+                for s in range(0,self.scene_const.sensor_count+1):
+                    if s == 0:
+                        self.ax_array[1].plot([veh_x + predict_veh_x[p], veh_x + predict_veh_x[p] + lidar_x[0,s,p]],[veh_y + predict_veh_y[p], veh_y + predict_veh_y[p] + lidar_y[0,s,p]], color=line_color )
+                        pass
+                    elif s == self.scene_const.sensor_count:
+                        # First sensor or Last sensor, connect to vehicle position
+                        self.ax_array[1].plot([veh_x + predict_veh_x[p], veh_x + predict_veh_x[p] + lidar_x[0,s-1,p]],[veh_y + predict_veh_y[p], veh_y + predict_veh_y[p] + lidar_y[0,s-1,p]], color=line_color )
+                        pass
+                    else:
+                        # sensors in the middle connect to next one
+                        self.ax_array[1].plot([veh_x + predict_veh_x[p] + lidar_x[0,s-1,p], veh_x + predict_veh_x[p] + lidar_x[0,s,p]],[veh_y + predict_veh_y[p] + lidar_y[0,s-1,p], veh_y + predict_veh_y[p] + lidar_y[0,s,p]], color=line_color )
+                        pass
+
+
+            # Lidar as Polygon and using Fill
+            poly_color = (0,0,0,0.05)
+            for p in range(0,predict,2):
+                self.ax_array[1].fill(veh_x + predict_veh_x[p] + lidar_x[0,:,p], veh_y + predict_veh_y[p] + lidar_y[0,:,p], color = poly_color)
         #----------------------------------
         # Save the figure if enabled
         #----------------------------------
