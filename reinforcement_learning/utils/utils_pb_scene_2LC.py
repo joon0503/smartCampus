@@ -54,6 +54,11 @@ def createGoal(size, pos):
 def createTee(x_pos, y_pos, scene_const, openWall=True):
     wall_handle_list = []
 
+    # FIXME: These initial values are not valid if openWall is True
+    left_len = 0
+    right_len = 0
+    valid_dir = 0
+
     # If openWall = True, then randomly choose a valid direction and close walls for other paths
     if openWall == False:
         valid_dir = np.random.random(1)
@@ -152,7 +157,7 @@ def genScene(scene_const, options, handle_dict, reset_case_list, genVehicle=True
 
             if u_index in reset_case_list:
                 # Generate T-intersection for now
-                handle_dict['dummy'][u_index], handle_dict['wall'][u_index], valid_dir[u_index] = createTee( i*scene_const.case_x, j*scene_const.case_y, scene_const, openWall = False )
+                handle_dict['dummy'][u_index], handle_dict['wall'][u_index], valid_dir[u_index] = createTee( i*scene_const.case_x, j*scene_const.case_y, scene_const, openWall = False)
 
                 # Save vehicle handle
                 if genVehicle == True:

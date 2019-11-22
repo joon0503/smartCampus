@@ -81,7 +81,6 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
 
         # Get Optimal Action
         act_values = network_model.predict(action_feed, batch_size=options.VEH_COUNT)
-        ic(act_values)
 
         # Get maximum for each vehicle
         action_stack_k = np.argmax(act_values, axis=1)

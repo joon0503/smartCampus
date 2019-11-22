@@ -133,6 +133,8 @@ class env_py:
         self.ax  = None
         self.plot_counter = 0
         self.ax_array = None
+        self.veh_pos_x_plot = []
+        self.veh_pos_y_plot = []
         return
 
     # Start Simulation & Generate the Scene
@@ -201,7 +203,7 @@ class env_py:
             plt.ion()
             plt.show()
         # self.fig = plt.figure(num=0, figsize=(6,6))
-        self.fig, self.ax_array = plt.subplots(1,2, figsize=(6,6))
+        self.fig, self.ax_array = plt.subplots(1,2, figsize=(8,12))
         # self.ax  = self.ax_array[0]
         # self.ax2  = self.fig.add_subplot(1,3,2)
         # self.ax3  = self.fig.add_subplot(1,3,3)
@@ -479,11 +481,17 @@ class env_py:
             if network_model == None:
                 raise ValueError('Must provide network to use prediction')
 
-        # Clear figure
         for axis in self.ax_array:
+            # Clear figure
             axis.clear()
+
+            # Set limi
             axis.set_xlim([-0.5*self.scene_const.turn_len,0.5*self.scene_const.turn_len])
             axis.set_ylim([0,self.scene_const.lane_len*0.7])
+
+            # Set equl ratio
+            # axis.axis('equal')
+
 
         #------------------------
         # Plot Goal Position
@@ -500,15 +508,25 @@ class env_py:
         color_end   = 1.0
         color_delta = (color_end - color_start)/frame
 
+        # Reset data
+        if len(self.veh_pos_y_plot) > 0 and abs(self.veh_pos_y_plot[-1] - self.veh_pos_queue[veh_idx][-1][1]) > 1:
+            self.veh_pos_x_plot = []
+            self.veh_pos_y_plot = []
+
+        # Update data
+        self.veh_pos_x_plot.append( self.veh_pos_queue[veh_idx][-1][0])
+        self.veh_pos_y_plot.append( self.veh_pos_queue[veh_idx][-1][1])
+
         for axis in self.ax_array:
             # Plot position and heading of last few frames
             for i in range(0,frame):
                 # Saturate color
-                veh_color = (1,0,0,color_start + i*color_delta)
+                # veh_color = (1,0,0,color_start + i*color_delta)
+                veh_color = (0,0,0)
 
                 # Plot Position
                 # Add 1 to counter since we are saving 1 more data points (#0, #1, #2, #3, #4) when Frame is 5, with #4 being the latest data
-                axis.scatter( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], color=veh_color)
+                axis.plot( self.veh_pos_x_plot, self.veh_pos_y_plot, color=veh_color, markersize = 2, marker='o')
 
                 # Plot Heading of past data
                 veh_heading = self.veh_heading_queue[veh_idx][i+1][2]
@@ -575,7 +593,7 @@ class env_py:
                         predict_goal, 
                         network_model, 
                         predict,
-                        debug = True
+                        debug = False
                     )
 
             #ic(traj_est, lidar_est, heading_est)

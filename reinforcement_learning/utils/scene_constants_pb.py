@@ -71,8 +71,8 @@ class scene_constants:
     MIN_X_POS       = 0             # Minimum x-pos at start
     MAX_X_POS       = 0             # Maximum x-pos at start
 
-    MIN_LANE_WIDTH  = 4.0           # Min / Max width of test case
-    MAX_LANE_WIDTH  = 10.0
+    MIN_LANE_WIDTH  = 6.0           # Min / Max width of test case
+    MAX_LANE_WIDTH  = 6.0
 
     # y-axis distance where obstacle lies
     MAX_OBS_Y_POS   = lane_len * 0.5 * 0.75         
