@@ -54,6 +54,8 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
     newGoalStack     = np.zeros([options.VEH_COUNT, 2, max_horizon])
     newPositionStack = np.zeros([options.VEH_COUNT, 2, max_horizon])
     newHeadingStack  = np.zeros([options.VEH_COUNT, 1, max_horizon])
+    newSensorXStack = np.zeros([options.VEH_COUNT, scene_const.sensor_count, max_horizon])
+    newSensorYStack = np.zeros([options.VEH_COUNT, scene_const.sensor_count, max_horizon])
 
     if debug == True:
         ic('Main Loop for Computing Prediction...')
@@ -95,7 +97,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
         newPosition, newHeading = getVehicleEstimation(options, prevPosition, prevHeading, targetSteer_k)
 
         # Estimate of LIDAR distance / LIDAR detection
-        newSensor, newSensorState = predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPosition, newHeading)
+        newSensor, newSensorState, newSensorXY = predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPosition, newHeading)
 
         # Combine sensor values into single variable
         newSensorCombined = np.concatenate((newSensor,newSensorState), axis=1)
@@ -118,6 +120,8 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
         newStateStack[:, :, t]      = newSensorCombined
         newPositionStack[:, :, t]   = newPosition
         newHeadingStack[:, :, t]    = newHeading
+        newSensorXStack[:, :, t] = newSensorXY[:,:,0]
+        newSensorYStack[:, :, t] = newSensorXY[:,:,1,]
 
         prevPosition = newPosition
         prevHeading  = newHeading
@@ -126,7 +130,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
             print("\n")
 
     # Return the vehicle trajectory
-    return newPositionStack, newStateStack, newHeadingStack
+    return newPositionStack, newStateStack, newHeadingStack, newSensorXStack, newSensorYStack
 
 # Get estimated position and heading of vehicle
 # Input
@@ -138,7 +142,7 @@ def genTrajectory(options, scene_const, next_veh_pos, next_veh_heading, next_sta
 #   newPosition     : VEH_COUNT x 2
 #   newHeading      : VEH_COUNT x 1
 def getVehicleEstimation(options, oldPosition, oldHeading, targetSteer_k):
-    vLength = 0.8
+    vLength = 0.6
     vel     = options.INIT_SPD*0.1
     delT    = (1/60)*options.FIX_INPUT_STEP
 
@@ -199,6 +203,7 @@ def getGoalEstimation(options, scene_const, veh_pos, veh_heading, g_pos):
 # Output
 #   newSensor   : VEH_COUNT x SENSOR_COUNT
 #   newSensorState : VEH_COUNT x SENSOR_COUNT
+#   newSensorXY : VEH_COUNT X SENSOR_COUNT X 2
 def predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPosition, newHeading):
     oldSensorState  = oldSensor[:,scene_const.sensor_count:]
     # oldSensor=oldSensor[:,0:scene_const.sensor_count-1]
@@ -206,24 +211,25 @@ def predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPo
 
     seqAngle        = np.array([(scene_const.sensor_count-1-i)*np.pi/(scene_const.sensor_count-1) for i in range(scene_const.sensor_count)])
     newSensor       = np.zeros((options.VEH_COUNT,scene_const.sensor_count))
-    newSensorState  = np.ones((options.VEH_COUNT,scene_const.sensor_count)) # 0:closed & 1:open
+    newSensorState  = np.zeros((options.VEH_COUNT,scene_const.sensor_count)) # 0:closed & 1:open
+    newSensorXY      = np.zeros((options.VEH_COUNT,scene_const.sensor_count,2))
 
     for v in range(0,options.VEH_COUNT):
         # oldC,oldS   = np.cos(oldHeading[v]-np.pi/2),np.sin(oldHeading[v]-np.pi/2)
-        oldC,oldS   = np.cos(oldHeading[v]),np.sin(oldHeading[v])
-        oldRot      = np.array([[oldC,oldS],[-oldS,oldC]])
+        oldC,oldS   = np.cos(-oldHeading[v]),np.sin(-oldHeading[v])
+        oldRot      = np.array([[oldC,-oldS],[oldS,oldC]])
         # newC,newS   = np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
-        newC,newS   = np.cos(newHeading[v]),np.sin(newHeading[v])
-        newRot      = np.array([[newC,newS],[-newS,newC]])
+        newC,newS   = np.cos(-newHeading[v]),np.sin(-newHeading[v])
+        newRot      = np.array([[newC,-newS],[newS,newC]])
 
         # Transformation oldSensor w.r.t vehicle's next position and heading.
         temp1   = scene_const.sensor_distance*np.transpose([oldSensor[v],oldSensor[v]])
         temp2   = np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
         oldLidarXY = np.multiply(temp1,temp2)
         oldLidarXY = np.tile(oldPosition[v, :], [scene_const.sensor_count, 1]) \
-                    + np.matmul(oldLidarXY, np.transpose(oldRot))
+                    + np.matmul(oldLidarXY, oldRot)
         oldTransXY = oldLidarXY-np.tile(newPosition[v,:], [scene_const.sensor_count,1])
-        oldTransXY = np.matmul(oldTransXY,np.transpose(newRot))
+        oldTransXY = np.matmul(oldTransXY,newRot)
 
         # Compute newSensor w.r.t vehicle's next position and heading
         newTransXY = scene_const.sensor_distance*np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
@@ -269,7 +275,12 @@ def predictLidar(options, scene_const, oldPosition, oldHeading, oldSensor, newPo
         newLidarXY=newLidarXY+1.5*scene_const.collision_distance*np.transpose([np.cos(seqAngle),np.sin(seqAngle)])*np.transpose([flag,flag])
         newSensor[v,:]=np.linalg.norm(newLidarXY,ord=2,axis=1)/scene_const.sensor_distance
 
-    return newSensor, newSensorState
+        newLidarXY = np.matmul(newLidarXY, np.transpose(newRot))
+        newLidarXY = newLidarXY + np.tile(newPosition[v, :]-oldPosition[v, :], [scene_const.sensor_count, 1])
+        newLidarXY = np.matmul(newLidarXY, np.transpose(oldRot))
+        newSensorXY[v,:,:]=newLidarXY
+
+    return newSensor, newSensorState, newSensorXY
 
 
 

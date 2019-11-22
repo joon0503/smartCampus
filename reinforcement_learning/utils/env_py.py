@@ -66,23 +66,19 @@ def addNoise( options, scene_const, obs_sensor_stack ):
 #   radar_x
 #   radar_y 
 def getLidarXY( scene_const, lidar_state, veh_heading ):
-    radar_x = []
-    radar_y = []
 
-    for i in range(0,scene_const.sensor_count):
-        # gamma + sensor_min_angle   is the current angle of the left most sensor
-        # radar_x.append( self.scene_const.sensor_distance*curr_state[i]*np.sin( -1*veh_heading*self.scene_const.angle_scale + self.scene_const.sensor_min_angle + i*self.scene_const.sensor_delta ) + veh_x )
-        # radar_y.append( self.scene_const.sensor_distance*curr_state[i]*np.cos( -1*veh_heading*self.scene_const.angle_scale + self.scene_const.sensor_min_angle + i*self.scene_const.sensor_delta ) + veh_y )
 
-        # Angle from y-axis to sensor. CW +, CCW -
-        psi_angle = veh_heading + scene_const.sensor_min_angle + i*scene_const.sensor_delta 
+    seqAngle = np.array([(scene_const.sensor_count - 1 - i) * np.pi / (scene_const.sensor_count - 1) for i in
+                         range(scene_const.sensor_count)])
+    temp1 = scene_const.sensor_distance * np.transpose([lidar_state, lidar_state])
+    temp2 = np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
+    oldC,oldS   = np.cos(-veh_heading),np.sin(-veh_heading)
+    oldRot      = np.array([[oldC,oldS],[-oldS,oldC]])
+    oldLidarXY = np.multiply(temp1, temp2)
+    oldLidarXY = np.matmul(oldLidarXY, oldRot)
 
-        # Sensor distance in meter
-        sensor_dist_m = scene_const.sensor_distance * lidar_state[i]
-
-        # Plot lidar x,y
-        radar_x.append( -1 * sensor_dist_m * np.sin( -1*psi_angle ))
-        radar_y.append( sensor_dist_m * np.cos( -1*psi_angle ))
+    radar_x=oldLidarXY[:,0]
+    radar_y=oldLidarXY[:,1]
 
     return radar_x, radar_y
 
@@ -199,11 +195,10 @@ class env_py:
 
         # Figure for plotting
         if self.options.DRAW == True:
-            if self.options.manual == True:
-                plt.ion()
-                plt.show()
-            self.fig = plt.figure(num=0, figsize=(4,10))
-            self.ax  = self.fig.add_subplot(1,1,1)
+            plt.ion()
+            plt.show()
+        self.fig = plt.figure(num=0, figsize=(4,10))
+        self.ax  = self.fig.add_subplot(1,1,1)
 
 
         print("Finished starting simulations.")
@@ -529,7 +524,7 @@ class env_py:
             else:
                 marker_color = 'red'
 
-            self.ax.scatter(radar_x[i] + veh_x,radar_y[i] + veh_y, marker='x', color=marker_color)
+            self.ax.scatter(radar_x[i] + veh_x,radar_y[i] + veh_y, marker='o', color=marker_color)
 
         # Lines connecting detected points to each other
         # self.ax.plot(radar_x,radar_y, color='red')
@@ -556,9 +551,9 @@ class env_py:
             predict_goal  = np.expand_dims(predict_goal[:,1:],0)
             predict_goal[0,0,:] = predict_goal[0,0,:]*self.scene_const.sensor_max_angle 
 
-            ic(predict_state, predict_goal, veh_heading)
+            #ic(predict_state, predict_goal, veh_heading)
 
-            traj_est, lidar_est, heading_est = genTrajectory(
+            traj_est, lidar_est, heading_est, lidar_x, lidar_y = genTrajectory(
                         self.options,           # option
                         self.scene_const,       # scene_const
                         np.array([[0,0]]),      # veh position, single vehicle, at origin
@@ -570,8 +565,8 @@ class env_py:
                         debug = True
                     )
 
-            ic(traj_est, lidar_est, heading_est)
-            ic(traj_est.shape, lidar_est.shape, heading_est.shape)
+            #ic(traj_est, lidar_est, heading_est)
+            #ic(traj_est.shape, lidar_est.shape, heading_est.shape)
 
             predict_veh_x = traj_est[0,0,:]
             predict_veh_y = traj_est[0,1,:]
@@ -601,23 +596,23 @@ class env_py:
             # Color parameters
             color_start = 1.0
             color_end   = 0.2
-            color_delta = (color_start - color_end)/predict
+            color_delta = (color_start - color_end)/(predict-1)
 
             # For each prediction
             for i in range(0,predict):
                 # Get LIDAR x,y.
                 # FIXME: Why need -1 at heading 
-                radar_x, radar_y = getLidarXY(self.scene_const, lidar_est[veh_idx,0:self.scene_const.sensor_count,i], heading_est[veh_idx,0,i]*-1 )
+                radar_x, radar_y = getLidarXY(self.scene_const, lidar_est[veh_idx,0:self.scene_const.sensor_count,i], heading_est[veh_idx,0,i])
 
                 for j in range(0,self.scene_const.sensor_count):
                     if lidar_est[veh_idx][self.scene_const.sensor_count + j][i] == 1:
-                        # Saturate color pink open
-                        marker_color = (1,0,1,color_start - i*color_delta)
+                        # Saturate color cian open
+                        marker_color = (0,1,1,color_start - i*color_delta)
                     else:
-                        # Saturate color yellow close
-                        marker_color = (1,1,0,color_start - i*color_delta)
+                        # Saturate color pink close
+                        marker_color = (1,0,1,color_start - i*color_delta)
 
-                    self.ax.scatter(radar_x[j] + veh_x + predict_veh_x[i], radar_y[j] + veh_y + predict_veh_y[i], marker='x', color=marker_color)
+                    self.ax.scatter(lidar_x[0,j,i] + veh_x + predict_veh_x[i], lidar_y[0,j,i] + veh_y + predict_veh_y[i]-0.4*(i+1), marker='x', color=marker_color)
                     # self.ax.scatter(0 + veh_x + predict_veh_x[i], 0 + veh_y + predict_veh_y[i], marker='x', color=marker_color)
 
 
