@@ -6,6 +6,9 @@ import sys
 import math
 import matplotlib
 import matplotlib.pyplot as plt
+import time
+from matplotlib.lines import Line2D
+
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from collections import deque
@@ -192,7 +195,7 @@ class env_py:
         }
 
         # Load plane
-        p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"), globalScaling=10)
+        p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"), globalScaling=1)
 
         # Generate Scene and get handles
         self.handle_dict, _ = genScene( self.scene_const, self.options, handle_dict, range(0,self.options.VEH_COUNT) )
@@ -370,6 +373,7 @@ class env_py:
             p.stepSimulation()
 
         if self.options.manual == True:
+            # time.sleep(0.100)
             input('Press Enter')
 
         return
@@ -470,7 +474,7 @@ class env_py:
     #   predict : integer, number of prediction into the future. 0 means dont plot prediction
     # Outputs
     #   None
-    def plotVehicle(self, veh_idx = 0, frame = 0, save = False, predict = 0, network_model = None):
+    def plotVehicle(self, veh_idx = 0, frame = 0, save = False, predict = 0, network_model = None, temp_data = None, temp_idx = None):
         if frame == 0:
             frame = self.options.FRAME_COUNT
 
@@ -487,7 +491,7 @@ class env_py:
 
             # Set limi
             axis.set_xlim([-0.5*self.scene_const.turn_len,0.5*self.scene_const.turn_len])
-            axis.set_ylim([0,self.scene_const.lane_len*0.7])
+            axis.set_ylim([0,32])
 
             # Set equl ratio
             # axis.axis('equal')
@@ -497,7 +501,7 @@ class env_py:
         # Plot Goal Position
         #------------------------
         for axis in self.ax_array:
-            axis.scatter(self.goal_pos[veh_idx][0], self.goal_pos[veh_idx][1], color='orange', marker='*')
+            axis.scatter(self.goal_pos[veh_idx][0], self.goal_pos[veh_idx][1], color='orange', marker='*', label='Goal Point')
 
         #------------------------
         # Plot Vehicle. Stronger color means more recent position
@@ -526,7 +530,7 @@ class env_py:
 
                 # Plot Position
                 # Add 1 to counter since we are saving 1 more data points (#0, #1, #2, #3, #4) when Frame is 5, with #4 being the latest data
-                axis.plot( self.veh_pos_x_plot, self.veh_pos_y_plot, color=veh_color, markersize = 2, marker='o')
+                axis.plot( self.veh_pos_x_plot, self.veh_pos_y_plot, color=veh_color, markersize = 2, marker='o' )
 
                 # Plot Heading of past data
                 veh_heading = self.veh_heading_queue[veh_idx][i+1][2]
@@ -582,7 +586,10 @@ class env_py:
             predict_goal  = np.expand_dims(predict_goal[:,1:],0)
             predict_goal[0,0,:] = predict_goal[0,0,:]*self.scene_const.sensor_max_angle 
 
-            #ic(predict_state, predict_goal, veh_heading)
+            if self.options.VERBOSE == True:
+                print('---------------- TRAJECTORY GENERATION ------------------')
+                ic(self.veh_pos_queue[0])
+                ic(predict_state, predict_goal, veh_heading)
 
             traj_est, lidar_est, heading_est, lidar_x, lidar_y = genTrajectory(
                         self.options,           # option
@@ -593,11 +600,27 @@ class env_py:
                         predict_goal, 
                         network_model, 
                         predict,
-                        debug = False
+                        debug = True
                     )
 
-            #ic(traj_est, lidar_est, heading_est)
-            #ic(traj_est.shape, lidar_est.shape, heading_est.shape)
+            # FIXME: Temporary data
+            # traj_est, lidar_est, heading_est, lidar_x, lidar_y = genTrajectory(
+            #             self.options,           # option
+            #             self.scene_const,       # scene_const
+            #             np.array([[0,0]]),      # veh position, single vehicle, at origin
+            #             np.expand_dims(veh_heading,0), 
+            #             temp_data['sample_state_sensor'][temp_idx], 
+            #             temp_data['sample_state_goal'][temp_idx], 
+            #             network_model, 
+            #             predict,
+            #             debug = True
+            #         )
+
+
+            if self.options.VERBOSE == True:
+                ic(traj_est, lidar_est, heading_est)
+                ic(traj_est.shape, lidar_est.shape, heading_est.shape)
+                print('--------------------------------------------------------')
 
             predict_veh_x = traj_est[0,0,:]
             predict_veh_y = traj_est[0,1,:]
@@ -615,7 +638,7 @@ class env_py:
                     veh_color = (0,0,1,color_start - i*color_delta)
 
                     # Plot estimated Position
-                    axis.scatter( veh_x + predict_veh_x[i], veh_y + predict_veh_y[i], color=veh_color)
+                    axis.scatter( veh_x + predict_veh_x[i], veh_y + predict_veh_y[i], color=veh_color )
 
                     # Plot estimated Heading
                     # self.ax.quiver( veh_x + predict_veh_x[i], veh_y + predict_veh_y[i], np.sin(heading_est[veh_idx,0,i]), np.cos(heading_est[veh_idx,0,i]), color = veh_color)
@@ -677,11 +700,24 @@ class env_py:
             poly_color = (0,0,0,0.05)
             for p in range(0,predict,2):
                 self.ax_array[1].fill(veh_x + predict_veh_x[p] + lidar_x[0,:,p], veh_y + predict_veh_y[p] + lidar_y[0,:,p], color = poly_color)
+
+        # Legends
+        legend_elements_1 = [
+            Line2D([0],[0], color='black', marker='o', markerfacecolor='black', markersize=5, lw=2, label='Vehicle Trajectory'),
+            Line2D([0],[0], color='orange', marker='*', markerfacecolor='orange', markersize=5, lw=0, label='Goal Point'),
+        ]
+        legend_elements_2 = [
+            Line2D([0],[0], color='red', lw=2, label='LIDAR Estimation'),
+            Line2D([0],[0], color='blue', marker='o', markerfacecolor='blue', markersize=5, lw=0, label='Prediction'),
+        ]
+        self.ax_array[0].legend(handles = legend_elements_1, loc='lower right')
+        self.ax_array[1].legend(handles = legend_elements_2, loc='lower left')
+
         #----------------------------------
         # Save the figure if enabled
         #----------------------------------
         if save == True:
-            self.fig.savefig('./image_dir/plot_' + str(self.plot_counter).zfill(3) + '.png')
+            self.fig.savefig('./image_dir/plot_' + str(self.plot_counter).zfill(4) + '.png', bbox_inches='tight')
             self.plot_counter = self.plot_counter + 1
 
         return

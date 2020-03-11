@@ -231,14 +231,14 @@ if __name__ == "__main__":
     ######################################
     # Simulation Start
     ######################################
-
-    # Initial Camera position
-    cam_pos = [0,0,0]
-    cam_dist = 10
-
     # Start Environment
     sim_env = env_py( options, scene_constants() )
     sim_env.scene_const.clientID, handle_dict = sim_env.start()
+
+    # Initial Camera position
+    cam_pos = [0,12,0]
+    cam_dist = 23
+    p.resetDebugVisualizerCamera( cameraDistance = cam_dist, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = cam_pos )
 
     # Check Dump
     if options.DUMP_OPTIONS == True:
@@ -287,6 +287,12 @@ if __name__ == "__main__":
     # initilize them with initial data
     sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT) )
 
+
+    # FIXME: Temporary data
+
+    # temp_data = pickle.load( open( './20200311_Sample_Data/sample_data', 'rb' ) )
+    # temp_idx = 0
+
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
         # GS_START_TIME_STR   = datetime.datetime.now()
@@ -312,7 +318,9 @@ if __name__ == "__main__":
             ic(sim_env.goal_queue, obs_goal_stack)
 
         if options.DRAW == True:
-            sim_env.plotVehicle(save=True, predict = 20, network_model = q_algo.agent_train.model_q_all)
+            sim_env.plotVehicle(save=True, predict = 20, network_model = q_algo.agent_train.model_q_all, temp_data = None, temp_idx = None)
+            # sim_env.plotVehicle(save=True, predict = 20, network_model = q_algo.agent_train.model_q_all, temp_data = temp_data, temp_idx = temp_idx)
+            # temp_idx = temp_idx + 1
 
         # Get optimal action q_algo
         action_feed = {}
