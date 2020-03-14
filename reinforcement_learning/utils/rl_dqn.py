@@ -66,10 +66,12 @@ class QAgent:
             self.h_concat_k = tf.keras.layers.concatenate([ self.h_flat, self.h_flat_d, self.h_flat_g])
             # self.h_concat_k = tf.keras.layers.concatenate([ self.h_flat, self.h_flat_g])
 
-            self.h_mid = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_concat_k)
+            # 2 Layers of dense network before duleing part
+            self.h_mid_1 = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_concat_k)
+            self.h_mid_2 = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_mid_1)
 
-            self.h_val = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_mid)
-            self.h_adv = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_mid)
+            self.h_val = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_mid_2)
+            self.h_adv = tf.keras.layers.Dense( options.H3_SIZE, activation = 'relu')(self.h_mid_2)
             self.h_val_est = tf.keras.layers.Dense( 1, activation = None)(self.h_val)
             self.h_adv_est = tf.keras.layers.Dense( options.ACTION_DIM, activation = None)(self.h_adv)
             # self.reduced_mean = tf.keras.backend.mean(self.h_adv_est, axis = 1, keepdims=True)

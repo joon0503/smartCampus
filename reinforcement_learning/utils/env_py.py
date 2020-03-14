@@ -195,7 +195,7 @@ class env_py:
         }
 
         # Load plane
-        p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"), globalScaling=1)
+        p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"), globalScaling=10)
 
         # Generate Scene and get handles
         self.handle_dict, _ = genScene( self.scene_const, self.options, handle_dict, range(0,self.options.VEH_COUNT) )
@@ -228,10 +228,11 @@ class env_py:
         # Remove
         removeScene( self.scene_const, self.options, veh_reset_list, self.handle_dict)
 
-        # Generate the scene with updated lane_width, but not vehicles
+        # Randomize the lane width of each scene
         if randomize_input == True:
             self.scene_const.lane_width = np.random.random_sample()*(self.scene_const.MAX_LANE_WIDTH - self.scene_const.MIN_LANE_WIDTH) + self.scene_const.MIN_LANE_WIDTH
 
+        # Generate Scene
         self.handle_dict, valid_dir = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
 
         # Initilize position
@@ -600,7 +601,7 @@ class env_py:
                         predict_goal, 
                         network_model, 
                         predict,
-                        debug = True
+                        debug = False
                     )
 
             # FIXME: Temporary data

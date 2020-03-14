@@ -95,13 +95,13 @@ def get_options():
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=4000,
+    parser.add_argument('--GOAL_REW', type=int, default=5000,
                         help='Activation function')
     parser.add_argument('--FAIL_REW', type=int, default=-5000,
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=6,
                         help='Number of vehicles to use for simulation')
-    parser.add_argument('--INIT_SPD', type=int, default=50,
+    parser.add_argument('--INIT_SPD', type=int, default=15,
                         help='Initial speed of vehicle. 100 -> 10m/s = 36km/hr')
     parser.add_argument('--DIST_MUL', type=int, default=10,
                         help='Multiplier for rewards based on the distance to the goal')

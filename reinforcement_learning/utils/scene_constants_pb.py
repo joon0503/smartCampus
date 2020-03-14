@@ -62,7 +62,7 @@ class scene_constants:
     lane_width      = 2             # lane width
     lane_len        = 50            # total len
     turn_len        = 30            # total len after tun
-    case_x          = 100            # distance between each case
+    case_x          = 50            # distance between each case
     case_y          = 150            # distance between each case
     veh_init_y      = 0            # initial vehicle y position
     wall_cnt        = 9             # number of walls
@@ -71,8 +71,8 @@ class scene_constants:
     MIN_X_POS       = 0             # Minimum x-pos at start
     MAX_X_POS       = 0             # Maximum x-pos at start
 
-    MIN_LANE_WIDTH  = 6.0           # Min / Max width of test case
-    MAX_LANE_WIDTH  = 6.0
+    MIN_LANE_WIDTH  = 4.0           # Min / Max width of test case
+    MAX_LANE_WIDTH  = 8.0
 
     # y-axis distance where obstacle lies
     MAX_OBS_Y_POS   = lane_len * 0.5 * 0.75         
