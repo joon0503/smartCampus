@@ -16,7 +16,7 @@ from utils.rl_dqn import QAgent
 
 
 class dqn:
-    def __init__(self, sim_env, load = True):
+    def __init__(self, sim_env, init_course_eps = 1.0, load = True):
         # Target and Training agent
         self.agent_train     = QAgent(sim_env.options,sim_env.scene_const, 'Training')
         self.agent_target    = QAgent(sim_env.options,sim_env.scene_const, 'Target')
@@ -28,6 +28,9 @@ class dqn:
         self.options = sim_env.options
         self.scene_const = sim_env.scene_const
         self.sim_env = sim_env
+
+        # Course eps
+        self.course_eps = init_course_eps
 
         # The replay memory.
         if sim_env.options.enable_PER == False:
@@ -61,6 +64,8 @@ class dqn:
         # Update target
         self.__updateTarget( global_step )
 
+        # Increase course hardness
+        self.__updateCourseEps( global_step )
         return
 
     # Update target
@@ -70,7 +75,7 @@ class dqn:
             print('-----------------------------------------')
             print("Updating Target network.")
             print('-----------------------------------------')
-            self.agent_target.model.set_weights( self.agent_train.model.get_weights() )
+            self.agent_target.model_qa.set_weights( self.agent_train.model_qa.get_weights() )
 
         return
 
@@ -82,6 +87,17 @@ class dqn:
 
         return
 
+    # update course eps
+    def __updateCourseEps( self, global_step ):
+        # Decay epsilon
+        if global_step % self.options.EPS_ANNEAL_STEPS == 0:
+            self.course_eps = self.course_eps * self.options.EPS_DECAY
+
+        # Jump the obstacle if too close
+        if abs(self.course_eps - 0.75) < 0.01:
+            self.course_eps = 0.5
+
+        return
 
     # Get optimal action Keras. 
     #   action_feed: dictionary of input to keras
@@ -89,6 +105,8 @@ class dqn:
         action_stack_k = self.agent_train.sample_action_k( action_feed, self.eps, self.options )
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
+        # Recall action_stack_k is index with 0 means left, and ACTION_DIM-1 mean right.
+        # Hence, if action_index = 0, targetSteer = max_steer and action_index=ACTION_DIM-1 means targetSteer = -1*max_steer
         # targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
         targetSteer_k = self.scene_const.max_steer - action_stack_k * abs(self.scene_const.max_steer - self.scene_const.min_steer)/(self.options.ACTION_DIM-1)
 
@@ -112,7 +130,8 @@ class dqn:
         actions_mb_hot[np.arange(self.options.BATCH_SIZE),np.asarray(actions_mb, dtype=int)] = 1
 
         # Calculate Target Q-value. Uses double network. First, get action from training network
-        action_train_k = self.agent_train.model_out.predict(
+        # Get Q estimate from training model. q_val_train : BATCH_SIZE x ACTION_DIM
+        q_val_train = self.agent_train.model_q_all.predict(
                                             {
                                                 'observation_sensor_k' : next_states_sensor_mb[:,0:self.scene_const.sensor_count,:],
                                                 'observation_state'    : next_states_sensor_mb[:,self.scene_const.sensor_count:,:],
@@ -120,7 +139,20 @@ class dqn:
                                             },
                                             batch_size = self.options.VEH_COUNT
         )
-        action_train_k = np.argmax( action_train_k, axis=1)
+        # ic(q_val_train)
+        # ic(actions_mb_hot)
+        # q_temp = self.agent_train.model_qa.predict(
+        #                                     {
+        #                                         'observation_sensor_k' : next_states_sensor_mb[:,0:self.scene_const.sensor_count,:],
+        #                                         'observation_state'    : next_states_sensor_mb[:,self.scene_const.sensor_count:,:],
+        #                                         'observation_goal_k'   : next_states_goal_mb,
+        #                                         'action_k'             : actions_mb_hot 
+        #                                     },
+        #                                     batch_size = self.options.VEH_COUNT
+        # )
+        # ic(q_temp)
+        # Get action from training model
+        action_train_k = np.argmax( q_val_train, axis=1)
 
         keras_feed = {}
         keras_feed.clear()
@@ -133,12 +165,18 @@ class dqn:
 
         )
         # Using Target + Double network
-        q_target_val_k = rewards_mb + self.options.GAMMA * self.agent_target.model_out.predict(keras_feed)[np.arange(0,self.options.BATCH_SIZE),action_train_k]
-    
+        q_target_val_vec = rewards_mb + self.options.GAMMA * self.agent_target.model_q_all.predict(keras_feed)[np.arange(0,self.options.BATCH_SIZE),action_train_k]
+
         # set q_target to reward if episode is done
         for v_mb in range(0,self.options.BATCH_SIZE):
             if done_mb[v_mb] == 1:
-                q_target_val_k[v_mb] = rewards_mb[v_mb]
+                q_target_val_vec[v_mb] = rewards_mb[v_mb]
+
+
+        # Target is BATCH_SIZE x ACTION_DIM, with Q(s_t,a_t) replaced with \hat{Q}
+        # q_target_val_mtx = q_val_train
+        # q_target_val_mtx[ np.arange(self.options.BATCH_SIZE), action_train_k] = q_target_val_vec
+
 
         # Train Keras Model
         keras_feed = {}
@@ -147,12 +185,17 @@ class dqn:
             { 
                 'observation_sensor_k' : states_sensor_mb[:,0:self.scene_const.sensor_count,:], 
                 'observation_state'    : states_sensor_mb[:,self.scene_const.sensor_count:,:], 
-                'observation_goal_k'   : states_goal_mb
+                'observation_goal_k'   : states_goal_mb,
+                'action_k'             : actions_mb_hot
             }
         )
 
+        if self.options.VERBOSE == True:
+            ic(keras_feed)
+            # ic( np.reshape(q_target_val_mtx,(self.options.BATCH_SIZE,self.options.ACTION_DIM)) )
+
         # Loss
-        loss_k = self.agent_train.model.train_on_batch( keras_feed, np.reshape(q_target_val_k,(self.options.BATCH_SIZE,1)) )
+        loss_k = self.agent_train.model_qa.train_on_batch( keras_feed, np.reshape(q_target_val_vec,(self.options.BATCH_SIZE,1)) )
 
         return loss_k, states_sensor_mb, next_states_sensor_mb, states_goal_mb, next_states_goal_mb, actions_mb
 
@@ -160,13 +203,20 @@ class dqn:
     def loadNetwork( self ):
         weight_path = None
 
-        # If file is provided
+        # If file is provided. From checkpoint.txt, read the last line, i.e., the latest weight file.
         if self.options.WEIGHT_FILE != None:
             weight_path = self.options.WEIGHT_FILE
         elif os.path.isfile('./checkpoints-vehicle/checkpoint.txt'):
             with open('./checkpoints-vehicle/checkpoint.txt') as check_file:
-                weight_file = check_file.readline()
+                # Get file content
+                weight_file = check_file.readlines()
+
+                # Get last line
+                weight_file = weight_file[len(weight_file)-1].rstrip()
+
                 weight_path = './checkpoints-vehicle/' + weight_file 
+
+                ic(weight_path)
 
         if weight_path == None:
             print("\n\n=================================================")
@@ -175,8 +225,8 @@ class dqn:
             print("=================================================")
             print("=================================================\n\n")
         else:
-            self.agent_train.model.load_weights( weight_path )
-            self.agent_target.model.load_weights( weight_path )
+            self.agent_train.model_qa.load_weights( weight_path )
+            self.agent_target.model_qa.load_weights( weight_path )
             print("\n\n=================================================")
             print("=================================================")
             print("Successfully loaded:", weight_path)
@@ -198,11 +248,11 @@ class dqn:
         if not os.path.exists('./checkpoints-vehicle'):
             os.makedirs('./checkpoints-vehicle')
         # self.agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
-        self.agent_train.model.save('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+        self.agent_train.model_qa.save('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
 
         # Save checkpoint
-        with open('./checkpoints-vehicle/checkpoint.txt','w') as check_file:
-            check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5')
+        with open('./checkpoints-vehicle/checkpoint.txt','a+') as check_file:
+            check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5\n')
 
         return
 

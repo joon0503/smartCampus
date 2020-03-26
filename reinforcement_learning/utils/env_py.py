@@ -4,6 +4,13 @@
 import os
 import sys
 import math
+import matplotlib
+import matplotlib.pyplot as plt
+import time
+from matplotlib.lines import Line2D
+
+from matplotlib.patches import Polygon
+from matplotlib.collections import PatchCollection
 from collections import deque
 
 import numpy as np
@@ -15,13 +22,13 @@ from utils.utils_pb import (controlCamera, detectCollision, detectReachedGoal,
                             getObs, getVehicleState, initQueue, resetQueue)
 from utils.utils_pb_scene_2LC import (genScene, initScene_2LC, printRewards,
                                       printSpdInfo, removeScene)
-
+from utils.genTraj_script import genTrajectory
 
 # Add noise to the detection state
 # Input
 #   obs_sensor_stack : VEH_COUNT x SENSOR_COUNT*2
 # Output
-#   obs_sensor_stack_noise : SIZE : VEH_COUNT x SENSOR_COUNT*2
+#   obs_sensor_stack_noismath.degrees(e : SIZE : VEH_COUNT x SENSOR_COUNT*2
 #                            The detection state of the measurement data is modified with noise.
 #
 # Noise Adding Algorithm
@@ -53,6 +60,38 @@ def addNoise( options, scene_const, obs_sensor_stack ):
     obs_dist = obs_dist * dist_mask
 
     return np.concatenate((obs_dist,obs_detect), axis=1)
+
+
+# Helper function for plotting. Compute (x,y) coordinate the of the lidar information
+# This assumes, vehicle position is at 0,0
+# Inputs
+#   lidar
+#   veh_heading : RADIANS
+# Outputs
+#   radar_x
+#   radar_y 
+def getLidarXY( scene_const, lidar_state, veh_heading ):
+
+
+    seqAngle = np.array([(scene_const.sensor_count - 1 - i) * np.pi / (scene_const.sensor_count - 1) for i in
+                         range(scene_const.sensor_count)])
+    temp1 = scene_const.sensor_distance * np.transpose([lidar_state, lidar_state])
+    temp2 = np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
+    oldC,oldS   = np.cos(-veh_heading),np.sin(-veh_heading)
+    oldRot      = np.array([[oldC,oldS],[-oldS,oldC]])
+    oldLidarXY = np.multiply(temp1, temp2)
+    oldLidarXY = np.matmul(oldLidarXY, oldRot)
+
+    radar_x=oldLidarXY[:,0]
+    radar_y=oldLidarXY[:,1]
+
+    return radar_x, radar_y
+
+
+
+
+
+
 
 class env_py:
     # Initializer
@@ -90,8 +129,15 @@ class env_py:
         self.epi_step_stack      = np.zeros(self.options.VEH_COUNT, dtype=int)                              # Count number of step for each vehicle in each episode
 
         # Goal position for each testcase (VEH_COUNT x 2) [x1,y1;x2,y2]
-        self.goal_pos            = np.empty((self.options.VEH_COUNT,2), dtype=float)                              # Count number of step for each vehicle in each episode
+        self.goal_pos            = np.empty((self.options.VEH_COUNT,2), dtype=float)                              # Goal position of each vehicle
 
+        # Plotting related variables
+        self.fig = None
+        self.ax  = None
+        self.plot_counter = 0
+        self.ax_array = None
+        self.veh_pos_x_plot = []
+        self.veh_pos_y_plot = []
         return
 
     # Start Simulation & Generate the Scene
@@ -152,7 +198,20 @@ class env_py:
         p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane100.urdf"), globalScaling=10)
 
         # Generate Scene and get handles
-        self.handle_dict = genScene( self.scene_const, self.options, handle_dict, range(0,self.options.VEH_COUNT) )
+        self.handle_dict, _ = genScene( self.scene_const, self.options, handle_dict, range(0,self.options.VEH_COUNT) )
+
+
+        # Figure for plotting
+        if self.options.DRAW == True:
+            plt.ion()
+            plt.show()
+        # self.fig = plt.figure(num=0, figsize=(6,6))
+        self.fig, self.ax_array = plt.subplots(1,2, figsize=(8,12))
+        # self.ax  = self.ax_array[0]
+        # self.ax2  = self.fig.add_subplot(1,3,2)
+        # self.ax3  = self.fig.add_subplot(1,3,3)
+        # self.ax_array = [self.ax,self.ax2,self.ax3]
+
 
         print("Finished starting simulations.")
         print("=============================================")
@@ -163,17 +222,21 @@ class env_py:
             p.disconnect(id)
 
     # Initilize scene. Remove the scene, and regenerate again
-    def initScene( self, veh_reset_list, randomize_input ):
+    # Input
+    # course_eps : course hardness. 0 - hard, 1- easy, determine where the vehicle starts and how far is the goal point
+    def initScene( self, veh_reset_list, randomize_input, course_eps = 0 ):
         # Remove
         removeScene( self.scene_const, self.options, veh_reset_list, self.handle_dict)
 
-        # Generate the scene with updated lane_width, but not vehicles
+        # Randomize the lane width of each scene
         if randomize_input == True:
-            self.scene_const.lane_width = np.random.random_sample()*4.5 + 3.5
-        self.handle_dict = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
+            self.scene_const.lane_width = np.random.random_sample()*(self.scene_const.MAX_LANE_WIDTH - self.scene_const.MIN_LANE_WIDTH) + self.scene_const.MIN_LANE_WIDTH
+
+        # Generate Scene
+        self.handle_dict, valid_dir = genScene( self.scene_const, self.options, self.handle_dict, veh_reset_list, genVehicle = False )
 
         # Initilize position
-        direction, goal_pos_temp = initScene_2LC( self.scene_const, self.options, veh_reset_list, self.handle_dict, randomize = randomize_input)               # initialize
+        direction, goal_pos_temp = initScene_2LC( self.scene_const, self.options, veh_reset_list, self.handle_dict, valid_dir, course_eps, randomize = randomize_input)               # initialize
 
         # goal_pos_temp is zero if not updated, and nonzero if updated. Hence only change the goal_pos with new values
         if goal_pos_temp is not None: 
@@ -295,6 +358,8 @@ class env_py:
         return
 
     # Apply Action
+    # Inputs
+    # targetSteer : target angle in degrees
     def applyAction(self, targetSteer):
         for veh_index in range(self.options.VEH_COUNT):
             p.setJointMotorControlArray( self.handle_dict['vehicle'][veh_index], self.handle_dict['steer'], p.POSITION_CONTROL, targetPositions = np.repeat(targetSteer[veh_index],len(self.handle_dict['steer'])) )
@@ -309,6 +374,7 @@ class env_py:
             p.stepSimulation()
 
         if self.options.manual == True:
+            # time.sleep(0.100)
             input('Press Enter')
 
         return
@@ -378,14 +444,16 @@ class env_py:
             # Update rewards
             #reward_stack[v] = -(options.DIST_MUL+1/(next_dDistance[v].min()+options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
             # reward_stack[v] = -(self.options.DIST_MUL + 1/(next_dDistance[v].min()+self.options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2 + 3*( -5 + (10/(self.options.ACTION_DIM-1))*np.argmin( action_stack[v] ) )
-            reward_stack[v] = -(self.options.DIST_MUL + 1/(next_dDistance[v].min()+self.options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2
-            # reward_stack[v] = -(self.options.DIST_MUL)*next_gInfo[v][1]**2
+            # reward_stack[v] = -(self.options.DIST_MUL + 1/(next_dDistance[v].min()+self.options.MIN_LIDAR_CONST))*next_gInfo[v][1]**2
+            reward_stack[v] = -(self.options.DIST_MUL)*next_gInfo[v][1]**2
 
         # Update cumulative rewards
         self.epi_step_stack = self.epi_step_stack + 1
         for v in range(0,self.options.VEH_COUNT):
             self.epi_reward_stack[v] = self.epi_reward_stack[v] + reward_stack[v]*(self.options.GAMMA**self.epi_step_stack[v])
 
+        if self.options.VERBOSE == True:
+            ic(reward_stack)
         return reward_stack, veh_status, epi_done, epi_sucess
 
 
@@ -398,118 +466,376 @@ class env_py:
 
         return
 
-    # Get estimated position and heading of vehicle
-    def getVehicleEstimation(self, oldPosition, oldHeading, targetSteer_k):
-        vLength = 2.1
-        vel     = self.options.INIT_SPD
-        delT    = self.options.CTR_FREQ*self.options.FIX_INPUT_STEP
+    # Plot visualization
+    # Given the handle to figures, it plots the position, heading and LIDAR information w.r.t. ground 
+    # Inputs
+    #   veh_idx : index of the vehicle
+    #   frame   : number of frames to plot. 0 means options.FRAME_COUNT
+    #   save    : T/F, True means save figure
+    #   predict : integer, number of prediction into the future. 0 means dont plot prediction
+    # Outputs
+    #   None
+    def plotVehicle(self, veh_idx = 0, frame = 0, save = False, predict = 0, network_model = None, temp_data = None, temp_idx = None):
+        if frame == 0:
+            frame = self.options.FRAME_COUNT
 
-        newPosition = np.zeros([self.options.VEH_COUNT,2])
-        newHeading  = np.zeros([self.options.VEH_COUNT])
+        if predict < 0:
+            ic(predict)
+            raise ValueError('predict cannot be negative')
+        else:
+            if network_model == None:
+                raise ValueError('Must provide network to use prediction')
 
-        newPosition[:,0] = oldPosition[:,0] + vel * np.cos(oldHeading)*delT
-        newPosition[:,1] = oldPosition[:,1] + vel * np.sin(oldHeading)*delT
-        newHeading       = oldHeading + vel/vLength*np.tan(targetSteer_k)*delT
+        for axis in self.ax_array:
+            # Clear figure
+            axis.clear()
 
-        # for v in range(0,self.options.VEH_COUNT):
-            # newPosition[v,0]=oldPosition[v,0]+vel*np.cos(oldHeading[v])*delT
-            # newPosition[v,1]=oldPosition[v,1]+vel*np.sin(oldHeading[v])*delT
-            # newHeading[v]=oldHeading[v]+vel/vLength*math.tan(targetSteer_k[v])*delT
+            # Set limi
+            axis.set_xlim([-0.5*self.scene_const.turn_len,0.5*self.scene_const.turn_len])
+            axis.set_ylim([0,32])
 
-        return newPosition, newHeading
+            # Set equl ratio
+            # axis.axis('equal')
 
-    # Get estimated goal length and heading
-    def getGoalEstimation(self, veh_pos, veh_heading):
-        gInfo           = np.zeros([self.options.VEH_COUNT,2])
-        goal_handle     = self.handle_dict['dummy']
 
-        for k in range(0,self.options.VEH_COUNT):
-            # To compute gInfo, get goal position
-            g_pos, _ = p.getBasePositionAndOrientation( goal_handle[k] )
+        #------------------------
+        # Plot Goal Position
+        #------------------------
+        for axis in self.ax_array:
+            axis.scatter(self.goal_pos[veh_idx][0], self.goal_pos[veh_idx][1], color='orange', marker='*', label='Goal Point')
 
-            # Calculate the distance
-            # ic(g_pos[0:2],veh_pos[k])
-            delta_distance  = np.array(g_pos[0:2]) - np.array(veh_pos[k])  # delta x, delta y
-            gInfo[k][1]     = np.linalg.norm(delta_distance) / self.scene_const.goal_distance
+        #------------------------
+        # Plot Vehicle. Stronger color means more recent position
+        #------------------------
 
-            # calculate angle. 90deg + angle (assuming heading north) - veh_heading
-            gInfo[k][0] = math.atan(abs(delta_distance[0]) / abs(delta_distance[1]))  # delta x / delta y, and scale by pi 1(left) to -1 (right)
-            if delta_distance[0] < 0:
-                # Goal is left of the vehicle, then -1
-                gInfo[k][0] = gInfo[k][0] * -1
+        # Color parameters
+        color_start = 0.2
+        color_end   = 1.0
+        color_delta = (color_end - color_start)/frame
 
-            # Scale with heading
-            gInfo[k][0] = -1 * (math.pi * 0.5 - gInfo[k][0] - veh_heading[k]) / (math.pi / 2)
+        # Reset data
+        if len(self.veh_pos_y_plot) > 0 and abs(self.veh_pos_y_plot[-1] - self.veh_pos_queue[veh_idx][-1][1]) > 1:
+            self.veh_pos_x_plot = []
+            self.veh_pos_y_plot = []
 
-        return gInfo
+        # Update data
+        self.veh_pos_x_plot.append( self.veh_pos_queue[veh_idx][-1][0])
+        self.veh_pos_y_plot.append( self.veh_pos_queue[veh_idx][-1][1])
 
-    # Predict next LIDAR state
-    def predictLidar(self, oldPosition, oldHeading, oldSensor, newPosition, newHeading):
-        oldSensorState  = oldSensor[:,self.scene_const.sensor_count:]
-        # oldSensor=oldSensor[:,0:self.scene_const.sensor_count-1]
-        oldSensor       = oldSensor[:,0:self.scene_const.sensor_count]
+        for axis in self.ax_array:
+            # Plot position and heading of last few frames
+            for i in range(0,frame):
+                # Saturate color
+                # veh_color = (1,0,0,color_start + i*color_delta)
+                veh_color = (0,0,0)
 
-        seqAngle        = np.array([(self.scene_const.sensor_count-1-i)*np.pi/(self.scene_const.sensor_count-1) for i in range(self.scene_const.sensor_count)])
-        newSensor       = np.zeros((self.options.VEH_COUNT,self.scene_const.sensor_count))
-        newSensorState  = np.ones((self.options.VEH_COUNT,self.scene_const.sensor_count)) # 0:closed & 1:open
+                # Plot Position
+                # Add 1 to counter since we are saving 1 more data points (#0, #1, #2, #3, #4) when Frame is 5, with #4 being the latest data
+                axis.plot( self.veh_pos_x_plot, self.veh_pos_y_plot, color=veh_color, markersize = 2, marker='o' )
 
-        for v in range(0,self.options.VEH_COUNT):
-            oldC,oldS   = np.cos(oldHeading[v]-np.pi/2),np.sin(oldHeading[v]-np.pi/2)
-            oldRot      = np.array([[oldC,oldS],[-oldS,oldC]])
-            newC,newS   = np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
-            newRot      = np.array([[newC,newS],[-newS,newC]])
+                # Plot Heading of past data
+                veh_heading = self.veh_heading_queue[veh_idx][i+1][2]
+                # axis.quiver( self.veh_pos_queue[veh_idx][i+1][0], self.veh_pos_queue[veh_idx][i+1][1], np.sin(veh_heading), np.cos(veh_heading), color = veh_color)
 
-            # Transformation oldSensor w.r.t vehicle's next position and heading.
-            temp1   = self.scene_const.sensor_distance*np.transpose([oldSensor[v],oldSensor[v]])
-            temp2   = np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
-            oldLidarXY = np.multiply(temp1,temp2)
-            oldLidarXY = np.tile(oldPosition[v, :], [self.scene_const.sensor_count, 1]) \
-                        + np.matmul(oldLidarXY, np.transpose(oldRot))
-            oldTransXY = oldLidarXY-np.tile(newPosition[v,:], [self.scene_const.sensor_count,1])
-            oldTransXY = np.matmul(oldTransXY,np.transpose(newRot))
+        #------------------------
+        # Plot LIDAR Information 
+        #------------------------
 
-            # Compute newSensor w.r.t vehicle's next position and heading
-            newTransXY = self.scene_const.sensor_distance*np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
+        # Some variables
+        radar_x = []
+        radar_y = []
+        veh_x   = self.veh_pos_queue[veh_idx][-1][0]
+        veh_y   = self.veh_pos_queue[veh_idx][-1][1]
+        veh_heading = self.veh_heading_queue[veh_idx][-1][2]
+        curr_state = self.sensor_queue[veh_idx][-1][0:self.scene_const.sensor_count]
+        curr_detect = self.sensor_queue[veh_idx][-1][self.scene_const.sensor_count:]
 
-            # Remove out-range points, i.e. y<0
-            reducedLidarXY=np.array([])
-            for i in range(0,self.scene_const.sensor_count):
-                if oldTransXY[i,1]>=0:
-                    reducedLidarXY = np.append(reducedLidarXY, oldTransXY[i,:])
-            length=reducedLidarXY.shape[0]
-            reducedLidarXY=np.reshape(reducedLidarXY, (-1,2))
+        # FIXME: radar x,y position not used
+        radar_x, radar_y = getLidarXY( self.scene_const, curr_state, veh_heading)
 
-            # Find intersection between line1(newPosition,newTransXY) & line2(two among reducedLidarXY)
-            newLidarXY=np.zeros([self.scene_const.sensor_count,2])
-            flag=np.ones([self.scene_const.sensor_count])
-            length=reducedLidarXY.shape[0]
-            for i in range(0,self.scene_const.sensor_count):
-                for j in range(0,length-1):
-                    l=j+1
-                    # If intersection is found, then pass
-                    if flag[i]==0:
+        # Place marker at LIDAR x,y  at figure 0
+        for i in range(0,self.scene_const.sensor_count):
+            if curr_detect[i] == 1:
+                marker_color = 'green'
+            else:
+                marker_color = 'red'
+
+            self.ax_array[0].scatter(radar_x[i] + veh_x,radar_y[i] + veh_y, marker='o', color=marker_color)
+
+        # Lines connecting detected points to each other
+        # self.ax.plot(radar_x,radar_y, color='red')
+
+        # Lines connecting point to vehicle  at figure 0
+        for i in range(0,self.scene_const.sensor_count):
+            if curr_detect[i] == 1:
+                line_color = (0,1,0,0.2)
+            else:
+                line_color = (1,0,0,0.2)
+            self.ax_array[0].plot([veh_x, veh_x + radar_x[i]],[veh_y, veh_y + radar_y[i]], color=line_color )
+
+        #----------------------------------
+        # Plot Prediction
+        #----------------------------------
+        if predict > 0:
+            # Obtain Prediction
+
+            # put data into right format. Only get latest frames
+            predict_state = np.array(self.sensor_queue)[veh_idx].T
+            predict_state = np.expand_dims(predict_state[:,1:], 0)
+
+            predict_goal  = np.array(self.goal_queue)[veh_idx].T
+            predict_goal  = np.expand_dims(predict_goal[:,1:],0)
+            predict_goal[0,0,:] = predict_goal[0,0,:]*self.scene_const.sensor_max_angle 
+
+            if self.options.VERBOSE == True:
+                print('---------------- TRAJECTORY GENERATION ------------------')
+                ic(self.veh_pos_queue[0])
+                ic(predict_state, predict_goal, veh_heading)
+
+            traj_est, lidar_est, heading_est, lidar_x, lidar_y = genTrajectory(
+                        self.options,           # option
+                        self.scene_const,       # scene_const
+                        np.array([[0,0]]),      # veh position, single vehicle, at origin
+                        np.expand_dims(veh_heading,0), 
+                        predict_state, 
+                        predict_goal, 
+                        network_model, 
+                        predict,
+                        debug = False
+                    )
+
+            # FIXME: Temporary data
+            # traj_est, lidar_est, heading_est, lidar_x, lidar_y = genTrajectory(
+            #             self.options,           # option
+            #             self.scene_const,       # scene_const
+            #             np.array([[0,0]]),      # veh position, single vehicle, at origin
+            #             np.expand_dims(veh_heading,0), 
+            #             temp_data['sample_state_sensor'][temp_idx], 
+            #             temp_data['sample_state_goal'][temp_idx], 
+            #             network_model, 
+            #             predict,
+            #             debug = True
+            #         )
+
+
+            if self.options.VERBOSE == True:
+                ic(traj_est, lidar_est, heading_est)
+                ic(traj_est.shape, lidar_est.shape, heading_est.shape)
+                print('--------------------------------------------------------')
+
+            predict_veh_x = traj_est[0,0,:]
+            predict_veh_y = traj_est[0,1,:]
+
+            # Color parameters
+            color_start = 1.0
+            color_end   = 0.2
+            color_delta = (color_start - color_end)/predict
+
+
+            # Plot position of estimation
+            for axis in [self.ax_array[1]]:
+                for i in range(0,predict):
+                    # Saturate color
+                    veh_color = (0,0,1,color_start - i*color_delta)
+
+                    # Plot estimated Position
+                    axis.scatter( veh_x + predict_veh_x[i], veh_y + predict_veh_y[i], color=veh_color )
+
+                    # Plot estimated Heading
+                    # self.ax.quiver( veh_x + predict_veh_x[i], veh_y + predict_veh_y[i], np.sin(heading_est[veh_idx,0,i]), np.cos(heading_est[veh_idx,0,i]), color = veh_color)
+
+            # Plot Predicted LIDAR Information
+            # lidar_est : VEH_COUNT x SENSOR_COUNT*2 X PREDICTION_STEP
+
+            # Color parameters
+            color_start = 1.0
+            color_end   = 0.2
+            color_delta = (color_start - color_end)/(predict-1)
+
+            # For each prediction, plot predicted lidar position
+            for i in range(0,predict,2):
+                # Get LIDAR x,y.
+                # FIXME: Why need -1 at heading 
+                radar_x, radar_y = getLidarXY(self.scene_const, lidar_est[veh_idx,0:self.scene_const.sensor_count,i], heading_est[veh_idx,0,i])
+
+                for j in range(0,self.scene_const.sensor_count):
+                    if lidar_est[veh_idx][self.scene_const.sensor_count + j][i] == 1:
+                        # Saturate color cian open
+                        marker_color = (0,1,1,color_start - i*color_delta)
+                    else:
+                        # Saturate color pink close
+                        marker_color = (1,0,1,color_start - i*color_delta)
+
+                    # self.ax_array[2].scatter(lidar_x[0,j,i] + veh_x + predict_veh_x[i], lidar_y[0,j,i] + veh_y + predict_veh_y[i], marker='x', color=marker_color)
+                    # self.ax.scatter(0 + veh_x + predict_veh_x[i], 0 + veh_y + predict_veh_y[i], marker='x', color=marker_color)
+
+            # Lines connecting predicted lidar x,y to predicted vehicle position
+            for p in range(0,predict,2):
+                for s in range(0,self.scene_const.sensor_count):
+                    if lidar_est[veh_idx,self.scene_const.sensor_count + s,p] == 1:
+                        # Open
+                        line_color = (0,1,0,0.2)
+                    else:
+                        # Close
+                        line_color = (1,0,0,0.2)
+
+                    # self.ax_array[2]([veh_x + predict_veh_x[p], veh_x + lidar_x[0,s,p]],[veh_y + predict_veh_y[p], veh_y + lidar_y[0,s,p]], color=line_color )
+
+            # Lines connecting lidar x,y to each other
+            for p in range(0,predict,2):
+                for s in range(0,self.scene_const.sensor_count+1):
+                    if s == 0:
+                        self.ax_array[1].plot([veh_x + predict_veh_x[p], veh_x + predict_veh_x[p] + lidar_x[0,s,p]],[veh_y + predict_veh_y[p], veh_y + predict_veh_y[p] + lidar_y[0,s,p]], color=line_color )
+                        pass
+                    elif s == self.scene_const.sensor_count:
+                        # First sensor or Last sensor, connect to vehicle position
+                        self.ax_array[1].plot([veh_x + predict_veh_x[p], veh_x + predict_veh_x[p] + lidar_x[0,s-1,p]],[veh_y + predict_veh_y[p], veh_y + predict_veh_y[p] + lidar_y[0,s-1,p]], color=line_color )
+                        pass
+                    else:
+                        # sensors in the middle connect to next one
+                        self.ax_array[1].plot([veh_x + predict_veh_x[p] + lidar_x[0,s-1,p], veh_x + predict_veh_x[p] + lidar_x[0,s,p]],[veh_y + predict_veh_y[p] + lidar_y[0,s-1,p], veh_y + predict_veh_y[p] + lidar_y[0,s,p]], color=line_color )
                         pass
 
-                    A=np.array([[newTransXY[i][1],-newTransXY[i][0]],[reducedLidarXY[l][1]-reducedLidarXY[j][1],-reducedLidarXY[l][0]+reducedLidarXY[j][0]]])
-                    det=A[0][0]*A[1][1]-A[0][1]*A[1][0]
-                    if det==0:
-                        pass
-                    b=np.array([0,np.dot(A[1,:],reducedLidarXY[j,:])])
-                    try:
-                        x=np.linalg.solve(A,b)
-                    except:
-                        pass
 
-                    # check the point between two pair points
-                    # if np.dot(A[1,:],newTransXY[i]-x)*np.dot(A[1,:],-x)<=0 \
-                    #         and np.dot(A[0,:],reducedLidarXY[j]-x)*np.dot(A[0,:],reducedLidarXY[l]-x)<=0:
-                    if np.dot(A[0, :], reducedLidarXY[j] - x) * np.dot(A[0, :], reducedLidarXY[l] - x) <= 0:
-                        newLidarXY[i,:]=x
-                        newSensorState[v,i]=oldSensorState[v,j]*oldSensorState[v,l] # closed if there exist at least closed point
-                        flag[i]=0
+            # Lidar as Polygon and using Fill
+            poly_color = (0,0,0,0.05)
+            for p in range(0,predict,2):
+                self.ax_array[1].fill(veh_x + predict_veh_x[p] + lidar_x[0,:,p], veh_y + predict_veh_y[p] + lidar_y[0,:,p], color = poly_color)
 
-            # Compute newSensorOut
-            newLidarXY=newLidarXY+1.5*self.scene_const.collision_distance*np.transpose([np.cos(seqAngle),np.sin(seqAngle)])*np.transpose([flag,flag])
-            newSensor[v,:]=np.linalg.norm(newLidarXY,ord=2,axis=1)/self.scene_const.sensor_distance
+        # Legends
+        legend_elements_1 = [
+            Line2D([0],[0], color='black', marker='o', markerfacecolor='black', markersize=5, lw=2, label='Vehicle Trajectory'),
+            Line2D([0],[0], color='orange', marker='*', markerfacecolor='orange', markersize=5, lw=0, label='Goal Point'),
+        ]
+        legend_elements_2 = [
+            Line2D([0],[0], color='red', lw=2, label='LIDAR Estimation'),
+            Line2D([0],[0], color='blue', marker='o', markerfacecolor='blue', markersize=5, lw=0, label='Prediction'),
+        ]
+        self.ax_array[0].legend(handles = legend_elements_1, loc='lower right')
+        self.ax_array[1].legend(handles = legend_elements_2, loc='lower left')
 
-        return newSensor, newSensorState
+        #----------------------------------
+        # Save the figure if enabled
+        #----------------------------------
+        if save == True:
+            self.fig.savefig('./image_dir/plot_' + str(self.plot_counter).zfill(4) + '.png', bbox_inches='tight')
+            self.plot_counter = self.plot_counter + 1
+
+        return
+
+
+    # # Get estimated position and heading of vehicle
+    # def getVehicleEstimation(self, oldPosition, oldHeading, targetSteer_k):
+    #     vLength = 2.1
+    #     vel     = self.options.INIT_SPD
+    #     delT    = self.options.CTR_FREQ*self.options.FIX_INPUT_STEP
+
+    #     newPosition = np.zeros([self.options.VEH_COUNT,2])
+    #     newHeading  = np.zeros([self.options.VEH_COUNT])
+
+    #     newPosition[:,0] = oldPosition[:,0] + vel * np.cos(oldHeading)*delT
+    #     newPosition[:,1] = oldPosition[:,1] + vel * np.sin(oldHeading)*delT
+    #     newHeading       = oldHeading + vel/vLength*np.tan(targetSteer_k)*delT
+
+    #     # for v in range(0,self.options.VEH_COUNT):
+    #         # newPosition[v,0]=oldPosition[v,0]+vel*np.cos(oldHeading[v])*delT
+    #         # newPosition[v,1]=oldPosition[v,1]+vel*np.sin(oldHeading[v])*delT
+    #         # newHeading[v]=oldHeading[v]+vel/vLength*math.tan(targetSteer_k[v])*delT
+
+    #     return newPosition, newHeading
+
+    # # Get estimated goal length and heading
+    # def getGoalEstimation(self, veh_pos, veh_heading):
+    #     gInfo           = np.zeros([self.options.VEH_COUNT,2])
+    #     goal_handle     = self.handle_dict['dummy']
+
+    #     for k in range(0,self.options.VEH_COUNT):
+    #         # To compute gInfo, get goal position
+    #         g_pos, _ = p.getBasePositionAndOrientation( goal_handle[k] )
+
+    #         # Calculate the distance
+    #         # ic(g_pos[0:2],veh_pos[k])
+    #         delta_distance  = np.array(g_pos[0:2]) - np.array(veh_pos[k])  # delta x, delta y
+    #         gInfo[k][1]     = np.linalg.norm(delta_distance) / self.scene_const.goal_distance
+
+    #         # calculate angle. 90deg + angle (assuming heading north) - veh_heading
+    #         gInfo[k][0] = math.atan(abs(delta_distance[0]) / abs(delta_distance[1]))  # delta x / delta y, and scale by pi 1(left) to -1 (right)
+    #         if delta_distance[0] < 0:
+    #             # Goal is left of the vehicle, then -1
+    #             gInfo[k][0] = gInfo[k][0] * -1
+
+    #         # Scale with heading
+    #         gInfo[k][0] = -1 * (math.pi * 0.5 - gInfo[k][0] - veh_heading[k]) / (math.pi / 2)
+
+    #     return gInfo
+
+    # # Predict next LIDAR state
+    # def predictLidar(self, oldPosition, oldHeading, oldSensor, newPosition, newHeading):
+    #     oldSensorState  = oldSensor[:,self.scene_const.sensor_count:]
+    #     # oldSensor=oldSensor[:,0:self.scene_const.sensor_count-1]
+    #     oldSensor       = oldSensor[:,0:self.scene_const.sensor_count]
+
+    #     seqAngle        = np.array([(self.scene_const.sensor_count-1-i)*np.pi/(self.scene_const.sensor_count-1) for i in range(self.scene_const.sensor_count)])
+    #     newSensor       = np.zeros((self.options.VEH_COUNT,self.scene_const.sensor_count))
+    #     newSensorState  = np.ones((self.options.VEH_COUNT,self.scene_const.sensor_count)) # 0:closed & 1:open
+
+    #     for v in range(0,self.options.VEH_COUNT):
+    #         oldC,oldS   = np.cos(oldHeading[v]-np.pi/2),np.sin(oldHeading[v]-np.pi/2)
+    #         oldRot      = np.array([[oldC,oldS],[-oldS,oldC]])
+    #         newC,newS   = np.cos(newHeading[v]-np.pi/2),np.sin(newHeading[v]-np.pi/2)
+    #         newRot      = np.array([[newC,newS],[-newS,newC]])
+
+    #         # Transformation oldSensor w.r.t vehicle's next position and heading.
+    #         temp1   = self.scene_const.sensor_distance*np.transpose([oldSensor[v],oldSensor[v]])
+    #         temp2   = np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
+    #         oldLidarXY = np.multiply(temp1,temp2)
+    #         oldLidarXY = np.tile(oldPosition[v, :], [self.scene_const.sensor_count, 1]) \
+    #                     + np.matmul(oldLidarXY, np.transpose(oldRot))
+    #         oldTransXY = oldLidarXY-np.tile(newPosition[v,:], [self.scene_const.sensor_count,1])
+    #         oldTransXY = np.matmul(oldTransXY,np.transpose(newRot))
+
+    #         # Compute newSensor w.r.t vehicle's next position and heading
+    #         newTransXY = self.scene_const.sensor_distance*np.transpose([np.cos(seqAngle), np.sin(seqAngle)])
+
+    #         # Remove out-range points, i.e. y<0
+    #         reducedLidarXY=np.array([])
+    #         for i in range(0,self.scene_const.sensor_count):
+    #             if oldTransXY[i,1]>=0:
+    #                 reducedLidarXY = np.append(reducedLidarXY, oldTransXY[i,:])
+    #         length=reducedLidarXY.shape[0]
+    #         reducedLidarXY=np.reshape(reducedLidarXY, (-1,2))
+
+    #         # Find intersection between line1(newPosition,newTransXY) & line2(two among reducedLidarXY)
+    #         newLidarXY=np.zeros([self.scene_const.sensor_count,2])
+    #         flag=np.ones([self.scene_const.sensor_count])
+    #         length=reducedLidarXY.shape[0]
+    #         for i in range(0,self.scene_const.sensor_count):
+    #             for j in range(0,length-1):
+    #                 l=j+1
+    #                 # If intersection is found, then pass
+    #                 if flag[i]==0:
+    #                     pass
+
+    #                 A=np.array([[newTransXY[i][1],-newTransXY[i][0]],[reducedLidarXY[l][1]-reducedLidarXY[j][1],-reducedLidarXY[l][0]+reducedLidarXY[j][0]]])
+    #                 det=A[0][0]*A[1][1]-A[0][1]*A[1][0]
+    #                 if det==0:
+    #                     pass
+    #                 b=np.array([0,np.dot(A[1,:],reducedLidarXY[j,:])])
+    #                 try:
+    #                     x=np.linalg.solve(A,b)
+    #                 except:
+    #                     pass
+
+    #                 # check the point between two pair points
+    #                 # if np.dot(A[1,:],newTransXY[i]-x)*np.dot(A[1,:],-x)<=0 \
+    #                 #         and np.dot(A[0,:],reducedLidarXY[j]-x)*np.dot(A[0,:],reducedLidarXY[l]-x)<=0:
+    #                 if np.dot(A[0, :], reducedLidarXY[j] - x) * np.dot(A[0, :], reducedLidarXY[l] - x) <= 0:
+    #                     newLidarXY[i,:]=x
+    #                     newSensorState[v,i]=oldSensorState[v,j]*oldSensorState[v,l] # closed if there exist at least closed point
+    #                     flag[i]=0
+
+    #         # Compute newSensorOut
+    #         newLidarXY=newLidarXY+1.5*self.scene_const.collision_distance*np.transpose([np.cos(seqAngle),np.sin(seqAngle)])*np.transpose([flag,flag])
+    #         newSensor[v,:]=np.linalg.norm(newLidarXY,ord=2,axis=1)/self.scene_const.sensor_distance
+
+    #     return newSensor, newSensorState

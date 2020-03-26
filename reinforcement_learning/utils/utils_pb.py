@@ -41,7 +41,7 @@ def getSensorData( scene_const, options, vehicle_handle ):
 # handle_dict
 # Output
 #   veh_pos : VEH_COUNT x 2, (x,y)
-#   veh_heading : VEH_COUNT x 3, uses euler which is converted from quaternion
+#   veh_heading : VEH_COUNT x 1, north = 0 rad, east = pi/2 rad, west = -pi/2 rad
 #   sensorData : VEH_COUNT x scene_const.sensor_count*2
 #   gInfo : VEH_COUNT x 2, [goal_angle, goal_distance]
 #       goal_angle : referenced at vehicle heading. left -> -ve, right -> +ve
@@ -77,7 +77,7 @@ def getVehicleState( scene_const, options, handle_dict ):
 
         # Scale with heading
         gInfo[k][0] = -1*(math.pi*0.5 - gInfo[k][0] - veh_heading[k][2] ) / (math.pi/2)
-    return veh_pos, veh_heading, getSensorData( scene_const, options, vehicle_handle ), gInfo
+    return veh_pos, -1*(veh_heading - math.pi*0.5), getSensorData( scene_const, options, vehicle_handle ), gInfo
 
 # Initialize the array of queue
 # Input

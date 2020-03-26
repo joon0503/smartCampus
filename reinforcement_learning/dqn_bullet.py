@@ -35,7 +35,7 @@ def get_options():
         )
     parser.add_argument('--MAX_EPISODE', type=int, default=5000,
                         help='max number of episodes iteration\n')
-    parser.add_argument('--MAX_TIMESTEP', type=int, default=200,
+    parser.add_argument('--MAX_TIMESTEP', type=int, default=250,
                         help='max number of time step of simulation per episode')
     parser.add_argument('--ACTION_DIM', type=int, default=5,
                         help='number of actions one can take')
@@ -49,11 +49,11 @@ def get_options():
                         help='finial probability for randomly sampling action')
     parser.add_argument('--EPS_DECAY', type=float, default=0.995,
                         help='epsilon decay rate')
-    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=5400,
+    parser.add_argument('--EPS_ANNEAL_STEPS', type=int, default=10800,
                         help='steps interval to decay epsilon')
     parser.add_argument('--LR', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--MAX_EXPERIENCE', type=int, default=10000,
+    parser.add_argument('--MAX_EXPERIENCE', type=int, default=20000,
                         help='size of experience replay memory')
     parser.add_argument('--SAVER_RATE', type=int, default=500,
                         help='Save network after this number of episodes')
@@ -65,7 +65,7 @@ def get_options():
                         help='size of hidden layer 1')
     parser.add_argument('--H2_SIZE', type=int, default=160,
                         help='size of hidden layer 2')
-    parser.add_argument('--H3_SIZE', type=int, default=80,
+    parser.add_argument('--H3_SIZE', type=int, default=160,
                         help='size of hidden layer 3')
     parser.add_argument('--RESET_STEP', type=int, default=10000,
                         help='number of episode after resetting the simulation')
@@ -85,30 +85,32 @@ def get_options():
                         help='Enable the GUI.'),
     parser.add_argument('--enable_TRAJ', action='store_true', default = False,
                         help='Generate and print estimated trajectory.'),
+    parser.add_argument('--ADD_NOISE', action='store_true', default = False,
+                        help='Add noise to the sensor measurement.'),
     parser.add_argument('--VERBOSE', action='store_true', default = False,
                         help='Verbose output')
     parser.add_argument('--disable_duel', action='store_true',
                         help='Disable the usage of double network.')
-    parser.add_argument('--FRAME_COUNT', type=int, default=3,
+    parser.add_argument('--FRAME_COUNT', type=int, default=4,
                         help='Number of frames to be used')
     parser.add_argument('--ACT_FUNC', type=str, default='relu',
                         help='Activation function')
-    parser.add_argument('--GOAL_REW', type=int, default=6000,
+    parser.add_argument('--GOAL_REW', type=int, default=5000,
                         help='Activation function')
-    parser.add_argument('--FAIL_REW', type=int, default=-2000,
+    parser.add_argument('--FAIL_REW', type=int, default=-5000,
                         help='Activation function')
     parser.add_argument('--VEH_COUNT', type=int, default=6,
                         help='Number of vehicles to use for simulation')
     parser.add_argument('--INIT_SPD', type=int, default=15,
-                        help='Initial speed of vehicle in  km/hr')
-    parser.add_argument('--DIST_MUL', type=int, default=20,
+                        help='Initial speed of vehicle. 100 -> 10m/s = 36km/hr')
+    parser.add_argument('--DIST_MUL', type=int, default=10,
                         help='Multiplier for rewards based on the distance to the goal')
     parser.add_argument('--EXPORT', action='store_true', default=False,
                         help='Export the weights into a csv file')
     parser.add_argument('--SEED', type=int, default=1,
                         help='Set simulation seed')
-    parser.add_argument('--CTR_FREQ', type=float, default=0.2,
-                        help='Control frequency in seconds. Upto 0.001 seconds')
+    # parser.add_argument('--CTR_FREQ', type=float, default=0.2,
+                        # help='Control frequency in seconds. Upto 0.001 seconds')
     parser.add_argument('--MIN_LIDAR_CONST', type=float, default=0.075,
                         help='Stage-wise reward 1/(min(lidar)+MIN_LIDAR_CONST) related to minimum value of LIDAR sensor')
     parser.add_argument('--L2_LOSS', type=float, default=0.0,
@@ -125,6 +127,8 @@ def get_options():
                         help='Relative path to the weight file to load. Only works for KERAS.')
     parser.add_argument('--DUMP_OPTIONS', action='store_true', default = False,
                         help='Dump options and scene_const files.')
+    parser.add_argument('--DRAW', action='store_true', default = False,
+                        help='Visualize the first vehicle')
     options = parser.parse_args()
 
     # Check Inputs
@@ -166,6 +170,8 @@ def printVersions():
     print('TENSOR FLOW VERSION : ' + tf.VERSION)
     print('KERAS VERSION       : ' + tf.keras.__version__)
     print('PYTHON VERSION      : ' + sys.version)
+    print('PyBullet Version:   : ' + str(p.getAPIVersion()) )
+    print('Numpy Version       : ' + str(np.version.version))
     print('===============================================')
 
     return
@@ -189,6 +195,9 @@ def dumpOptions( options, scene_const ):
 # MAIN
 ########################
 if __name__ == "__main__":
+    # Debugging Options
+    ic.configureOutput(includeContext=True)
+
     ##############################
     # SET 'GLOBAL' Variables
     ##############################
@@ -218,20 +227,18 @@ if __name__ == "__main__":
     # Set print options
     np.set_printoptions( precision = 4, linewidth = 100 )
 
-    # For interactive plot
-    # plt.ion()
 
     ######################################
     # Simulation Start
     ######################################
+    # Start Environment
+    sim_env = env_py( options, scene_constants() )
+    sim_env.scene_const.clientID, handle_dict = sim_env.start()
 
     # Initial Camera position
-    cam_pos = [0,0,0]
-    cam_dist = 10
-
-    # Start Environment
-    sim_env                                     = env_py( options, scene_constants() )
-    sim_env.scene_const.clientID, handle_dict   = sim_env.start()
+    cam_pos = [0,12,0]
+    cam_dist = 23
+    p.resetDebugVisualizerCamera( cameraDistance = cam_dist, cameraYaw = 0, cameraPitch = -89, cameraTargetPosition = cam_pos )
 
     # Check Dump
     if options.DUMP_OPTIONS == True:
@@ -253,7 +260,8 @@ if __name__ == "__main__":
     ##############
     # TF Setup
     ##############
-    q_algo          = dqn( sim_env, load = True )
+    # FIXME: Currently using init_eps as the initial value of the curriculum hardness. Separate this into a new option
+    q_algo          = dqn( sim_env, options.INIT_EPS, load = True )
     if options.enable_ICM == True:
         agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
@@ -279,6 +287,12 @@ if __name__ == "__main__":
     # initilize them with initial data
     sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT) )
 
+
+    # FIXME: Temporary data
+
+    # temp_data = pickle.load( open( './20200311_Sample_Data/sample_data', 'rb' ) )
+    # temp_idx = 0
+
     # Global Step Loop
     while epi_counter <= options.MAX_EPISODE:
         # GS_START_TIME_STR   = datetime.datetime.now()
@@ -303,6 +317,11 @@ if __name__ == "__main__":
             ic(sim_env.sensor_queue, obs_sensor_stack)
             ic(sim_env.goal_queue, obs_goal_stack)
 
+        if options.DRAW == True:
+            sim_env.plotVehicle(save=True, predict = 20, network_model = q_algo.agent_train.model_q_all, temp_data = None, temp_idx = None)
+            # sim_env.plotVehicle(save=True, predict = 20, network_model = q_algo.agent_train.model_q_all, temp_data = temp_data, temp_idx = temp_idx)
+            # temp_idx = temp_idx + 1
+
         # Get optimal action q_algo
         action_feed = {}
         action_feed.clear()
@@ -320,7 +339,7 @@ if __name__ == "__main__":
         sim_env.step()
 
         # Update Observation
-        sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT) )
+        sim_env.updateObservation( range(0,sim_env.options.VEH_COUNT), add_noise = sim_env.options.ADD_NOISE )
 
 
         ####
@@ -447,7 +466,7 @@ if __name__ == "__main__":
             # If just running to get memory, do not increment counter
             epi_counter = 0
 
-        handle_dict, sim_env.scene_const, case_direction = sim_env.initScene( reset_veh_list, RANDOMIZE )
+        handle_dict, sim_env.scene_const, case_direction = sim_env.initScene( reset_veh_list, RANDOMIZE, q_algo.course_eps )
 
         ###############
         # Miscellaneous
@@ -458,12 +477,15 @@ if __name__ == "__main__":
         for v in reset_veh_list:
             print('========')
             print('Vehicle #:', v)
-            print('\tGlobal Step:' + str(global_step))
-            print('\tEPS: ' + str(q_algo.eps))
-            print('\tEpisode #: ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) + '\n\tStep: ' + str(int(sim_env.epi_step_stack[v])) )
-            print('\tEpisode Reward: ' + str(sim_env.epi_reward_stack[v])) 
-            print('\tDirection: ' + str(case_direction[v]) ) 
-            print('Last Loss: ',data_package.avg_loss[-1])
+            print('\tGlobal Step     : ' + str(global_step))
+            print('\tEPS             : ' + str(q_algo.eps))
+            print('\tCourse EPS      : ' + str(q_algo.course_eps))
+            print('\tEpisode #       : ' + str(epi_counter) + ' / ' + str(options.MAX_EPISODE) )
+            print('\tStep            : ' + str(int(sim_env.epi_step_stack[v])) )
+            print('\tEpisode Reward  : ' + str(sim_env.epi_reward_stack[v])) 
+            # FIXME: case_direction tells the obstacle position. But scene is updated before printing this.
+            # print('\tObs. Position   : ' + str(case_direction[v]) )        
+            print('\tLast Loss       : ',data_package.avg_loss[-1])
             print('========')
             print('')
 
