@@ -268,7 +268,7 @@ if __name__ == "__main__":
     if options.enable_ICM == True:
         agent_icm       = ICM(options,sim_env.scene_const,'icm_Training')
 
-    a2c_algo = a2c( sim_env, options.INIT_EPS, load = False)
+    a2c_algo = a2c( sim_env, options.INIT_EPS, load = True)
 
     # Some initial local variables
     feed_icm        = {}

@@ -71,15 +71,15 @@ class a2c:
         return
 
     # Update target
-    def __updateTarget(self, global_step):
-        # Update target network
-        if global_step % self.options.TARGET_UPDATE_STEP == 0:
-            print('-----------------------------------------')
-            print("Updating Target network.")
-            print('-----------------------------------------')
-            self.agent_target.model_qa.set_weights( self.agent_train.model_qa.get_weights() )
+    # def __updateTarget(self, global_step):
+    #     # Update target network
+    #     if global_step % self.options.TARGET_UPDATE_STEP == 0:
+    #         print('-----------------------------------------')
+    #         print("Updating Target network.")
+    #         print('-----------------------------------------')
+    #         self.agent_target.model_qa.set_weights( self.agent_train.model_qa.get_weights() )
 
-        return
+    #     return
 
     # update epsilon
     def __decayEps( self, global_step ):
@@ -215,44 +215,52 @@ class a2c:
 
     # Load network wegiths
     def loadNetwork( self ):
-        # FIXME: Loading not working for A2C for now.
+        weight_path = None
 
-        ic('Loading NOT WORKING!!')
+        # If file is provided. From checkpoint.txt, read the last line, i.e., the latest weight file.
+        # For a2c, weight files does NOT include extension, and indicator for agent and critic
+        if self.options.WEIGHT_FILE != None:
+            weight_path_actor = self.options.WEIGHT_FILE + '_actor.h5'
+            weight_path_critic = self.options.WEIGHT_FILE + '_critic.h5'
+        else:
+            if os.path.isfile('./a2c-checkpoints-vehicle/checkpoint_actor.txt'):
+                with open('./a2c-checkpoints-vehicle/checkpoint_actor.txt') as check_file:
+                    # Get file content
+                    weight_file = check_file.readlines()
 
-        return
-        # weight_path = None
+                    # Get last line
+                    weight_file = weight_file[len(weight_file)-1].rstrip()
 
-        # # If file is provided. From checkpoint.txt, read the last line, i.e., the latest weight file.
-        # if self.options.WEIGHT_FILE != None:
-        #     weight_path = self.options.WEIGHT_FILE
-        # elif os.path.isfile('./a2c-checkpoints-vehicle/checkpoint.txt'):
-        #     with open('./a2c-checkpoints-vehicle/checkpoint.txt') as check_file:
-        #         # Get file content
-        #         weight_file = check_file.readlines()
+                    weight_path_actor = './a2c-checkpoints-vehicle/' + weight_file 
 
-        #         # Get last line
-        #         weight_file = weight_file[len(weight_file)-1].rstrip()
+                    ic(weight_path_actor)
 
-        #         weight_path = './a2c-checkpoints-vehicle/' + weight_file 
+                with open('./a2c-checkpoints-vehicle/checkpoint_critic.txt') as check_file:
+                    # Get file content
+                    weight_file = check_file.readlines()
 
-        #         ic(weight_path)
+                    # Get last line
+                    weight_file = weight_file[len(weight_file)-1].rstrip()
 
-        # if weight_path == None:
-        #     print("\n\n=================================================")
-        #     print("=================================================")
-        #     print("Could not find old network weights")
-        #     print("=================================================")
-        #     print("=================================================\n\n")
-        # else:
-        #     self.agent_actor.model_pa.load_weights( weight_path )
-        #     self.agent_critic.model_val.load_weights( weight_path )
-        #     print("\n\n=================================================")
-        #     print("=================================================")
-        #     print("Successfully loaded:", weight_path)
-        #     print("=================================================")
-        #     print("=================================================\n\n")
+                    weight_path_critic = './a2c-checkpoints-vehicle/' + weight_file 
 
-        # time.sleep(1)
+                    ic(weight_path_critic)
+        if weight_path_actor == None:
+            print("\n\n=================================================")
+            print("=================================================")
+            print("Could not find old network weights")
+            print("=================================================")
+            print("=================================================\n\n")
+        else:
+            self.agent_actor.model_pa.load_weights( weight_path_actor )
+            self.agent_critic.model_val.load_weights( weight_path_critic )
+            print("\n\n=================================================")
+            print("=================================================")
+            print("Successfully loaded:", weight_path_actor, weight_path_critic)
+            print("=================================================")
+            print("=================================================\n\n")
+
+        time.sleep(1)
         return
 
     # Save network weights
@@ -267,13 +275,16 @@ class a2c:
         if not os.path.exists('./a2c-checkpoints-vehicle'):
             os.makedirs('./a2c-checkpoints-vehicle')
         # self.agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
-        self.agent_actor.model_pa.save('./a2c-checkpoints-vehicle/actor_' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
-        self.agent_critic.model_val.save('./a2c-checkpoints-vehicle/critic_' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
+        self.agent_actor.model_pa.save('./a2c-checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '_actor.h5', overwrite=True)
+        self.agent_critic.model_val.save('./a2c-checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '_critic.h5', overwrite=True)
 
         # FIXME: Saving checkpoint not working correctly
         # Save checkpoint
-        with open('./a2c-checkpoints-vehicle/checkpoint.txt','a+') as check_file:
-            check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5\n')
+        with open('./a2c-checkpoints-vehicle/checkpoint_actor.txt','a+') as check_file:
+            check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '_actor.h5\n')
+
+        with open('./a2c-checkpoints-vehicle/checkpoint_critic.txt','a+') as check_file:
+            check_file.write(START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '_critic.h5\n')
 
         return
 
