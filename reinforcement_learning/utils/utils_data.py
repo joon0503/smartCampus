@@ -87,13 +87,13 @@ class data_pack:
 
         return
 
-    def plot_loss(self, save_path = './result_data/avg_loss_value_data/' ):
+    def plot_loss(self, save_path = './result_data/avg_loss_value_data/', title = '' ):
         # Plot Average Step Loss
         plt.figure(1)
         fig, ax2 = plt.subplots()
         ax2.plot(self.avg_loss)
         
-        ax2.set_title("Average Loss per Batch Step")
+        ax2.set_title( title + "Average Loss per Batch Step")
         ax2.set_xlabel("Global Step")
         ax2.set_ylabel("Avg Loss")
         fig.savefig( save_path + 'avg_loss_value_data_' + self.start_time_str + '.png') 
@@ -101,7 +101,7 @@ class data_pack:
 
 
     # Save a graph of reward, epsilon and success rate
-    def plot_reward(self, running_avg, save_path = './result_data/reward_data/'):
+    def plot_reward(self, running_avg, save_path = './result_data/reward_data/', title = ''):
         plt.figure(0)
         fig, ax1 = plt.subplots()
 
@@ -120,7 +120,7 @@ class data_pack:
         # Std Dev
         ax1.fill_between(x_coord, np.mean(roll,-1) + np.std(roll,-1), np.mean(roll,-1) - np.std(roll,-1), alpha = 0.5)
 
-        ax1.set_title("Running Average of Episode Reward (Window:" + str(running_avg) + ')')
+        ax1.set_title( title + "Running Average of Episode Reward (Window:" + str(running_avg) + ')')
         ax1.set_xlabel("Episode")
         ax1.set_ylabel("Reward (Running Average)")
 

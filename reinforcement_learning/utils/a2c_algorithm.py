@@ -103,6 +103,7 @@ class a2c:
 
     # Get optimal action Keras. 
     #   action_feed: dictionary of input to keras
+    #   all: print out probabilities as well
     def getOptimalAction( self, action_feed ):
         action_stack_k = self.agent_actor.sample_action_k( action_feed, self.options )
 
@@ -220,8 +221,10 @@ class a2c:
         # If file is provided. From checkpoint.txt, read the last line, i.e., the latest weight file.
         # For a2c, weight files does NOT include extension, and indicator for agent and critic
         if self.options.WEIGHT_FILE != None:
-            weight_path_actor = self.options.WEIGHT_FILE + '_actor.h5'
-            weight_path_critic = self.options.WEIGHT_FILE + '_critic.h5'
+            weight_path_actor = './a2c-checkpoints-vehicle/' + self.options.WEIGHT_FILE + '_actor.h5'
+            weight_path_critic = './a2c-checkpoints-vehicle/' + self.options.WEIGHT_FILE + '_critic.h5'
+
+            ic(weight_path_actor, weight_path_critic)
         else:
             if os.path.isfile('./a2c-checkpoints-vehicle/checkpoint_actor.txt'):
                 with open('./a2c-checkpoints-vehicle/checkpoint_actor.txt') as check_file:
@@ -245,6 +248,9 @@ class a2c:
                     weight_path_critic = './a2c-checkpoints-vehicle/' + weight_file 
 
                     ic(weight_path_critic)
+            else:
+                weight_path_actor = None
+                weight_path_critic = None
         if weight_path_actor == None:
             print("\n\n=================================================")
             print("=================================================")

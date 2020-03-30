@@ -333,6 +333,10 @@ if __name__ == "__main__":
         action_feed.update({'observation_goal_k': obs_goal_stack})
         targetSteer_k, action_stack_k = a2c_algo.getOptimalAction( action_feed )
 
+        # Print optimal action
+        if options.TESTING == True:
+            ic(action_stack_k)
+
         # Apply Action
         sim_env.applyAction( targetSteer_k )
 
@@ -540,8 +544,8 @@ if __name__ == "__main__":
     ##############################3
 
     # Plot Reward
-    data_package.plot_reward( options.RUNNING_AVG_STEP )
-    data_package.plot_loss()
+    data_package.plot_reward( options.RUNNING_AVG_STEP, title = 'A2C Algorithm ' )
+    data_package.plot_loss(title = 'A2C Algorithm')
 
 
 # END

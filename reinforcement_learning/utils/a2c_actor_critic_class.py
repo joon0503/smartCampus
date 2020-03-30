@@ -94,7 +94,7 @@ class Actor:
         self.model_pa = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state, self.action], outputs = self.h_action_out_a)
 
         # keras_opt = tf.keras.optimizers.Adam(lr = options.LR, clipvalue = 10)
-        keras_opt = tf.keras.optimizers.Adam(lr = options.LR)
+        keras_opt = tf.keras.optimizers.Adam(lr = options.LR, clipvalue = 1)
         self.model_p_all.compile( optimizer= keras_opt,
                             loss = 'categorical_crossentropy' 
         )
@@ -124,17 +124,16 @@ class Actor:
     # action_index : VEH_COUNT x 1 array, each index represent action applied to each vehicle. Action ranges from 0 ~ ACTION_DIM-1. 0 means left, ACTION_DIM means right
     def sample_action_k(self, feed, options):
         prob_values = self.model_p_all.predict(feed, batch_size=options.VEH_COUNT)
-        # if options.TESTING == True and options.VERBOSE == True:
-        #     ic(np.argmax(act_values,axis=1))
-        #     ic(act_values)
-        #     print("\n")
-        #     pass
 
         # Get maximum for each vehicle
         action_index = np.zeros(options.VEH_COUNT, dtype=int)
         for i in range(0,options.VEH_COUNT):
             action_index[i] = np.random.choice(options.ACTION_DIM, 1, p=prob_values[i,:])[0]
 
+        if options.TESTING == True:
+            ic(prob_values, action_index)
+            print("\n")
+            pass
         return action_index
 
     def getTrainableVarByName(self):
