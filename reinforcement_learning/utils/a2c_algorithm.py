@@ -105,7 +105,7 @@ class a2c:
     #   action_feed: dictionary of input to keras
     #   all: print out probabilities as well
     def getOptimalAction( self, action_feed ):
-        action_stack_k = self.agent_actor.sample_action_k( action_feed, self.options )
+        action_stack_k, action_prob = self.agent_actor.sample_action_k( action_feed, self.options )
 
         # Apply the Steering Action & Keep Velocity. For some reason, +ve means left, -ve means right
         # Recall action_stack_k is index with 0 means left, and ACTION_DIM-1 mean right.
@@ -113,7 +113,7 @@ class a2c:
         # targetSteer = sim_env.scene_const.max_steer - action_stack * abs(sim_env.scene_const.max_steer - sim_env.scene_const.min_steer)/(options.ACTION_DIM-1)
         targetSteer_k = self.scene_const.max_steer - action_stack_k * abs(self.scene_const.max_steer - self.scene_const.min_steer)/(self.options.ACTION_DIM-1)
 
-        return targetSteer_k, action_stack_k
+        return targetSteer_k, action_stack_k, action_prob
 
     def trainOneStep( self ):
         # Obtain the mini batch. (Batch Memory is '2D array' with BATCH_SIZE X size(experience)
@@ -154,6 +154,7 @@ class a2c:
         # Find Value Target
         value_target = np.reshape(rewards_mb, (self.options.BATCH_SIZE,1)) + self.options.GAMMA * next_value
 
+
         # Find Advantage
         advantage = np.zeros((self.options.BATCH_SIZE, self.options.ACTION_DIM))
         for i in range(0,self.options.BATCH_SIZE): 
@@ -191,6 +192,8 @@ class a2c:
         # q_target_val_mtx[ np.arange(self.options.BATCH_SIZE), action_train_k] = q_target_val_vec
 
 
+        # ic(curr_value, next_value, value_target,advantage)
+
         # Train Keras Model
         keras_feed = {}
         keras_feed.clear()
@@ -199,7 +202,7 @@ class a2c:
                 'observation_sensor_k' : states_sensor_mb[:,0:self.scene_const.sensor_count,:], 
                 'observation_state'    : states_sensor_mb[:,self.scene_const.sensor_count:,:], 
                 'observation_goal_k'   : states_goal_mb,
-                'action_k'             : actions_mb_hot
+                # 'action_k'             : actions_mb_hot
             }
         )
 
@@ -207,8 +210,12 @@ class a2c:
             ic(keras_feed)
             # ic( np.reshape(q_target_val_mtx,(self.options.BATCH_SIZE,self.options.ACTION_DIM)) )
 
+        # if self.options.TESTING == True:
+            # ic(advantage)
+
+        # FIXME: using -1*advantage as the target??
         # Loss
-        loss_actor  = self.agent_actor.model_p_all.train_on_batch( keras_feed, advantage)
+        loss_actor  = self.agent_actor.model_p_all.train_on_batch( keras_feed, advantage)        # Data, Target
         loss_critic = self.agent_critic.model_val.train_on_batch( keras_feed, np.reshape(value_target,(self.options.BATCH_SIZE,1)) )
         # loss_k = self.agent_train.model_qa.train_on_batch( keras_feed, np.reshape(q_target_val_vec,(self.options.BATCH_SIZE,1)) )
 
@@ -258,7 +265,7 @@ class a2c:
             print("=================================================")
             print("=================================================\n\n")
         else:
-            self.agent_actor.model_pa.load_weights( weight_path_actor )
+            self.agent_actor.model_p_all.load_weights( weight_path_actor )
             self.agent_critic.model_val.load_weights( weight_path_critic )
             print("\n\n=================================================")
             print("=================================================")
@@ -281,7 +288,7 @@ class a2c:
         if not os.path.exists('./a2c-checkpoints-vehicle'):
             os.makedirs('./a2c-checkpoints-vehicle')
         # self.agent_train.model.save_weights('./checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '.h5', overwrite=True)
-        self.agent_actor.model_pa.save('./a2c-checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '_actor.h5', overwrite=True)
+        self.agent_actor.model_p_all.save('./a2c-checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '_actor.h5', overwrite=True)
         self.agent_critic.model_val.save('./a2c-checkpoints-vehicle/' + START_TIME_STR + "_e" + str(epi_counter) + "_gs" + str(global_step) + '_critic.h5', overwrite=True)
 
         # FIXME: Saving checkpoint not working correctly

@@ -201,6 +201,16 @@ if __name__ == "__main__":
     # Debugging Options
     ic.configureOutput(includeContext=True)
 
+    # Testing
+    # with tf.Session() as sess:
+    #     a = tf.constant([1., 0., 0., 0., 1., 0., 0., 0., 1.], shape=[3,3]) 
+    #     b = tf.constant([.9, .05, .05, .11, .89, 1, .05, .01, .94], shape=[3,3])
+    #     loss = tf.keras.backend.categorical_crossentropy(a, b)
+    #     print(a.eval())
+    #     print(b.eval())
+    #     print(loss.eval())
+
+    # sys.exit()
     ##############################
     # SET 'GLOBAL' Variables
     ##############################
@@ -331,7 +341,10 @@ if __name__ == "__main__":
         action_feed.update({'observation_sensor_k': obs_sensor_stack[:,0:sim_env.scene_const.sensor_count,:]})
         action_feed.update({'observation_state': obs_sensor_stack[:,sim_env.scene_const.sensor_count:,:]})
         action_feed.update({'observation_goal_k': obs_goal_stack})
-        targetSteer_k, action_stack_k = a2c_algo.getOptimalAction( action_feed )
+        targetSteer_k, action_stack_k, action_prob = a2c_algo.getOptimalAction( action_feed )
+
+        # print(action_prob)
+        # print(action_stack_k)
 
         # Print optimal action
         if options.TESTING == True:
@@ -493,6 +506,7 @@ if __name__ == "__main__":
             # FIXME: case_direction tells the obstacle position. But scene is updated before printing this.
             # print('\tObs. Position   : ' + str(case_direction[v]) )        
             print('\tLast Loss       : ',data_package.avg_loss[-1])
+            print(action_prob)
             print('========')
             print('')
 

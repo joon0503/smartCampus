@@ -44,11 +44,11 @@ class scene_constants:
     clientID            = []
 
     # Maximum steering angle in degrees
-    max_steer           = 15
+    max_steer           = 30
     min_steer           = -1*max_steer
 
     # Collision occurs if readings are less than this number. in meters
-    collision_distance  = 1.0   # this means if sensor is 0.1, then collision
+    collision_distance  = 0.5   # this means if sensor is 0.1, then collision
 
     # Distance to the goal. Used for normalization
     goal_distance       = 40
@@ -72,7 +72,7 @@ class scene_constants:
     MAX_X_POS       = 0             # Maximum x-pos at start
 
     MIN_LANE_WIDTH  = 4.0           # Min / Max width of test case
-    MAX_LANE_WIDTH  = 8.0
+    MAX_LANE_WIDTH  = 6.0
 
     # y-axis distance where obstacle lies
     MAX_OBS_Y_POS   = lane_len * 0.5 * 0.75         

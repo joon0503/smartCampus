@@ -15,14 +15,14 @@ class Actor:
         self.obs_goal_k     = tf.keras.layers.Input( shape = ( 2, options.FRAME_COUNT), name='observation_goal_k')
 
         # BATCH_SIZE x ACTION_DIM
-        self.action         = tf.keras.layers.Input( shape = (options.ACTION_DIM,), name='action_k')
+        # self.action         = tf.keras.layers.Input( shape = (options.ACTION_DIM,), name='action_k')
 
         ########
         # KERAS
         ########
 
         # Typical Neural Net
-        network_structure = 3
+        network_structure = 1
         if network_structure == 1:
             # Dense
             self.h_flat1_k = tf.keras.layers.Flatten()(self.obs_goal_k)
@@ -84,34 +84,35 @@ class Actor:
 
             # Q-values
             self.h_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.expand_dims(x[:,0], axis=1) + (x[:,1:] - tf.keras.backend.mean( x[:,1:], axis = 1, keepdims=True)), name = 'out_large'  )(tf.keras.layers.concatenate([self.h_val_est,self.h_adv_est]))
-            self.h_actor_out_all = tf.keras.layers.Dense( options.ACTION_DIM, activation='softmax',)(self.h_out_k)
+        
+        self.h_actor_out_all = tf.keras.layers.Dense( options.ACTION_DIM, activation='softmax', name = 'softmax_layer')(self.h_out_k)
 
         # Max Q-value
         # self.h_action_out_k = tf.keras.layers.Lambda( lambda x: tf.keras.backend.max( x, axis = 1, keepdims = True) )(self.h_out_k)
-        self.h_action_out_a = tf.keras.layers.dot([self.h_actor_out_all, self.action], axes=[1,1])
+        # self.h_action_out_a = tf.keras.layers.dot([self.h_actor_out_all, self.action], axes=[1,1])
 
         self.model_p_all = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state], outputs = self.h_actor_out_all)
-        self.model_pa = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state, self.action], outputs = self.h_action_out_a)
+        # self.model_pa = tf.keras.models.Model( inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state, self.action], outputs = self.h_action_out_a)
 
         # keras_opt = tf.keras.optimizers.Adam(lr = options.LR, clipvalue = 10)
-        keras_opt = tf.keras.optimizers.Adam(lr = options.LR, clipvalue = 1)
+        keras_opt = tf.keras.optimizers.SGD(lr = options.LR)
         self.model_p_all.compile( optimizer= keras_opt,
                             loss = 'categorical_crossentropy' 
         )
-        self.model_pa.compile( optimizer= keras_opt,
-                            loss = 'categorical_crossentropy' 
-        )
+        # self.model_pa.compile( optimizer= keras_opt,
+        #                     loss = 'categorical_crossentropy' 
+        # )
         ic('Actor p_all Summary')
         self.model_p_all.summary()
-        ic('Actor pa Summary')
-        self.model_pa.summary()
+        # ic('Actor pa Summary')
+        # self.model_pa.summary()
 
         # effectively computing twice to get value and maximum
         # self.model_q_all = tf.keras.Model(inputs = [self.obs_goal_k, self.obs_sensor_k, self.obs_state], outputs = self.model_qa.get_layer('out_large').output)
 
         # Figures
         tf.keras.utils.plot_model( self.model_p_all, to_file='actor_p_all.png')
-        tf.keras.utils.plot_model( self.model_pa, to_file='actor_pa.png')
+        # tf.keras.utils.plot_model( self.model_pa, to_file='actor_pa.png')
         # tf.keras.utils.plot_model( self.model_q_all, to_file='model_q_all.png')
 
         return
@@ -124,17 +125,26 @@ class Actor:
     # action_index : VEH_COUNT x 1 array, each index represent action applied to each vehicle. Action ranges from 0 ~ ACTION_DIM-1. 0 means left, ACTION_DIM means right
     def sample_action_k(self, feed, options):
         prob_values = self.model_p_all.predict(feed, batch_size=options.VEH_COUNT)
-
+        # ic(prob_values, feed)
         # Get maximum for each vehicle
         action_index = np.zeros(options.VEH_COUNT, dtype=int)
         for i in range(0,options.VEH_COUNT):
+            # FIXME: Modifying probability to ensure exploration. Currently, change minimum to 0.02 and apply softmax
+
+            # Set minimum prob
+            # modified_prob = np.maximum(prob_values[i,:], 0.02)
+
+            # Adjust prob with maximum to sum to 1
+            # modified_prob[np.argmax(prob_values[i,:])] = 1 + modified_prob[np.argmax(prob_values[i,:])] - np.sum(modified_prob)
+
+            # ic(prob_values,modified_prob)
             action_index[i] = np.random.choice(options.ACTION_DIM, 1, p=prob_values[i,:])[0]
 
         if options.TESTING == True:
             ic(prob_values, action_index)
             print("\n")
-            pass
-        return action_index
+
+        return action_index, prob_values
 
     def getTrainableVarByName(self):
         trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope)

@@ -6,19 +6,19 @@ h2_size=320
 h3_size=320
 fr_size=4
 eps_step=10800
-lr=1e-4
+lr=1e-5
 
 # Eps counter parameters
 eps_start=1.0
 eps_end=1.0
-eps_dec=-0.2
+eps_dec=-0.1
 
 # Initial Speed
 init_spd=15
 
 for eps in $(seq $eps_start $eps_dec $eps_end)
     do
-        python3 a2c_bullet.py --INIT_EPS $eps --INIT_SPD $init_spd --LR $lr
+        python3 a2c_bullet.py --INIT_EPS $eps --INIT_SPD $init_spd --LR $lr --MAX_EXPERIENCE 1 --BATCH_SIZE 1 --X_COUNT 1 --VEH_COUNT 1
 done
 
 #python3 dqn_bullet.py --H1_SIZE $h1_size --H2_SIZE $h2_size --H3_SIZE $h3_size --MAX_EXPERIENCE 20000 --FRAME_COUNT $fr_size --EPS_ANNEAL_STEPS $eps_step --INIT_EPS 0.8
